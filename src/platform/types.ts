@@ -10,6 +10,8 @@ export type TenantBusinessProfile = {
   support_phone: string | null;
   support_email: string | null;
   support_cta_label: string;
+  header_cta_label: string;
+  header_cta_notice: string;
   business_description: string | null;
   primary_color: string;
   user_bubble_color: string;

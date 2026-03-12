@@ -21,12 +21,18 @@ type ChatWidgetProps = {
   portalToken?: string;
   supportPhoneOverride?: string | null;
   supportCtaLabelOverride?: string | null;
+  headerCtaLabelOverride?: string | null;
+  headerCtaNoticeOverride?: string | null;
   appearanceOverride?: Partial<ChatWidgetAppearance>;
 };
 
 type FlightUi = NonNullable<MessageMetadata["flight_ui"]>;
 type ServiceUi = NonNullable<MessageMetadata["service_ui"]>;
 type CallCta = NonNullable<MessageMetadata["call_cta"]>;
+type HeaderCtaConfig = {
+  label: string;
+  notice: string;
+};
 type ChatWidgetAppearance = {
   primaryColor: string;
   userBubbleColor: string;
@@ -57,6 +63,12 @@ const defaultAppearance: ChatWidgetAppearance = {
   botAvatarUrl: null
 };
 
+const defaultHeaderCtaConfig: HeaderCtaConfig = {
+  label: "New",
+  notice: "Hi! I am your AI assistant. Ask me anything about your trip."
+};
+const poweredByBrand = "Vacation Vista";
+
 function normalizeAppearance(input?: Partial<ChatWidgetAppearance> | null): ChatWidgetAppearance {
   return {
     primaryColor: input?.primaryColor?.trim() || defaultAppearance.primaryColor,
@@ -80,53 +92,63 @@ function normalizeAppearance(input?: Partial<ChatWidgetAppearance> | null): Chat
   };
 }
 
+function normalizeHeaderCtaConfig(input?: Partial<HeaderCtaConfig> | null): HeaderCtaConfig {
+  return {
+    label: input?.label?.trim() || defaultHeaderCtaConfig.label,
+    notice: input?.notice?.trim() || defaultHeaderCtaConfig.notice
+  };
+}
+
 function darkenHex(input: string) {
   const normalized = input.replace("#", "");
   if (!/^([a-fA-F0-9]{6})$/.test(normalized)) {
     return "#00454b";
   }
-
   const channels = normalized.match(/.{1,2}/g)?.map((value) => Math.max(0, Math.min(255, parseInt(value, 16) - 24))) ?? [0, 69, 75];
   return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
-function parseAppearanceFromQuery(): Partial<ChatWidgetAppearance> {
+function parseWidgetConfigFromQuery(): {
+  appearance: Partial<ChatWidgetAppearance>;
+  supportPhone?: string;
+  supportCtaLabel?: string;
+  headerCtaLabel?: string;
+  headerCtaNotice?: string;
+} {
   const params = new URLSearchParams(window.location.search);
   const width = Number(params.get("window_width"));
   const height = Number(params.get("window_height"));
   const radius = Number(params.get("border_radius"));
-
   return {
-    primaryColor: params.get("primary_color") ?? undefined,
-    userBubbleColor: params.get("user_bubble_color") ?? undefined,
-    botBubbleColor: params.get("bot_bubble_color") ?? undefined,
-    fontFamily: params.get("font_family") ?? undefined,
-    widgetPosition: params.get("widget_position") === "left" ? "left" : "right",
-    launcherStyle:
-      params.get("launcher_style") === "pill" ||
-      params.get("launcher_style") === "square" ||
-      params.get("launcher_style") === "minimal"
-        ? (params.get("launcher_style") as ChatWidgetAppearance["launcherStyle"])
-        : undefined,
-    windowWidth: Number.isFinite(width) ? width : undefined,
-    windowHeight: Number.isFinite(height) ? height : undefined,
-    borderRadius: Number.isFinite(radius) ? radius : undefined,
-    botName: params.get("bot_name") ?? undefined,
-    welcomeMessage: params.get("welcome_message") ?? undefined,
-    botAvatarUrl: params.get("avatar_url") ?? undefined
+    appearance: {
+      primaryColor: params.get("primary_color") || undefined,
+      userBubbleColor: params.get("user_bubble_color") || undefined,
+      botBubbleColor: params.get("bot_bubble_color") || undefined,
+      fontFamily: params.get("font_family") || undefined,
+      widgetPosition: params.get("widget_position") === "left" ? "left" : "right",
+      launcherStyle:
+        params.get("launcher_style") === "pill" ||
+          params.get("launcher_style") === "square" ||
+          params.get("launcher_style") === "minimal"
+          ? (params.get("launcher_style") as ChatWidgetAppearance["launcherStyle"])
+          : undefined,
+      windowWidth: Number.isFinite(width) ? width : undefined,
+      windowHeight: Number.isFinite(height) ? height : undefined,
+      borderRadius: Number.isFinite(radius) ? radius : undefined,
+      botName: params.get("bot_name") || undefined,
+      welcomeMessage: params.get("welcome_message") || undefined,
+      botAvatarUrl: params.get("avatar_url") || undefined
+    },
+    supportPhone: params.get("support_phone") || undefined,
+    supportCtaLabel: params.get("support_cta_label") || undefined,
+    headerCtaLabel: params.get("header_cta_label") || undefined,
+    headerCtaNotice: params.get("header_cta_notice") || undefined
   };
 }
 
 function resolveEmbeddedSiteHost() {
-  if (!document.referrer) {
-    return undefined;
-  }
-
-  try {
-    return new URL(document.referrer).host;
-  } catch {
-    return undefined;
-  }
+  if (!document.referrer) return undefined;
+  try { return new URL(document.referrer).host; } catch { return undefined; }
 }
 
 function sanitizePhoneNumber(value: string) {
@@ -135,10 +157,7 @@ function sanitizePhoneNumber(value: string) {
 
 function buildCallCtaOverride(number?: string | null, label?: string | null): CallCta | null {
   const trimmedNumber = number?.trim();
-  if (!trimmedNumber) {
-    return null;
-  }
-
+  if (!trimmedNumber) return null;
   return {
     number: trimmedNumber,
     tel: `tel:${sanitizePhoneNumber(trimmedNumber)}`,
@@ -146,213 +165,180 @@ function buildCallCtaOverride(number?: string | null, label?: string | null): Ca
   };
 }
 
-function resolveCallCta(
-  messageCta?: MessageMetadata["call_cta"] | null,
-  overrideCta?: CallCta | null
-): CallCta | null {
+function resolveCallCta(messageCta?: MessageMetadata["call_cta"] | null, overrideCta?: CallCta | null): CallCta | null {
   return overrideCta ?? messageCta ?? null;
 }
 
 function getRenderableMessageContent(message: ChatMessage) {
   const content = message.content.trim();
-  if (message.role !== "assistant" || !message.metadata?.flight_deals?.length) {
-    return content;
-  }
-
+  if (message.role !== "assistant" || !message.metadata?.flight_deals?.length) return content;
   return "Here are the best live fares I found. Compare the cards below, or tell me what you want to change.";
 }
 
 function formatDealDateTime(value?: string) {
-  if (!value) {
-    return "N/A";
-  }
-
+  if (!value) return "N/A";
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return parsed.toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
 function formatStops(stops?: number) {
-  if (typeof stops !== "number") {
-    return "Stops not listed";
-  }
-
-  if (stops === 0) {
-    return "Non-stop";
-  }
-
+  if (typeof stops !== "number") return "Stops not listed";
+  if (stops === 0) return "Non-stop";
   return `${stops} stop${stops > 1 ? "s" : ""}`;
 }
 
 function formatCabin(cabin?: string) {
-  if (!cabin) {
-    return "Cabin not listed";
-  }
-
-  return cabin
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  if (!cabin) return "Cabin not listed";
+  return cabin.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatThreadTime(iso: string) {
-  return new Date(iso).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  return new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function FlightDeals({
-  metadata,
-  callCtaOverride
-}: {
-  metadata: MessageMetadata;
-  callCtaOverride?: CallCta | null;
-}) {
-  if (!metadata.flight_deals || metadata.flight_deals.length === 0) {
-    return null;
-  }
+function formatMessageTime(iso: string) {
+  return new Date(iso).toLocaleString([], { hour: "2-digit", minute: "2-digit" });
+}
 
-  const offerLabel = "Call now to get up to 40% off";
+// ── SVG Icons ──────────────────────────────────────────────────────────────────
+function IconChat() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  );
+}
+
+function IconClose() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  );
+}
+
+function IconChevronDown() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  );
+}
+
+function IconSend() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  );
+}
+
+function IconPlus() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function IconPhone() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.35 1.78.68 2.61a2 2 0 0 1-.45 2.11L8.1 9.91a16 16 0 0 0 6 6l1.47-1.24a2 2 0 0 1 2.11-.45c.83.33 1.71.56 2.61.68A2 2 0 0 1 22 16.92z" />
+    </svg>
+  );
+}
+
+function IconMenu() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+    </svg>
+  );
+}
+
+// ── Typing indicator ────────────────────────────────────────────────────────────
+function TypingIndicator() {
+  return (
+    <div className="message-row assistant">
+      <div className="typing-indicator">
+        <div className="typing-dot" />
+        <div className="typing-dot" />
+        <div className="typing-dot" />
+      </div>
+    </div>
+  );
+}
+
+// ── Flight Deals ────────────────────────────────────────────────────────────────
+function FlightDeals({ metadata, callCtaOverride }: { metadata: MessageMetadata; callCtaOverride?: CallCta | null }) {
+  if (!metadata.flight_deals || metadata.flight_deals.length === 0) return null;
   const callCta = resolveCallCta(metadata.call_cta, callCtaOverride);
-
+  const ctaLabel = callCta ? callCta.label : "Book now";
+  const ctaHref = callCta?.tel ?? "#";
   return (
     <div className="deal-grid">
-      {callCta ? (
-        <div className="deal-offer-banner">
-          <div>
-            <strong>{offerLabel}</strong>
-            <p>Published fares are shown below. Better unpublished options may be available by phone.</p>
-          </div>
-          <a href={callCta.tel} className="deal-banner-cta">
-            {callCta.number}
-          </a>
-        </div>
-      ) : null}
-
       {metadata.flight_deals.map((deal) => (
         <article key={deal.id} className="deal-card">
+          {/* Airline + price row */}
           <div className="deal-head">
             <div className="deal-airline">
-              {deal.airline_logo ? <img src={deal.airline_logo} alt={deal.airline} className="deal-logo" /> : null}
-              <div>
+              {deal.airline_logo
+                ? <img src={deal.airline_logo} alt={deal.airline} className="deal-logo" />
+                : <div className="deal-logo-fallback">{(deal.airline ?? "").slice(0, 2).toUpperCase()}</div>}
+              <div className="deal-airline-info">
                 <h4>{deal.airline}</h4>
-                <p className="deal-route">{deal.origin} to {deal.destination}</p>
+                <p className="deal-route">{deal.origin} → {deal.destination}</p>
               </div>
             </div>
             <div className="deal-price-wrap">
               <p className="deal-price">{deal.total_price}</p>
-              <span className="deal-price-caption">Live fare</span>
             </div>
           </div>
-
-          <div className="deal-meta-grid">
-            <div>
-              <span>Depart</span>
-              <strong>{formatDealDateTime(deal.departure_time)}</strong>
-            </div>
-            <div>
-              <span>Arrive</span>
-              <strong>{formatDealDateTime(deal.arrival_time)}</strong>
-            </div>
-            <div>
-              <span>Stops</span>
-              <strong>{formatStops(deal.stops)}</strong>
-            </div>
-            <div>
-              <span>Cabin</span>
-              <strong>{formatCabin(deal.cabin_class)}</strong>
-            </div>
-          </div>
-
-          {deal.duration ? <p className="deal-duration">Duration {deal.duration}</p> : null}
-
-          {callCta ? (
-            <a href={callCta.tel} className="deal-card-cta">
-              {offerLabel}
-            </a>
-          ) : null}
+          <a href={ctaHref} className="deal-card-cta">{ctaLabel}</a>
         </article>
       ))}
     </div>
   );
 }
 
-function QuickReplies({
-  quickReplies,
-  disabled,
-  onSelect
-}: {
-  quickReplies: string[];
-  disabled: boolean;
-  onSelect: (value: string) => void;
-}) {
-  if (quickReplies.length === 0) {
-    return null;
-  }
 
+// ── Quick Replies ───────────────────────────────────────────────────────────────
+function QuickReplies({ quickReplies, disabled, onSelect, className }: { quickReplies: string[]; disabled: boolean; onSelect: (v: string) => void; className?: string }) {
+  if (quickReplies.length === 0) return null;
   return (
-    <div className="quick-replies">
+    <div className={className ?? "quick-replies"}>
       {quickReplies.map((reply) => (
-        <button key={reply} type="button" disabled={disabled} onClick={() => onSelect(reply)}>
-          {reply}
-        </button>
+        <button key={reply} type="button" disabled={disabled} onClick={() => onSelect(reply)}>{reply}</button>
       ))}
     </div>
   );
 }
 
+// ── Service Request Summary ─────────────────────────────────────────────────────
 function ServiceRequestSummary({ metadata }: { metadata: MessageMetadata }) {
-  if (!metadata.service_request) {
-    return null;
-  }
-
+  if (!metadata.service_request) return null;
   const entries = Object.entries(metadata.service_request.payload ?? {});
-  if (entries.length === 0) {
-    return null;
-  }
-
+  if (entries.length === 0) return null;
   return (
     <div className="service-summary">
       <h4>{metadata.service_request.service.toUpperCase()} request</h4>
       <ul>
         {entries.map(([key, value]) => (
-          <li key={key}>
-            <span>{key.replace(/_/g, " ")}</span>
-            <strong>{String(value)}</strong>
-          </li>
+          <li key={key}><span>{key.replace(/_/g, " ")}</span><strong>{String(value)}</strong></li>
         ))}
       </ul>
     </div>
   );
 }
 
+// ── Guided Flight Input ─────────────────────────────────────────────────────────
 function GuidedFlightInput({
-  flightUi,
-  disabled,
-  onSubmit,
-  tenantId,
-  backendUrl,
-  authToken,
-  siteHost
+  flightUi, disabled, onSubmit, tenantId, backendUrl, authToken, siteHost
 }: {
-  flightUi: FlightUi;
-  disabled: boolean;
-  onSubmit: (value: string) => void;
-  tenantId: string;
-  backendUrl?: string;
-  authToken?: string;
-  siteHost?: string;
+  flightUi: FlightUi; disabled: boolean; onSubmit: (v: string) => void;
+  tenantId: string; backendUrl?: string; authToken?: string; siteHost?: string;
 }) {
   const [airportText, setAirportText] = useState("");
   const [dateText, setDateText] = useState("");
@@ -365,103 +351,59 @@ function GuidedFlightInput({
   const [liveAirportSuggestions, setLiveAirportSuggestions] = useState<Array<{ code: string; label: string }>>([]);
 
   useEffect(() => {
-    setAirportText("");
-    setDateText("");
+    setAirportText(""); setDateText("");
     setAdults(flightUi.state?.passengers?.adults ?? 1);
     setChildren(flightUi.state?.passengers?.children ?? 0);
     setInfants(flightUi.state?.passengers?.infants ?? 0);
     setTripTypeValue(flightUi.state?.trip_type ?? "one-way");
     setCabinValue(flightUi.state?.cabin_class ? formatCabin(flightUi.state.cabin_class) : "Economy");
-    setSelectedAirportCode("");
-    setLiveAirportSuggestions([]);
+    setSelectedAirportCode(""); setLiveAirportSuggestions([]);
   }, [flightUi.next_slot, flightUi.state?.passengers?.adults, flightUi.state?.passengers?.children, flightUi.state?.passengers?.infants]);
 
   useEffect(() => {
-    if (flightUi.next_slot !== "origin" && flightUi.next_slot !== "destination") {
-      return;
-    }
-
+    if (flightUi.next_slot !== "origin" && flightUi.next_slot !== "destination") return;
     const query = airportText.trim();
-    if (query.length < 2) {
-      setLiveAirportSuggestions([]);
-      return;
-    }
-
+    if (query.length < 2) { setLiveAirportSuggestions([]); return; }
     let isCancelled = false;
     const timer = window.setTimeout(() => {
-      searchPlaceSuggestions({
-        tenantId,
-        query,
-        backendUrl,
-        authToken,
-        siteHost
-      })
-        .then((suggestions) => {
-          if (!isCancelled) {
-            setLiveAirportSuggestions(suggestions);
-          }
-        })
-        .catch(() => {
-          if (!isCancelled) {
-            setLiveAirportSuggestions([]);
-          }
-        });
+      searchPlaceSuggestions({ tenantId, query, backendUrl, authToken, siteHost })
+        .then((s) => { if (!isCancelled) setLiveAirportSuggestions(s); })
+        .catch(() => { if (!isCancelled) setLiveAirportSuggestions([]); });
     }, 220);
-
-    return () => {
-      isCancelled = true;
-      window.clearTimeout(timer);
-    };
+    return () => { isCancelled = true; window.clearTimeout(timer); };
   }, [airportText, flightUi.next_slot, tenantId, backendUrl, authToken, siteHost]);
 
   const airportOptions = useMemo(() => {
     const merged = [...liveAirportSuggestions, ...(flightUi.airport_suggestions ?? [])];
     const map = new Map<string, { code: string; label: string }>();
-
     for (const item of merged) {
       const code = item.code?.trim().toUpperCase();
-      if (!code || map.has(code)) {
-        continue;
-      }
-
-      map.set(code, {
-        code,
-        label: item.label
-      });
+      if (!code || map.has(code)) continue;
+      map.set(code, { code, label: item.label });
     }
-
     return Array.from(map.values()).slice(0, 8);
   }, [liveAirportSuggestions, flightUi.airport_suggestions]);
 
   useEffect(() => {
-    if (flightUi.next_slot !== "origin" && flightUi.next_slot !== "destination") {
-      return;
-    }
-
-    setSelectedAirportCode((current) => {
-      if (current && airportOptions.some((option) => option.code === current)) {
-        return current;
-      }
+    if (flightUi.next_slot !== "origin" && flightUi.next_slot !== "destination") return;
+    setSelectedAirportCode((cur) => {
+      if (cur && airportOptions.some((o) => o.code === cur)) return cur;
       return airportOptions[0]?.code ?? "";
     });
   }, [airportOptions, flightUi.next_slot]);
 
-  if (flightUi.phase !== "collecting" || !flightUi.next_slot) {
-    return null;
-  }
+  if (flightUi.phase !== "collecting" || !flightUi.next_slot) return null;
 
   if (flightUi.next_slot === "trip_type") {
     return (
       <div className="guided-input">
         <p>Trip type</p>
         <div className="guided-inline">
-          <select value={tripTypeValue} onChange={(event) => setTripTypeValue(event.target.value)}>
+          <select value={tripTypeValue} onChange={(e) => setTripTypeValue(e.target.value)}>
             <option value="one-way">One-way</option>
             <option value="round-trip">Round-trip</option>
           </select>
-          <button type="button" disabled={disabled} onClick={() => onSubmit(tripTypeValue)}>
-            Use trip type
-          </button>
+          <button type="button" disabled={disabled} onClick={() => onSubmit(tripTypeValue)}>Use trip type</button>
         </div>
       </div>
     );
@@ -472,15 +414,13 @@ function GuidedFlightInput({
       <div className="guided-input">
         <p>Cabin class</p>
         <div className="guided-inline">
-          <select value={cabinValue} onChange={(event) => setCabinValue(event.target.value)}>
+          <select value={cabinValue} onChange={(e) => setCabinValue(e.target.value)}>
             <option value="Economy">Economy</option>
             <option value="Premium Economy">Premium Economy</option>
             <option value="Business">Business</option>
             <option value="First">First</option>
           </select>
-          <button type="button" disabled={disabled} onClick={() => onSubmit(cabinValue)}>
-            Use cabin
-          </button>
+          <button type="button" disabled={disabled} onClick={() => onSubmit(cabinValue)}>Use cabin</button>
         </div>
       </div>
     );
@@ -492,19 +432,8 @@ function GuidedFlightInput({
         <p>{flightUi.next_slot === "depart_date" ? "Departure date" : "Return date"}</p>
         <small className="guided-help">Use the calendar picker to send the exact date in one click.</small>
         <div className="guided-inline">
-          <input
-            type="date"
-            value={dateText}
-            min={new Date().toISOString().slice(0, 10)}
-            onChange={(event) => setDateText(event.target.value)}
-          />
-          <button
-            type="button"
-            disabled={disabled || !dateText}
-            onClick={() => onSubmit(dateText)}
-          >
-            Use date
-          </button>
+          <input type="date" value={dateText} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDateText(e.target.value)} />
+          <button type="button" disabled={disabled || !dateText} onClick={() => onSubmit(dateText)}>Use date</button>
         </div>
       </div>
     );
@@ -515,38 +444,25 @@ function GuidedFlightInput({
       <div className="guided-input">
         <p>Passengers</p>
         <div className="passenger-grid">
-          <label>
-            Adults
-            <select value={adults} onChange={(event) => setAdults(Number(event.target.value))}>
-              {Array.from({ length: 9 }, (_, idx) => idx + 1).map((value) => (
-                <option key={`adults-${value}`} value={value}>{value}</option>
-              ))}
+          <label>Adults
+            <select value={adults} onChange={(e) => setAdults(Number(e.target.value))}>
+              {Array.from({ length: 9 }, (_, i) => i + 1).map((v) => <option key={`a-${v}`} value={v}>{v}</option>)}
             </select>
           </label>
-          <label>
-            Children
-            <select value={children} onChange={(event) => setChildren(Number(event.target.value))}>
-              {Array.from({ length: 7 }, (_, idx) => idx).map((value) => (
-                <option key={`children-${value}`} value={value}>{value}</option>
-              ))}
+          <label>Children
+            <select value={children} onChange={(e) => setChildren(Number(e.target.value))}>
+              {Array.from({ length: 7 }, (_, i) => i).map((v) => <option key={`c-${v}`} value={v}>{v}</option>)}
             </select>
           </label>
-          <label>
-            Infants
-            <select value={infants} onChange={(event) => setInfants(Number(event.target.value))}>
-              {Array.from({ length: 5 }, (_, idx) => idx).map((value) => (
-                <option key={`infants-${value}`} value={value}>{value}</option>
-              ))}
+          <label>Infants
+            <select value={infants} onChange={(e) => setInfants(Number(e.target.value))}>
+              {Array.from({ length: 5 }, (_, i) => i).map((v) => <option key={`i-${v}`} value={v}>{v}</option>)}
             </select>
           </label>
         </div>
         <small className="guided-help">Adjust adults, children, and infants, then apply the passenger mix.</small>
-        <button
-          type="button"
-          className="guided-submit"
-          disabled={disabled}
-          onClick={() => onSubmit(`Adults ${adults}, Children ${children}, Infants ${infants}`)}
-        >
+        <button type="button" className="guided-submit" disabled={disabled}
+          onClick={() => onSubmit(`${adults} adults, ${children} children, ${infants} infants`)}>
           Use passengers
         </button>
       </div>
@@ -555,91 +471,46 @@ function GuidedFlightInput({
 
   if (flightUi.next_slot === "origin" || flightUi.next_slot === "destination") {
     const dataListId = `${flightUi.next_slot}-airport-options`;
-
     return (
       <div className="guided-input">
         <p>{flightUi.next_slot === "origin" ? "Departure airport" : "Destination airport"}</p>
         <small className="guided-help">Search by city or airport, then choose from the suggestion dropdown.</small>
-
         <div className="guided-inline">
-          <input
-            list={dataListId}
-            value={airportText}
-            onChange={(event) => {
-              setAirportText(event.target.value);
-              setSelectedAirportCode("");
-            }}
-            placeholder="Type city or airport code"
-          />
+          <input list={dataListId} value={airportText}
+            onChange={(e) => { setAirportText(e.target.value); setSelectedAirportCode(""); }}
+            placeholder="Type city or airport code" />
           <datalist id={dataListId}>
-            {airportOptions.map((airport) => (
-              <option
-                key={`${dataListId}-${airport.code}`}
-                value={airport.code}
-                label={airport.label}
-              />
-            ))}
+            {airportOptions.map((a) => <option key={`${dataListId}-${a.code}`} value={a.code} label={a.label} />)}
           </datalist>
-          <button
-            type="button"
-            disabled={disabled || !airportText.trim()}
-            onClick={() => onSubmit(airportText.trim())}
-          >
+          <button type="button" disabled={disabled || !airportText.trim()} onClick={() => onSubmit(airportText.trim())}>
             Use typed value
           </button>
         </div>
-
         <div className="guided-inline">
-          <select
-            value={selectedAirportCode}
-            onChange={(event) => setSelectedAirportCode(event.target.value)}
-            disabled={airportOptions.length === 0}
-          >
+          <select value={selectedAirportCode} onChange={(e) => setSelectedAirportCode(e.target.value)} disabled={airportOptions.length === 0}>
             <option value="">{airportOptions.length === 0 ? "No suggestions yet" : "Choose a suggested airport"}</option>
-            {airportOptions.map((airport) => (
-              <option key={`${flightUi.next_slot}-select-${airport.code}`} value={airport.code}>
-                {airport.label}
-              </option>
-            ))}
+            {airportOptions.map((a) => <option key={`${flightUi.next_slot}-sel-${a.code}`} value={a.code}>{a.label}</option>)}
           </select>
-          <button
-            type="button"
-            disabled={disabled || !selectedAirportCode}
-            onClick={() => onSubmit(selectedAirportCode)}
-          >
-            Use selected airport
+          <button type="button" disabled={disabled || !selectedAirportCode} onClick={() => onSubmit(selectedAirportCode)}>
+            Use selected
           </button>
         </div>
       </div>
     );
   }
-
   return null;
 }
 
-function GuidedServiceInput({
-  serviceUi,
-  disabled,
-  onSubmit
-}: {
-  serviceUi: ServiceUi;
-  disabled: boolean;
-  onSubmit: (value: string) => void;
-}) {
+// ── Guided Service Input ────────────────────────────────────────────────────────
+function GuidedServiceInput({ serviceUi, disabled, onSubmit }: { serviceUi: ServiceUi; disabled: boolean; onSubmit: (v: string) => void }) {
   const [dateText, setDateText] = useState("");
   const [numberText, setNumberText] = useState(1);
   const [textValue, setTextValue] = useState("");
-
   useEffect(() => {
-    setDateText("");
-    setNumberText(Math.max(1, serviceUi.next_slot_min ?? 1));
-    setTextValue("");
+    setDateText(""); setNumberText(Math.max(1, serviceUi.next_slot_min ?? 1)); setTextValue("");
   }, [serviceUi.next_slot, serviceUi.next_slot_min]);
 
-  if (serviceUi.phase !== "collecting" || !serviceUi.next_slot) {
-    return null;
-  }
-
+  if (serviceUi.phase !== "collecting" || !serviceUi.next_slot) return null;
   const slotLabel = serviceUi.next_slot.replace(/_/g, " ");
 
   if (serviceUi.next_slot_type === "option") {
@@ -647,35 +518,24 @@ function GuidedServiceInput({
       <div className="guided-input">
         <p>Select {slotLabel}</p>
         <div className="chip-row">
-          {(serviceUi.options ?? []).map((option) => (
-            <button key={option} type="button" disabled={disabled} onClick={() => onSubmit(option)}>
-              {option}
-            </button>
+          {(serviceUi.options ?? []).map((o) => (
+            <button key={o} type="button" disabled={disabled} onClick={() => onSubmit(o)}>{o}</button>
           ))}
         </div>
       </div>
     );
   }
-
   if (serviceUi.next_slot_type === "date") {
     return (
       <div className="guided-input">
         <p>{slotLabel}</p>
         <div className="guided-inline">
-          <input
-            type="date"
-            value={dateText}
-            min={new Date().toISOString().slice(0, 10)}
-            onChange={(event) => setDateText(event.target.value)}
-          />
-          <button type="button" disabled={disabled || !dateText} onClick={() => onSubmit(dateText)}>
-            Use date
-          </button>
+          <input type="date" value={dateText} min={new Date().toISOString().slice(0, 10)} onChange={(e) => setDateText(e.target.value)} />
+          <button type="button" disabled={disabled || !dateText} onClick={() => onSubmit(dateText)}>Use date</button>
         </div>
       </div>
     );
   }
-
   if (serviceUi.next_slot_type === "number") {
     const min = Math.max(1, serviceUi.next_slot_min ?? 1);
     const max = Math.max(min, serviceUi.next_slot_max ?? 12);
@@ -683,40 +543,31 @@ function GuidedServiceInput({
       <div className="guided-input">
         <p>{slotLabel}</p>
         <div className="guided-inline">
-          <select value={numberText} onChange={(event) => setNumberText(Number(event.target.value))}>
-            {Array.from({ length: max - min + 1 }, (_, index) => min + index).map((value) => (
-              <option key={`${serviceUi.next_slot}-${value}`} value={value}>
-                {value}
-              </option>
+          <select value={numberText} onChange={(e) => setNumberText(Number(e.target.value))}>
+            {Array.from({ length: max - min + 1 }, (_, i) => min + i).map((v) => (
+              <option key={`${serviceUi.next_slot}-${v}`} value={v}>{v}</option>
             ))}
           </select>
-          <button type="button" disabled={disabled} onClick={() => onSubmit(String(numberText))}>
-            Use value
-          </button>
+          <button type="button" disabled={disabled} onClick={() => onSubmit(String(numberText))}>Use value</button>
         </div>
       </div>
     );
   }
-
   return (
     <div className="guided-input">
       <p>{slotLabel}</p>
       <div className="guided-inline">
-        <input value={textValue} onChange={(event) => setTextValue(event.target.value)} placeholder={`Enter ${slotLabel}`} />
-        <button type="button" disabled={disabled || !textValue.trim()} onClick={() => onSubmit(textValue.trim())}>
-          Use value
-        </button>
+        <input value={textValue} onChange={(e) => setTextValue(e.target.value)} placeholder={`Enter ${slotLabel}`} />
+        <button type="button" disabled={disabled || !textValue.trim()} onClick={() => onSubmit(textValue.trim())}>Use value</button>
       </div>
     </div>
   );
 }
 
-function MessageBubble({
-  message,
-  callCtaOverride
-}: {
-  message: ChatMessage;
-  callCtaOverride?: CallCta | null;
+// ── Message Bubble ──────────────────────────────────────────────────────────────
+function MessageBubble({ message, callCtaOverride, appearance }: {
+  message: ChatMessage; callCtaOverride?: CallCta | null;
+  appearance: ChatWidgetAppearance;
 }) {
   const isUser = message.role === "user";
   const renderableContent = getRenderableMessageContent(message);
@@ -725,26 +576,103 @@ function MessageBubble({
 
   return (
     <div className={`message-row ${isUser ? "user" : "assistant"}`}>
-      <div className={`message-bubble ${isUser ? "user" : "assistant"}`}>
-        <button
-          className="copy-btn"
-          type="button"
-          onClick={() => navigator.clipboard.writeText(renderableContent || message.content.trim())}
-          title="Copy message"
-        >
-          Copy
-        </button>
+      <div className="message-row-inner">
+        {!isUser && (
+          <div className="message-avatar-small">
+            {appearance.botAvatarUrl
+              ? <img src={appearance.botAvatarUrl} alt={appearance.botName} />
+              : appearance.botName.slice(0, 1).toUpperCase()}
+          </div>
+        )}
 
-        {hasFlightDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
-        {shouldRenderMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderableContent}</ReactMarkdown> : null}
+        <div className={`message-bubble ${isUser ? "user" : "assistant"}`}>
+          <button
+            className="copy-btn"
+            type="button"
+            onClick={() => navigator.clipboard.writeText(renderableContent || message.content.trim())}
+            title="Copy"
+          >
+            Copy
+          </button>
 
-        {message.metadata ? <FlightDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
-        {message.metadata ? <ServiceRequestSummary metadata={message.metadata} /> : null}
+          {hasFlightDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
+          {shouldRenderMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderableContent}</ReactMarkdown> : null}
+          {message.metadata ? <FlightDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
+          {message.metadata ? <ServiceRequestSummary metadata={message.metadata} /> : null}
+        </div>
       </div>
+
+      <span className="message-timestamp">{formatMessageTime(message.created_at)}</span>
     </div>
   );
 }
 
+// ── Thread Item ────────────────────────────────────────────────────────────────
+function ThreadItem({
+  thread, isActive, onOpen, onRename, onDelete
+}: {
+  thread: ChatThread; isActive: boolean;
+  onOpen: () => void;
+  onRename: (title: string) => void;
+  onDelete: () => void;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(thread.title);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  function startRename() {
+    setRenameValue(thread.title);
+    setRenaming(true);
+    setTimeout(() => renameInputRef.current?.select(), 30);
+  }
+
+  function submitRename() {
+    const t = renameValue.trim();
+    if (t && t !== thread.title) onRename(t);
+    setRenaming(false);
+  }
+
+  return (
+    <li className={isActive ? "active" : ""}>
+      {renaming ? (
+        <input
+          ref={renameInputRef}
+          className="thread-rename-input"
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onBlur={submitRename}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submitRename();
+            if (e.key === "Escape") setRenaming(false);
+          }}
+        />
+      ) : (
+        <button type="button" className="thread-main-btn" onClick={onOpen}>
+          <span>{thread.title}</span>
+          <small>{formatThreadTime(thread.last_message_at)}</small>
+        </button>
+      )}
+
+      {!renaming && !confirmDelete && (
+        <div className="thread-row-actions">
+          <button type="button" onClick={startRename}>Rename</button>
+          <button type="button" className="danger" onClick={() => setConfirmDelete(true)}>Delete</button>
+        </div>
+      )}
+
+      {confirmDelete && (
+        <div className="thread-delete-confirm">
+          <span>Delete?</span>
+          <button type="button" className="confirm-yes" onClick={() => { setConfirmDelete(false); onDelete(); }}>Yes</button>
+          <button type="button" className="confirm-no" onClick={() => setConfirmDelete(false)}>No</button>
+        </div>
+      )}
+    </li>
+  );
+}
+
+// ── Main ChatWidget ─────────────────────────────────────────────────────────────
 export function ChatWidget({
   tenantId: tenantIdProp,
   backendUrl,
@@ -752,9 +680,12 @@ export function ChatWidget({
   portalToken,
   supportPhoneOverride,
   supportCtaLabelOverride,
+  headerCtaLabelOverride,
+  headerCtaNoticeOverride,
   appearanceOverride
 }: ChatWidgetProps) {
-  const [isOpen, setIsOpen] = useState(embedded);
+  const isPublicEmbed = embedded && !portalToken;
+  const [isOpen, setIsOpen] = useState(embedded && Boolean(portalToken));
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -765,8 +696,11 @@ export function ChatWidget({
   const [error, setError] = useState<string | null>(null);
   const [isMobileThreadsOpen, setIsMobileThreadsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+  const [pendingLauncherReply, setPendingLauncherReply] = useState<string | null>(null);
 
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const widgetQueryConfig = useMemo(() => parseWidgetConfigFromQuery(), []);
 
   const tenantId = useMemo(() => resolveTenantId(tenantIdProp), [tenantIdProp]);
   const deviceId = useMemo(() => getOrCreateDeviceId(), []);
@@ -775,12 +709,24 @@ export function ChatWidget({
     [embedded, portalToken]
   );
   const tenantCallCtaOverride = useMemo(
-    () => buildCallCtaOverride(supportPhoneOverride, supportCtaLabelOverride),
-    [supportPhoneOverride, supportCtaLabelOverride]
+    () =>
+      buildCallCtaOverride(
+        supportPhoneOverride ?? widgetQueryConfig.supportPhone,
+        supportCtaLabelOverride ?? widgetQueryConfig.supportCtaLabel
+      ),
+    [supportPhoneOverride, supportCtaLabelOverride, widgetQueryConfig]
+  );
+  const headerCtaConfig = useMemo(
+    () =>
+      normalizeHeaderCtaConfig({
+        label: headerCtaLabelOverride ?? widgetQueryConfig.headerCtaLabel,
+        notice: headerCtaNoticeOverride ?? widgetQueryConfig.headerCtaNotice
+      }),
+    [headerCtaLabelOverride, headerCtaNoticeOverride, widgetQueryConfig]
   );
   const appearance = useMemo(
-    () => normalizeAppearance({ ...parseAppearanceFromQuery(), ...appearanceOverride }),
-    [appearanceOverride]
+    () => normalizeAppearance({ ...widgetQueryConfig.appearance, ...appearanceOverride }),
+    [appearanceOverride, widgetQueryConfig]
   );
   const shellStyle = useMemo(
     () =>
@@ -799,12 +745,9 @@ export function ChatWidget({
 
   const latestAssistantMeta = useMemo(() => {
     for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
-      const message = messages[idx];
-      if (message?.role === "assistant" && message.metadata) {
-        return message.metadata;
-      }
+      const m = messages[idx];
+      if (m?.role === "assistant" && m.metadata) return m.metadata;
     }
-
     return null;
   }, [messages]);
 
@@ -812,12 +755,41 @@ export function ChatWidget({
   const flightUi = latestAssistantMeta?.flight_ui ?? null;
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
+  const teaserReplies = useMemo(() => {
+    const fromAssistant = quickReplies.filter(Boolean).slice(0, 4);
+    if (fromAssistant.length > 0) {
+      return fromAssistant;
+    }
+
+    const defaults = [
+      "Find flight deals",
+      "Change dates",
+      callCta?.label || "Talk to support",
+      "I have a different question"
+    ];
+    return Array.from(new Set(defaults)).slice(0, 4);
+  }, [quickReplies, callCta]);
 
   useEffect(() => {
-    if (embedded) {
-      setIsOpen(true);
-    }
-  }, [embedded]);
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
+  }, [input]);
+
+  useEffect(() => {
+    if (embedded && portalToken) setIsOpen(true);
+  }, [embedded, portalToken]);
+
+  useEffect(() => {
+    if (!isPublicEmbed) return;
+    document.body.classList.add("chat-widget-embedded");
+    document.documentElement.classList.add("chat-widget-embedded");
+    return () => {
+      document.body.classList.remove("chat-widget-embedded");
+      document.documentElement.classList.remove("chat-widget-embedded");
+    };
+  }, [isPublicEmbed]);
 
   useEffect(() => {
     const listener = () => setIsMobile(window.innerWidth < 900);
@@ -826,26 +798,29 @@ export function ChatWidget({
   }, []);
 
   useEffect(() => {
-    messageListRef.current?.scrollTo({
-      top: messageListRef.current.scrollHeight,
-      behavior: "smooth"
-    });
-  }, [messages]);
+    if (!isPublicEmbed || window.parent === window) return;
+    window.parent.postMessage({ type: "aeroconcierge:widget-state", open: isOpen }, "*");
+  }, [isPublicEmbed, isOpen]);
+
+  useEffect(() => {
+    if (!pendingLauncherReply || !isOpen) return;
+    const nextReply = pendingLauncherReply;
+    setPendingLauncherReply(null);
+    void sendMessage(nextReply);
+  }, [pendingLauncherReply, isOpen]);
+
+  useEffect(() => {
+    messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, isSending]);
 
   async function refreshThreads(preferredChatId?: string) {
     setIsLoadingThreads(true);
-
     try {
       const nextThreads = await listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setThreads(nextThreads);
-
       const selected = preferredChatId ?? activeChatId ?? nextThreads[0]?.id ?? null;
-      if (selected) {
-        setActiveChatId(selected);
-        await loadMessages(selected);
-      } else {
-        setMessages([]);
-      }
+      if (selected) { setActiveChatId(selected); await loadMessages(selected); }
+      else setMessages([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load threads");
     } finally {
@@ -855,10 +830,9 @@ export function ChatWidget({
 
   async function loadMessages(chatId: string) {
     setIsLoadingMessages(true);
-
     try {
-      const nextMessages = await listMessages({ chatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
-      setMessages(nextMessages);
+      const next = await listMessages({ chatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
+      setMessages(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load messages");
     } finally {
@@ -876,22 +850,9 @@ export function ChatWidget({
     }
   }
 
-  async function handleRenameChat(thread: ChatThread) {
-    const nextTitle = window.prompt("Rename chat", thread.title)?.trim();
-    if (!nextTitle) {
-      return;
-    }
-
+  async function handleRenameChat(thread: ChatThread, nextTitle: string) {
     try {
-      await renameChat({
-        chatId: thread.id,
-        tenantId,
-        deviceId,
-        title: nextTitle,
-        backendUrl,
-        authToken: portalToken,
-        siteHost
-      });
+      await renameChat({ chatId: thread.id, tenantId, deviceId, title: nextTitle, backendUrl, authToken: portalToken, siteHost });
       await refreshThreads(thread.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to rename chat");
@@ -899,23 +860,10 @@ export function ChatWidget({
   }
 
   async function handleDeleteChat(thread: ChatThread) {
-    const confirmed = window.confirm(`Delete chat \"${thread.title}\"?`);
-    if (!confirmed) {
-      return;
-    }
-
     try {
-      await deleteChat({
-        chatId: thread.id,
-        tenantId,
-        deviceId,
-        backendUrl,
-        authToken: portalToken,
-        siteHost
-      });
-
-      const fallbackChat = activeChatId === thread.id ? null : activeChatId;
-      setActiveChatId(fallbackChat);
+      await deleteChat({ chatId: thread.id, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
+      const fallback = activeChatId === thread.id ? null : activeChatId;
+      setActiveChatId(fallback);
       await refreshThreads();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete chat");
@@ -930,13 +878,9 @@ export function ChatWidget({
 
   async function sendMessage(rawText: string) {
     const text = rawText.trim();
-    if (!text || isSending) {
-      return;
-    }
+    if (!text || isSending) return;
 
-    setInput("");
-    setError(null);
-
+    setInput(""); setError(null);
     let chatId = activeChatId;
 
     if (!chatId) {
@@ -946,24 +890,10 @@ export function ChatWidget({
       await refreshThreads(chatId);
     }
 
-    const userMessage: ChatMessage = {
-      id: `local-user-${Date.now()}`,
-      chat_id: chatId,
-      role: "user",
-      content: text,
-      metadata: null,
-      created_at: new Date().toISOString()
-    };
-
+    const now = new Date().toISOString();
+    const userMessage: ChatMessage = { id: `local-user-${Date.now()}`, chat_id: chatId, role: "user", content: text, metadata: null, created_at: now };
     const assistantMessageId = `local-assistant-${Date.now()}`;
-    const assistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      chat_id: chatId,
-      role: "assistant",
-      content: "",
-      metadata: null,
-      created_at: new Date().toISOString()
-    };
+    const assistantMessage: ChatMessage = { id: assistantMessageId, chat_id: chatId, role: "assistant", content: "", metadata: null, created_at: now };
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setIsSending(true);
@@ -971,33 +901,12 @@ export function ChatWidget({
     try {
       const done = await streamChat({
         backendUrl,
-        payload: {
-          tenant_id: tenantId,
-          device_id: deviceId,
-          chat_id: chatId,
-          message: text,
-          page_context: {
-            url: window.location.href,
-            title: document.title
-          }
-        },
+        payload: { tenant_id: tenantId, device_id: deviceId, chat_id: chatId, message: text, page_context: { url: window.location.href, title: document.title } },
         onToken(token) {
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantMessageId
-                ? { ...message, content: `${message.content}${token}` }
-                : message
-            )
-          );
+          setMessages((prev) => prev.map((m) => m.id === assistantMessageId ? { ...m, content: `${m.content}${token}` } : m));
         },
         onError(message) {
-          setMessages((prev) =>
-            prev.map((item) =>
-              item.id === assistantMessageId
-                ? { ...item, content: message || "Unable to process this request." }
-                : item
-            )
-          );
+          setMessages((prev) => prev.map((m) => m.id === assistantMessageId ? { ...m, content: message || "Unable to process this request." } : m));
         },
         authToken: portalToken,
         siteHost
@@ -1005,17 +914,8 @@ export function ChatWidget({
 
       const finalChatId = done.chat_id || chatId;
       setActiveChatId(finalChatId);
-
-      const syncedMessages = await listMessages({
-        chatId: finalChatId,
-        tenantId,
-        deviceId,
-        backendUrl,
-        authToken: portalToken,
-        siteHost
-      });
-      setMessages(syncedMessages);
-
+      const synced = await listMessages({ chatId: finalChatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
+      setMessages(synced);
       const syncedThreads = await listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setThreads(syncedThreads);
     } catch (err) {
@@ -1030,18 +930,20 @@ export function ChatWidget({
     await sendMessage(input);
   }
 
-  useEffect(() => {
-    const shouldLoad = embedded || isOpen;
-    if (!shouldLoad) {
-      return;
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage(input);
     }
+  }
 
-    refreshThreads().catch((err) => {
-      setError(err instanceof Error ? err.message : "Failed to initialize chat widget");
-    });
-  }, [embedded, isOpen]);
+  useEffect(() => {
+    if (isPublicEmbed && !isOpen) return;
+    if (!embedded && !isOpen) return;
+    refreshThreads().catch((err) => setError(err instanceof Error ? err.message : "Failed to initialize chat widget"));
+  }, [embedded, isOpen, isPublicEmbed]);
 
-  const shouldRenderShell = embedded || isOpen;
+  const shouldRenderShell = embedded ? (!isPublicEmbed || isOpen) : isOpen;
 
   return (
     <>
@@ -1049,18 +951,62 @@ export function ChatWidget({
         <button
           className={`chat-launcher chat-launcher-${appearance.widgetPosition} chat-launcher-${appearance.launcherStyle}`}
           style={shellStyle}
-          onClick={() => setIsOpen((value) => !value)}
+          onClick={() => setIsOpen((v) => !v)}
+          aria-label={isOpen ? "Close chat" : `Open ${appearance.botName}`}
         >
-          {isOpen ? "Close" : appearance.botName}
+          <span className="chat-launcher-icon">
+            {isOpen ? <IconClose /> : <IconChat />}
+          </span>
+          <span className="chat-launcher-label">{isOpen ? "Close" : appearance.botName}</span>
         </button>
+      ) : null}
+
+      {isPublicEmbed && !isOpen ? (
+        <div
+          className={`chat-peek-stack chat-peek-stack-${appearance.widgetPosition}`}
+          aria-label={`${appearance.botName} launcher`}
+        >
+          <button type="button" className="chat-peek-card" onClick={() => setIsOpen(true)}>
+            <span className="chat-peek-pill">{headerCtaConfig.label}</span>
+            {/* <strong>{appearance.botName}</strong> */}
+            <p>{headerCtaConfig.notice}</p>
+          </button>
+
+          <div className="chat-peek-actions">
+            {teaserReplies.map((reply) => (
+              <button
+                key={reply}
+                type="button"
+                className="chat-peek-chip"
+                onClick={() => {
+                  setPendingLauncherReply(reply);
+                  setIsOpen(true);
+                }}
+              >
+                {reply}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="chat-peek-launcher"
+            onClick={() => setIsOpen(true)}
+            aria-label={`Open ${appearance.botName}`}
+          >
+            <span className="chat-peek-launcher-badge">1</span>
+            <IconChat />
+          </button>
+        </div>
       ) : null}
 
       {shouldRenderShell ? (
         <section
-          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}`}
+          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}${isPublicEmbed ? " public-embed-shell" : ""}`}
           style={shellStyle}
           aria-label={`${appearance.botName} chat widget`}
         >
+          {/* ── Header ── */}
           <header className="chat-header">
             <div className="chat-brand">
               {appearance.botAvatarUrl ? (
@@ -1068,82 +1014,86 @@ export function ChatWidget({
               ) : (
                 <div className="chat-avatar chat-avatar-fallback">{appearance.botName.slice(0, 2).toUpperCase()}</div>
               )}
-              <div>
+              <div className="chat-brand-info">
                 <strong>{appearance.botName}</strong>
-                <p>{tenantId}</p>
+                <p>
+                  <span className="chat-online-dot" />
+                  Online
+                </p>
               </div>
             </div>
 
             <div className="chat-header-actions">
               {callCta ? (
                 <a href={callCta.tel} className="header-call-btn">
-                  {callCta.label}
+                  <IconPhone />
+                  <span>{callCta.label}</span>
                 </a>
               ) : null}
               {isMobile ? (
-                <button
-                  className="thread-toggle"
-                  type="button"
-                  onClick={() => setIsMobileThreadsOpen((value) => !value)}
-                >
-                  Threads
+                <button className="thread-toggle" type="button" onClick={() => setIsMobileThreadsOpen((v) => !v)}>
+                  <IconMenu />
+                  Chats
                 </button>
               ) : null}
             </div>
           </header>
 
+          {/* ── Body ── */}
           <div className="chat-body">
+            {/* Thread sidebar */}
             <aside className={`thread-sidebar ${isMobile ? (isMobileThreadsOpen ? "mobile-open" : "mobile-hidden") : ""}`}>
               <div className="thread-actions">
-                <button type="button" onClick={handleCreateChat}>New Chat</button>
+                <button type="button" onClick={handleCreateChat}><IconPlus /> New Chat</button>
               </div>
-
-              {isLoadingThreads ? <p className="thread-hint">Loading chats...</p> : null}
-
+              {isLoadingThreads ? <p className="thread-hint">Loading chats…</p> : null}
               <ul>
                 {threads.map((thread) => (
-                  <li key={thread.id} className={thread.id === activeChatId ? "active" : ""}>
-                    <button type="button" onClick={() => openChat(thread.id)}>
-                      <span>{thread.title}</span>
-                      <small>{formatThreadTime(thread.last_message_at)}</small>
-                    </button>
-
-                    <div className="thread-row-actions">
-                      <button type="button" onClick={() => handleRenameChat(thread)}>Rename</button>
-                      <button type="button" onClick={() => handleDeleteChat(thread)}>Delete</button>
-                    </div>
-                  </li>
+                  <ThreadItem
+                    key={thread.id}
+                    thread={thread}
+                    isActive={thread.id === activeChatId}
+                    onOpen={() => openChat(thread.id)}
+                    onRename={(title) => handleRenameChat(thread, title)}
+                    onDelete={() => handleDeleteChat(thread)}
+                  />
                 ))}
               </ul>
             </aside>
 
+            {/* Message panel */}
             <main className="message-panel">
               <div className="messages" ref={messageListRef}>
-                {isLoadingMessages ? <p className="thread-hint">Loading messages...</p> : null}
-
+                {isLoadingMessages ? <p className="thread-hint">Loading messages…</p> : null}
                 {messages.length === 0 && !isLoadingMessages ? (
                   <div className="welcome-card">
                     <h3>{appearance.botName}</h3>
                     <p>{appearance.welcomeMessage}</p>
                   </div>
                 ) : null}
-
                 {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} callCtaOverride={callCta} />
+                  <MessageBubble key={message.id} message={message} callCtaOverride={callCta} appearance={appearance} />
                 ))}
+                {isSending ? <TypingIndicator /> : null}
+                {/* Quick replies inline – appear right after the last bot message */}
+                {!isSending && quickReplies.length > 0 ? (
+                  <div className="inline-quick-replies">
+                    {quickReplies.map((reply) => (
+                      <button
+                        key={reply}
+                        type="button"
+                        disabled={isSending}
+                        onClick={() => sendMessage(reply)}
+                      >{reply}</button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-
-              <QuickReplies quickReplies={quickReplies} disabled={isSending} onSelect={sendMessage} />
 
               {flightUi ? (
                 <GuidedFlightInput
-                  flightUi={flightUi}
-                  disabled={isSending}
-                  onSubmit={sendMessage}
-                  tenantId={tenantId}
-                  backendUrl={backendUrl}
-                  authToken={portalToken}
-                  siteHost={siteHost}
+                  flightUi={flightUi} disabled={isSending} onSubmit={sendMessage}
+                  tenantId={tenantId} backendUrl={backendUrl} authToken={portalToken} siteHost={siteHost}
                 />
               ) : null}
 
@@ -1152,22 +1102,42 @@ export function ChatWidget({
               ) : null}
 
               <form className="composer" onSubmit={handleSend}>
-                <textarea
-                  value={input}
-                  placeholder="Type your message"
-                  onChange={(event) => setInput(event.target.value)}
-                  rows={2}
-                />
-
-                <button disabled={isSending || !input.trim()} type="submit">
-                  {isSending ? "Sending..." : "Send"}
+                <div className="composer-textarea-wrap">
+                  <textarea
+                    ref={textareaRef}
+                    value={input}
+                    placeholder="Type a message… (Enter to send)"
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    rows={1}
+                    disabled={isSending}
+                  />
+                  <span className="composer-hint">Shift+Enter for newline</span>
+                </div>
+                <button type="submit" className="composer-send-btn" disabled={isSending || !input.trim()} aria-label="Send message">
+                  <IconSend />
                 </button>
               </form>
+
 
               {error ? <p className="error-text">{error}</p> : null}
             </main>
           </div>
         </section>
+      ) : null}
+
+      {isPublicEmbed && isOpen ? (
+        <div className={`chat-embed-dock chat-embed-dock-${appearance.widgetPosition}`}>
+          <div className="chat-embed-powered">Powered by {poweredByBrand}</div>
+          <button
+            type="button"
+            className="chat-peek-launcher chat-peek-launcher-open"
+            onClick={() => setIsOpen(false)}
+            aria-label={`Close ${appearance.botName}`}
+          >
+            <IconChevronDown />
+          </button>
+        </div>
       ) : null}
     </>
   );

@@ -74,6 +74,8 @@ type PlatformAuthContextValue = {
     support_phone?: string;
     support_email?: string;
     support_cta_label?: string;
+    header_cta_label?: string;
+    header_cta_notice?: string;
     business_description?: string;
     primary_color?: string;
     user_bubble_color?: string;
@@ -354,6 +356,8 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     support_phone?: string;
     support_email?: string;
     support_cta_label?: string;
+    header_cta_label?: string;
+    header_cta_notice?: string;
     business_description?: string;
     primary_color?: string;
     user_bubble_color?: string;

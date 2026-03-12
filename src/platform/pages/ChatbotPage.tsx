@@ -31,6 +31,8 @@ export default function ChatbotPage() {
               selectedTenant.tenant_id,
               selectedTenant.business_profile.support_phone ?? "",
               selectedTenant.business_profile.support_cta_label ?? "",
+              selectedTenant.business_profile.header_cta_label ?? "",
+              selectedTenant.business_profile.header_cta_notice ?? "",
               selectedTenant.business_profile.primary_color ?? "",
               selectedTenant.business_profile.bot_name ?? "",
               selectedTenant.business_profile.bot_avatar_url ?? ""
@@ -40,6 +42,8 @@ export default function ChatbotPage() {
             portalToken={token}
             supportPhoneOverride={selectedTenant.business_profile.support_phone}
             supportCtaLabelOverride={selectedTenant.business_profile.support_cta_label}
+            headerCtaLabelOverride={selectedTenant.business_profile.header_cta_label}
+            headerCtaNoticeOverride={selectedTenant.business_profile.header_cta_notice}
             appearanceOverride={{
               primaryColor: selectedTenant.business_profile.primary_color,
               userBubbleColor: selectedTenant.business_profile.user_bubble_color,
