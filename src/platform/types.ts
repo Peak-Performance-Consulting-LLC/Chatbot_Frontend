@@ -1,4 +1,8 @@
 export type PlatformService = "flights" | "hotels" | "cars" | "cruises";
+export type DomainVerificationStatus = "pending" | "txt_not_found" | "txt_mismatch" | "verified";
+export type KnowledgeBaseStatus = "pending" | "processing" | "ready" | "warning" | "error";
+export type WidgetPosition = "left" | "right";
+export type LauncherStyle = "rounded" | "pill" | "square" | "minimal";
 
 export type TenantBusinessProfile = {
   business_type: string;
@@ -7,15 +11,30 @@ export type TenantBusinessProfile = {
   support_email: string | null;
   support_cta_label: string;
   business_description: string | null;
+  primary_color: string;
+  user_bubble_color: string;
+  bot_bubble_color: string;
+  font_family: string;
+  widget_position: WidgetPosition;
+  launcher_style: LauncherStyle;
+  window_width: number;
+  window_height: number;
+  border_radius: number;
+  welcome_message: string;
+  bot_name: string;
+  bot_avatar_url: string | null;
 };
 
 export type PlatformWidgetConfig = {
   tenant_id: string;
+  enabled: boolean;
+  status: "dns_required" | "ready";
+  blocked_reason: string | null;
   widget_host_url: string;
   backend_url: string;
-  embed_url: string;
-  script_snippet: string;
-  react_snippet: string;
+  embed_url: string | null;
+  script_snippet: string | null;
+  react_snippet: string | null;
 };
 
 export type PlatformSource = {
@@ -26,17 +45,29 @@ export type PlatformSource = {
   created_at: string;
 };
 
+export type PlatformKnowledgeBase = {
+  status: KnowledgeBaseStatus;
+  message: string | null;
+  last_ingested_at: string | null;
+};
+
+export type PlatformDomainVerification = {
+  status: DomainVerificationStatus;
+  txt_name: string;
+  txt_value: string;
+  last_checked_at: string | null;
+  last_error: string | null;
+  last_seen_records: string[];
+  verified_at: string | null;
+} | null;
+
 export type PlatformTenant = {
   tenant_id: string;
   name: string | null;
   allowed_domains: string[];
   business_profile: TenantBusinessProfile;
-  domain_verification: {
-    status: "pending" | "verified";
-    txt_name: string;
-    txt_value: string;
-    verified_at: string | null;
-  } | null;
+  knowledge_base: PlatformKnowledgeBase;
+  domain_verification: PlatformDomainVerification;
   widget?: PlatformWidgetConfig;
 };
 

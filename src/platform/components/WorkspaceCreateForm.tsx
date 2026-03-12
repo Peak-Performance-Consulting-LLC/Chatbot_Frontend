@@ -88,9 +88,10 @@ export default function WorkspaceCreateForm() {
         </label>
 
         {error ? <p className="platform-error">{error}</p> : null}
+        {loading ? <p className="platform-success">Creating workspace and starting website ingestion.</p> : null}
 
         <button className="platform-primary-btn" type="submit" disabled={loading}>
-          {loading ? "Creating..." : "Create workspace"}
+          {loading ? "Creating workspace..." : "Create workspace"}
         </button>
       </form>
     </section>

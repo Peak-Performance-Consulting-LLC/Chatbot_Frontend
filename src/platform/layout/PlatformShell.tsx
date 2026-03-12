@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { appNavItems } from "@/platform/layout/nav";
+import PlatformLogo from "@/platform/components/PlatformLogo";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 export default function PlatformShell() {
@@ -10,7 +11,7 @@ export default function PlatformShell() {
     <div className="platform-shell">
       <aside className="platform-sidebar">
         <div className="platform-brand">
-          <div className="brand-logo">AC</div>
+          <PlatformLogo className="brand-logo-image" />
           <div>
             <strong>AeroConcierge</strong>
             <p>Platform Console</p>

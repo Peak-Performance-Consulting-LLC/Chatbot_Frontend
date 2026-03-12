@@ -83,16 +83,7 @@ export function PlatformConsole({ backendUrl }: PlatformConsoleProps) {
       }
       setProfile({
         user: response.user,
-        tenants: [
-          {
-            tenant_id: response.tenant.tenant_id,
-            name: response.tenant.name,
-            allowed_domains: [response.tenant.domain],
-            domain_verification: response.domain_verification,
-            widget: response.widget,
-            ingest: response.ingest
-          }
-        ]
+        tenants: [response.tenant]
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Signup failed");
@@ -251,4 +242,3 @@ export function PlatformConsole({ backendUrl }: PlatformConsoleProps) {
     </div>
   );
 }
-

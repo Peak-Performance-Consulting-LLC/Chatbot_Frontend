@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import WorkspaceCreateForm from "@/platform/components/WorkspaceCreateForm";
+import { getDnsReminderMessage, getDnsStatusLabel, getKnowledgeStatusLabel } from "@/platform/status";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 export default function OverviewPage() {
@@ -9,12 +10,14 @@ export default function OverviewPage() {
     return <WorkspaceCreateForm />;
   }
 
-  const profile = selectedTenant?.business_profile;
-  const domainVerification = selectedTenant?.domain_verification;
+  const profile = selectedTenant.business_profile;
+  const domainVerification = selectedTenant.domain_verification;
+  const knowledgeBase = selectedTenant.knowledge_base;
+  const widgetReady = selectedTenant.widget?.enabled === true;
 
   const checklist = [
     {
-      done: Boolean(selectedTenant?.allowed_domains?.[0]),
+      done: Boolean(selectedTenant.allowed_domains?.[0]),
       label: "Tenant domain configured"
     },
     {
@@ -22,12 +25,12 @@ export default function OverviewPage() {
       label: "DNS ownership verified"
     },
     {
-      done: Boolean(selectedTenant?.widget?.script_snippet),
-      label: "Widget code generated"
+      done: knowledgeBase.status === "ready" || knowledgeBase.status === "warning",
+      label: "Knowledge base indexed"
     },
     {
-      done: false,
-      label: "Knowledge base indexed with latest docs"
+      done: widgetReady,
+      label: "Widget ready for website install"
     }
   ];
 
@@ -35,24 +38,39 @@ export default function OverviewPage() {
     <div className="platform-grid two-col">
       <section className="platform-panel hero">
         <h2>Overview</h2>
-        <p>Track onboarding status and complete setup before going live on production domain.</p>
+        <p>Track onboarding status, keep knowledge fresh, and move to live website install only after DNS verification.</p>
+
+        {domainVerification?.status !== "verified" ? (
+          <div className="platform-callout warning">
+            <strong>{getDnsStatusLabel(domainVerification?.status)}</strong>
+            <p>{getDnsReminderMessage(domainVerification)}</p>
+          </div>
+        ) : null}
 
         <div className="kpi-grid">
           <article>
             <span>Primary domain</span>
-            <strong>{selectedTenant?.allowed_domains?.[0] || "Not configured"}</strong>
+            <strong>{selectedTenant.allowed_domains?.[0] || "Not configured"}</strong>
           </article>
           <article>
             <span>DNS status</span>
-            <strong>{domainVerification?.status || "pending"}</strong>
+            <strong>{getDnsStatusLabel(domainVerification?.status)}</strong>
+          </article>
+          <article>
+            <span>Knowledge base</span>
+            <strong>{getKnowledgeStatusLabel(knowledgeBase.status)}</strong>
+          </article>
+          <article>
+            <span>Website widget</span>
+            <strong>{widgetReady ? "Ready to install" : "Blocked until DNS verification"}</strong>
           </article>
           <article>
             <span>Services enabled</span>
-            <strong>{profile?.supported_services.join(", ") || "flights"}</strong>
+            <strong>{profile.supported_services.join(", ") || "flights"}</strong>
           </article>
           <article>
-            <span>Support CTA</span>
-            <strong>{profile?.support_cta_label || "Connect with a specialist"}</strong>
+            <span>Specialist number</span>
+            <strong>{profile.support_phone || "Not configured"}</strong>
           </article>
         </div>
       </section>
@@ -67,10 +85,21 @@ export default function OverviewPage() {
           ))}
         </ul>
 
+        <div className="platform-stack note-stack">
+          <div className="platform-inline-note">
+            <strong>Portal preview</strong>
+            <p>You can keep testing the chatbot inside this dashboard before DNS verification.</p>
+          </div>
+          <div className="platform-inline-note">
+            <strong>Website install</strong>
+            <p>Live widget/embed remains blocked until the DNS TXT record is verified.</p>
+          </div>
+        </div>
+
         <div className="action-row">
           <Link to="/platform/app/site-setup" className="platform-link-btn">Open Site Setup</Link>
           <Link to="/platform/app/dns" className="platform-link-btn">Verify DNS</Link>
-          <Link to="/platform/app/widget" className="platform-link-btn">Get Widget Code</Link>
+          <Link to="/platform/app/widget" className="platform-link-btn">Widget Code</Link>
         </div>
       </section>
     </div>

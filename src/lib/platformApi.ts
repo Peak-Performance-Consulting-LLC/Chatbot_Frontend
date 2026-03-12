@@ -54,19 +54,7 @@ export type PlatformSignupResponse = {
   user: PlatformUser;
   token: string;
   expires_at: string;
-  tenant: {
-    tenant_id: string;
-    name: string;
-    domain: string;
-    business_profile: TenantBusinessProfile;
-  };
-  domain_verification: {
-    status: "pending" | "verified";
-    txt_name: string;
-    txt_value: string;
-    verified_at: string | null;
-  };
-  widget: PlatformTenant["widget"];
+  tenant: PlatformTenant;
   ingest: {
     inserted_chunks: number;
     fetched_documents: number;
@@ -133,14 +121,7 @@ export async function platformCreateWorkspace(
   backendUrl?: string
 ) {
   return authedJson<{
-    tenant: {
-      tenant_id: string;
-      name: string;
-      domain: string;
-      business_profile: TenantBusinessProfile;
-    };
-    domain_verification: PlatformTenant["domain_verification"];
-    widget: PlatformTenant["widget"];
+    tenant: PlatformTenant;
     ingest: {
       inserted_chunks: number;
       fetched_documents: number;
@@ -184,6 +165,7 @@ export async function platformVerifyDomain(token: string, tenantId: string, back
     tenant_id: string;
     verified: boolean;
     records: string[];
+    message: string;
     domain_verification: PlatformTenant["domain_verification"];
   }>({
     path: "/api/platform/verify-domain",
@@ -205,6 +187,7 @@ export async function platformRunIngest(token: string, tenantId: string, replace
       skipped_documents: number;
       errors: string[];
     };
+    knowledge_base: PlatformTenant["knowledge_base"];
   }>({
     path: "/api/platform/ingest",
     token,
@@ -227,12 +210,23 @@ export async function platformUpdateTenantProfile(
     support_email?: string;
     support_cta_label?: string;
     business_description?: string;
+    primary_color?: string;
+    user_bubble_color?: string;
+    bot_bubble_color?: string;
+    font_family?: string;
+    widget_position?: "left" | "right";
+    launcher_style?: "rounded" | "pill" | "square" | "minimal";
+    window_width?: number;
+    window_height?: number;
+    border_radius?: number;
+    welcome_message?: string;
+    bot_name?: string;
+    bot_avatar_url?: string;
   },
   backendUrl?: string
 ) {
   return authedJson<{
-    tenant_id: string;
-    business_profile: TenantBusinessProfile;
+    tenant: PlatformTenant;
   }>({
     path: "/api/platform/tenant-profile",
     token,
@@ -251,11 +245,7 @@ export async function platformUpdateTenantDomain(
   backendUrl?: string
 ) {
   return authedJson<{
-    tenant_id: string;
-    domain: string;
-    allowed_domains: string[];
-    domain_verification: PlatformTenant["domain_verification"];
-    widget: PlatformTenant["widget"];
+    tenant: PlatformTenant;
   }>({
     path: "/api/platform/domain",
     token,
@@ -293,6 +283,7 @@ export async function platformReplaceTenantSources(
   return authedJson<{
     tenant_id: string;
     sources: PlatformSource[];
+    knowledge_base: PlatformTenant["knowledge_base"];
   }>({
     path: "/api/platform/sources",
     token,

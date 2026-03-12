@@ -16,6 +16,7 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [companyName, setCompanyName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [sitemapUrl, setSitemapUrl] = useState("");
@@ -67,13 +68,24 @@ export default function SignupPage() {
 
           <label>
             Password
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              minLength={8}
-              required
-            />
+            <div className="platform-password-field">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                minLength={8}
+                required
+              />
+              <button
+                type="button"
+                className="platform-password-toggle"
+                onClick={() => setShowPassword((value) => !value)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                aria-pressed={showPassword}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </label>
 
           <label>
@@ -121,9 +133,14 @@ export default function SignupPage() {
           </label>
 
           {error ? <p className="platform-error">{error}</p> : null}
+          {loading ? (
+            <p className="platform-success">
+              Creating the workspace, saving sources, and starting knowledge base ingestion.
+            </p>
+          ) : null}
 
           <button className="platform-primary-btn" type="submit" disabled={loading}>
-            {loading ? "Please wait..." : "Create Workspace"}
+            {loading ? "Building workspace..." : "Create Workspace"}
           </button>
         </form>
 

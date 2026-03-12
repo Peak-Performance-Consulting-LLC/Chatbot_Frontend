@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
@@ -18,13 +18,116 @@ type ChatWidgetProps = {
   tenantId?: string;
   backendUrl?: string;
   embedded?: boolean;
+  portalToken?: string;
   supportPhoneOverride?: string | null;
   supportCtaLabelOverride?: string | null;
+  appearanceOverride?: Partial<ChatWidgetAppearance>;
 };
 
 type FlightUi = NonNullable<MessageMetadata["flight_ui"]>;
 type ServiceUi = NonNullable<MessageMetadata["service_ui"]>;
 type CallCta = NonNullable<MessageMetadata["call_cta"]>;
+type ChatWidgetAppearance = {
+  primaryColor: string;
+  userBubbleColor: string;
+  botBubbleColor: string;
+  fontFamily: string;
+  widgetPosition: "left" | "right";
+  launcherStyle: "rounded" | "pill" | "square" | "minimal";
+  windowWidth: number;
+  windowHeight: number;
+  borderRadius: number;
+  botName: string;
+  welcomeMessage: string;
+  botAvatarUrl?: string | null;
+};
+
+const defaultAppearance: ChatWidgetAppearance = {
+  primaryColor: "#006d77",
+  userBubbleColor: "#006d77",
+  botBubbleColor: "#edf6f9",
+  fontFamily: "Manrope",
+  widgetPosition: "right",
+  launcherStyle: "rounded",
+  windowWidth: 380,
+  windowHeight: 640,
+  borderRadius: 18,
+  botName: "AeroConcierge",
+  welcomeMessage: "Welcome. How can I help today?",
+  botAvatarUrl: null
+};
+
+function normalizeAppearance(input?: Partial<ChatWidgetAppearance> | null): ChatWidgetAppearance {
+  return {
+    primaryColor: input?.primaryColor?.trim() || defaultAppearance.primaryColor,
+    userBubbleColor: input?.userBubbleColor?.trim() || input?.primaryColor?.trim() || defaultAppearance.userBubbleColor,
+    botBubbleColor: input?.botBubbleColor?.trim() || defaultAppearance.botBubbleColor,
+    fontFamily: input?.fontFamily?.trim() || defaultAppearance.fontFamily,
+    widgetPosition: input?.widgetPosition === "left" ? "left" : "right",
+    launcherStyle:
+      input?.launcherStyle === "pill" || input?.launcherStyle === "square" || input?.launcherStyle === "minimal"
+        ? input.launcherStyle
+        : defaultAppearance.launcherStyle,
+    windowWidth:
+      typeof input?.windowWidth === "number" ? Math.min(520, Math.max(320, Math.round(input.windowWidth))) : defaultAppearance.windowWidth,
+    windowHeight:
+      typeof input?.windowHeight === "number" ? Math.min(860, Math.max(520, Math.round(input.windowHeight))) : defaultAppearance.windowHeight,
+    borderRadius:
+      typeof input?.borderRadius === "number" ? Math.min(36, Math.max(8, Math.round(input.borderRadius))) : defaultAppearance.borderRadius,
+    botName: input?.botName?.trim() || defaultAppearance.botName,
+    welcomeMessage: input?.welcomeMessage?.trim() || defaultAppearance.welcomeMessage,
+    botAvatarUrl: input?.botAvatarUrl?.trim() || defaultAppearance.botAvatarUrl
+  };
+}
+
+function darkenHex(input: string) {
+  const normalized = input.replace("#", "");
+  if (!/^([a-fA-F0-9]{6})$/.test(normalized)) {
+    return "#00454b";
+  }
+
+  const channels = normalized.match(/.{1,2}/g)?.map((value) => Math.max(0, Math.min(255, parseInt(value, 16) - 24))) ?? [0, 69, 75];
+  return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function parseAppearanceFromQuery(): Partial<ChatWidgetAppearance> {
+  const params = new URLSearchParams(window.location.search);
+  const width = Number(params.get("window_width"));
+  const height = Number(params.get("window_height"));
+  const radius = Number(params.get("border_radius"));
+
+  return {
+    primaryColor: params.get("primary_color") ?? undefined,
+    userBubbleColor: params.get("user_bubble_color") ?? undefined,
+    botBubbleColor: params.get("bot_bubble_color") ?? undefined,
+    fontFamily: params.get("font_family") ?? undefined,
+    widgetPosition: params.get("widget_position") === "left" ? "left" : "right",
+    launcherStyle:
+      params.get("launcher_style") === "pill" ||
+      params.get("launcher_style") === "square" ||
+      params.get("launcher_style") === "minimal"
+        ? (params.get("launcher_style") as ChatWidgetAppearance["launcherStyle"])
+        : undefined,
+    windowWidth: Number.isFinite(width) ? width : undefined,
+    windowHeight: Number.isFinite(height) ? height : undefined,
+    borderRadius: Number.isFinite(radius) ? radius : undefined,
+    botName: params.get("bot_name") ?? undefined,
+    welcomeMessage: params.get("welcome_message") ?? undefined,
+    botAvatarUrl: params.get("avatar_url") ?? undefined
+  };
+}
+
+function resolveEmbeddedSiteHost() {
+  if (!document.referrer) {
+    return undefined;
+  }
+
+  try {
+    return new URL(document.referrer).host;
+  } catch {
+    return undefined;
+  }
+}
 
 function sanitizePhoneNumber(value: string) {
   return value.replace(/[^+\d]/g, "");
@@ -239,13 +342,17 @@ function GuidedFlightInput({
   disabled,
   onSubmit,
   tenantId,
-  backendUrl
+  backendUrl,
+  authToken,
+  siteHost
 }: {
   flightUi: FlightUi;
   disabled: boolean;
   onSubmit: (value: string) => void;
   tenantId: string;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
 }) {
   const [airportText, setAirportText] = useState("");
   const [dateText, setDateText] = useState("");
@@ -285,7 +392,9 @@ function GuidedFlightInput({
       searchPlaceSuggestions({
         tenantId,
         query,
-        backendUrl
+        backendUrl,
+        authToken,
+        siteHost
       })
         .then((suggestions) => {
           if (!isCancelled) {
@@ -303,7 +412,7 @@ function GuidedFlightInput({
       isCancelled = true;
       window.clearTimeout(timer);
     };
-  }, [airportText, flightUi.next_slot, tenantId, backendUrl]);
+  }, [airportText, flightUi.next_slot, tenantId, backendUrl, authToken, siteHost]);
 
   const airportOptions = useMemo(() => {
     const merged = [...liveAirportSuggestions, ...(flightUi.airport_suggestions ?? [])];
@@ -611,6 +720,8 @@ function MessageBubble({
 }) {
   const isUser = message.role === "user";
   const renderableContent = getRenderableMessageContent(message);
+  const hasFlightDeals = Boolean(message.metadata?.flight_deals?.length);
+  const shouldRenderMarkdown = Boolean(renderableContent) && !hasFlightDeals;
 
   return (
     <div className={`message-row ${isUser ? "user" : "assistant"}`}>
@@ -618,13 +729,14 @@ function MessageBubble({
         <button
           className="copy-btn"
           type="button"
-          onClick={() => navigator.clipboard.writeText(renderableContent)}
+          onClick={() => navigator.clipboard.writeText(renderableContent || message.content.trim())}
           title="Copy message"
         >
           Copy
         </button>
 
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderableContent}</ReactMarkdown>
+        {hasFlightDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
+        {shouldRenderMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderableContent}</ReactMarkdown> : null}
 
         {message.metadata ? <FlightDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
         {message.metadata ? <ServiceRequestSummary metadata={message.metadata} /> : null}
@@ -637,8 +749,10 @@ export function ChatWidget({
   tenantId: tenantIdProp,
   backendUrl,
   embedded = false,
+  portalToken,
   supportPhoneOverride,
-  supportCtaLabelOverride
+  supportCtaLabelOverride,
+  appearanceOverride
 }: ChatWidgetProps) {
   const [isOpen, setIsOpen] = useState(embedded);
   const [threads, setThreads] = useState<ChatThread[]>([]);
@@ -656,9 +770,31 @@ export function ChatWidget({
 
   const tenantId = useMemo(() => resolveTenantId(tenantIdProp), [tenantIdProp]);
   const deviceId = useMemo(() => getOrCreateDeviceId(), []);
+  const siteHost = useMemo(
+    () => (portalToken ? undefined : embedded ? resolveEmbeddedSiteHost() : window.location.host),
+    [embedded, portalToken]
+  );
   const tenantCallCtaOverride = useMemo(
     () => buildCallCtaOverride(supportPhoneOverride, supportCtaLabelOverride),
     [supportPhoneOverride, supportCtaLabelOverride]
+  );
+  const appearance = useMemo(
+    () => normalizeAppearance({ ...parseAppearanceFromQuery(), ...appearanceOverride }),
+    [appearanceOverride]
+  );
+  const shellStyle = useMemo(
+    () =>
+      ({
+        "--brand": appearance.primaryColor,
+        "--brand-strong": darkenHex(appearance.primaryColor),
+        "--user-bubble": appearance.userBubbleColor,
+        "--assistant-bubble": appearance.botBubbleColor,
+        "--widget-width": `${appearance.windowWidth}px`,
+        "--widget-height": `${appearance.windowHeight}px`,
+        "--widget-radius": `${appearance.borderRadius}px`,
+        fontFamily: appearance.fontFamily
+      }) as CSSProperties,
+    [appearance]
   );
 
   const latestAssistantMeta = useMemo(() => {
@@ -700,7 +836,7 @@ export function ChatWidget({
     setIsLoadingThreads(true);
 
     try {
-      const nextThreads = await listChats({ tenantId, deviceId, backendUrl });
+      const nextThreads = await listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setThreads(nextThreads);
 
       const selected = preferredChatId ?? activeChatId ?? nextThreads[0]?.id ?? null;
@@ -721,7 +857,7 @@ export function ChatWidget({
     setIsLoadingMessages(true);
 
     try {
-      const nextMessages = await listMessages({ chatId, tenantId, deviceId, backendUrl });
+      const nextMessages = await listMessages({ chatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setMessages(nextMessages);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load messages");
@@ -732,7 +868,7 @@ export function ChatWidget({
 
   async function handleCreateChat() {
     try {
-      const chat = await createChat({ tenantId, deviceId, backendUrl });
+      const chat = await createChat({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setActiveChatId(chat.id);
       await refreshThreads(chat.id);
     } catch (err) {
@@ -752,7 +888,9 @@ export function ChatWidget({
         tenantId,
         deviceId,
         title: nextTitle,
-        backendUrl
+        backendUrl,
+        authToken: portalToken,
+        siteHost
       });
       await refreshThreads(thread.id);
     } catch (err) {
@@ -771,7 +909,9 @@ export function ChatWidget({
         chatId: thread.id,
         tenantId,
         deviceId,
-        backendUrl
+        backendUrl,
+        authToken: portalToken,
+        siteHost
       });
 
       const fallbackChat = activeChatId === thread.id ? null : activeChatId;
@@ -800,7 +940,7 @@ export function ChatWidget({
     let chatId = activeChatId;
 
     if (!chatId) {
-      const chat = await createChat({ tenantId, deviceId, backendUrl });
+      const chat = await createChat({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       chatId = chat.id;
       setActiveChatId(chatId);
       await refreshThreads(chatId);
@@ -858,7 +998,9 @@ export function ChatWidget({
                 : item
             )
           );
-        }
+        },
+        authToken: portalToken,
+        siteHost
       });
 
       const finalChatId = done.chat_id || chatId;
@@ -868,11 +1010,13 @@ export function ChatWidget({
         chatId: finalChatId,
         tenantId,
         deviceId,
-        backendUrl
+        backendUrl,
+        authToken: portalToken,
+        siteHost
       });
       setMessages(syncedMessages);
 
-      const syncedThreads = await listChats({ tenantId, deviceId, backendUrl });
+      const syncedThreads = await listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setThreads(syncedThreads);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Message send failed");
@@ -902,17 +1046,32 @@ export function ChatWidget({
   return (
     <>
       {!embedded ? (
-        <button className="chat-launcher" onClick={() => setIsOpen((value) => !value)}>
-          {isOpen ? "Close" : "Concierge"}
+        <button
+          className={`chat-launcher chat-launcher-${appearance.widgetPosition} chat-launcher-${appearance.launcherStyle}`}
+          style={shellStyle}
+          onClick={() => setIsOpen((value) => !value)}
+        >
+          {isOpen ? "Close" : appearance.botName}
         </button>
       ) : null}
 
       {shouldRenderShell ? (
-        <section className={`chat-shell${embedded ? " embedded" : ""}`} aria-label="Aero concierge chat widget">
+        <section
+          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}`}
+          style={shellStyle}
+          aria-label={`${appearance.botName} chat widget`}
+        >
           <header className="chat-header">
-            <div>
-              <strong>AeroConcierge</strong>
-              <p>{tenantId}</p>
+            <div className="chat-brand">
+              {appearance.botAvatarUrl ? (
+                <img src={appearance.botAvatarUrl} alt={appearance.botName} className="chat-avatar" />
+              ) : (
+                <div className="chat-avatar chat-avatar-fallback">{appearance.botName.slice(0, 2).toUpperCase()}</div>
+              )}
+              <div>
+                <strong>{appearance.botName}</strong>
+                <p>{tenantId}</p>
+              </div>
             </div>
 
             <div className="chat-header-actions">
@@ -963,11 +1122,14 @@ export function ChatWidget({
                 {isLoadingMessages ? <p className="thread-hint">Loading messages...</p> : null}
 
                 {messages.length === 0 && !isLoadingMessages ? (
-                  <p className="empty-state">Start with a greeting or ask for flights, hotels, cars, or cruises.</p>
+                  <div className="welcome-card">
+                    <h3>{appearance.botName}</h3>
+                    <p>{appearance.welcomeMessage}</p>
+                  </div>
                 ) : null}
 
                 {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} callCtaOverride={tenantCallCtaOverride} />
+                  <MessageBubble key={message.id} message={message} callCtaOverride={callCta} />
                 ))}
               </div>
 
@@ -980,6 +1142,8 @@ export function ChatWidget({
                   onSubmit={sendMessage}
                   tenantId={tenantId}
                   backendUrl={backendUrl}
+                  authToken={portalToken}
+                  siteHost={siteHost}
                 />
               ) : null}
 

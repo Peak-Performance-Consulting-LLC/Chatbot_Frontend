@@ -1,5 +1,11 @@
 import type { ChatMessage, ChatThread } from "@/types";
 
+type RequestContext = {
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+};
+
 type StreamPayload = {
   tenant_id: string;
   device_id: string;
@@ -28,6 +34,20 @@ function resolveBaseUrl(override?: string) {
   return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:4000").replace(/\/$/, "");
 }
 
+function buildHeaders(context: RequestContext, contentType = false) {
+  const headers = new Headers();
+  if (contentType) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (context.authToken) {
+    headers.set("Authorization", `Bearer ${context.authToken}`);
+  }
+  if (context.siteHost) {
+    headers.set("X-Tenant-Site-Host", context.siteHost);
+  }
+  return headers;
+}
+
 async function parseError(response: Response): Promise<string> {
   try {
     const json = (await response.json()) as { error?: string };
@@ -41,10 +61,15 @@ export async function listChats(input: {
   tenantId: string;
   deviceId: string;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
 }): Promise<ChatThread[]> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(
-    `${base}/api/chats?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`
+    `${base}/api/chats?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`,
+    {
+      headers: buildHeaders(input)
+    }
   );
 
   if (!response.ok) {
@@ -59,11 +84,13 @@ export async function createChat(input: {
   tenantId: string;
   deviceId: string;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
 }): Promise<ChatThread> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(`${base}/api/chats`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders(input, true),
     body: JSON.stringify({
       tenant_id: input.tenantId,
       device_id: input.deviceId
@@ -84,11 +111,13 @@ export async function renameChat(input: {
   deviceId: string;
   title: string;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
 }): Promise<ChatThread> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(`${base}/api/chats/${input.chatId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders(input, true),
     body: JSON.stringify({
       tenant_id: input.tenantId,
       device_id: input.deviceId,
@@ -109,12 +138,15 @@ export async function deleteChat(input: {
   tenantId: string;
   deviceId: string;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
 }): Promise<void> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(
     `${base}/api/chats/${input.chatId}?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`,
     {
-      method: "DELETE"
+      method: "DELETE",
+      headers: buildHeaders(input)
     }
   );
 
@@ -128,10 +160,15 @@ export async function listMessages(input: {
   tenantId: string;
   deviceId: string;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
 }): Promise<ChatMessage[]> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(
-    `${base}/api/chats/${input.chatId}/messages?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`
+    `${base}/api/chats/${input.chatId}/messages?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`,
+    {
+      headers: buildHeaders(input)
+    }
   );
 
   if (!response.ok) {
@@ -145,13 +182,15 @@ export async function listMessages(input: {
 export async function streamChat(input: {
   payload: StreamPayload;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
   onToken: (token: string) => void;
   onError: (message: string) => void;
 }): Promise<{ chat_id: string }> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(`${base}/api/chat/stream`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: buildHeaders(input, true),
     body: JSON.stringify(input.payload)
   });
 
@@ -220,10 +259,15 @@ export async function searchPlaceSuggestions(input: {
   tenantId: string;
   query: string;
   backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
 }): Promise<PlaceSuggestionOption[]> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(
-    `${base}/api/flights/place-suggestions?tenant_id=${encodeURIComponent(input.tenantId)}&query=${encodeURIComponent(input.query)}&limit=8`
+    `${base}/api/flights/place-suggestions?tenant_id=${encodeURIComponent(input.tenantId)}&query=${encodeURIComponent(input.query)}&limit=8`,
+    {
+      headers: buildHeaders(input)
+    }
   );
 
   if (!response.ok) {
@@ -304,9 +348,7 @@ export async function fetchAirportSuggestions(query: string, backendUrl?: string
   }
 
   const base = resolveBaseUrl(backendUrl);
-  const response = await fetch(
-    `${base}/api/flights/place-suggestions?query=${encodeURIComponent(normalized)}`
-  );
+  const response = await fetch(`${base}/api/flights/place-suggestions?query=${encodeURIComponent(normalized)}`);
 
   if (!response.ok) {
     return [];

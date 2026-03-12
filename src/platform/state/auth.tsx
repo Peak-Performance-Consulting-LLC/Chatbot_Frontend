@@ -40,6 +40,11 @@ type SignupInput = {
   doc_urls?: string[];
 };
 
+type PlatformSourcePayload = {
+  source_type: "sitemap" | "url" | "faq" | "doc_text";
+  source_value: string;
+};
+
 type PlatformAuthContextValue = {
   token: string;
   profile: PlatformProfile | null;
@@ -60,7 +65,7 @@ type PlatformAuthContextValue = {
   }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
-  verifyDomain: (tenantId: string) => Promise<void>;
+  verifyDomain: (tenantId: string) => Promise<{ verified: boolean; message: string }>;
   runIngest: (tenantId: string, replace?: boolean) => Promise<{ inserted: number; errors: string[] }>;
   updateTenantProfile: (input: {
     tenant_id: string;
@@ -70,6 +75,18 @@ type PlatformAuthContextValue = {
     support_email?: string;
     support_cta_label?: string;
     business_description?: string;
+    primary_color?: string;
+    user_bubble_color?: string;
+    bot_bubble_color?: string;
+    font_family?: string;
+    widget_position?: "left" | "right";
+    launcher_style?: "rounded" | "pill" | "square" | "minimal";
+    window_width?: number;
+    window_height?: number;
+    border_radius?: number;
+    welcome_message?: string;
+    bot_name?: string;
+    bot_avatar_url?: string;
   }) => Promise<TenantBusinessProfile>;
   updateTenantDomain: (input: {
     tenant_id: string;
@@ -79,15 +96,29 @@ type PlatformAuthContextValue = {
   saveTenantSources: (tenantId: string, sources: PlatformSourcePayload[]) => Promise<PlatformSource[]>;
 };
 
-type PlatformSourcePayload = {
-  source_type: "sitemap" | "url" | "faq" | "doc_text";
-  source_value: string;
-};
-
 const PlatformAuthContext = createContext<PlatformAuthContextValue | null>(null);
 
 function resolveBackendUrl() {
   return import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:4000";
+}
+
+function upsertTenantInProfile(profile: PlatformProfile | null, tenant: PlatformTenant): PlatformProfile | null {
+  if (!profile) {
+    return profile;
+  }
+
+  const existing = profile.tenants.find((item) => item.tenant_id === tenant.tenant_id);
+  if (!existing) {
+    return {
+      ...profile,
+      tenants: [...profile.tenants, tenant]
+    };
+  }
+
+  return {
+    ...profile,
+    tenants: profile.tenants.map((item) => (item.tenant_id === tenant.tenant_id ? tenant : item))
+  };
 }
 
 export function PlatformAuthProvider({ children }: PropsWithChildren) {
@@ -194,21 +225,12 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
       const response = await platformSignup(input, backendUrl);
       localStorage.setItem(TOKEN_KEY, response.token);
       setToken(response.token);
-      const tenant: PlatformTenant = {
-        tenant_id: response.tenant.tenant_id,
-        name: response.tenant.name,
-        allowed_domains: [response.tenant.domain],
-        business_profile: response.tenant.business_profile,
-        domain_verification: response.domain_verification,
-        widget: response.widget
-      };
-
       setProfile({
         user: response.user,
-        tenants: [tenant]
+        tenants: [response.tenant]
       });
-      setSelectedTenantId(tenant.tenant_id);
-      localStorage.setItem(SELECTED_TENANT_KEY, tenant.tenant_id);
+      setSelectedTenantId(response.tenant.tenant_id);
+      localStorage.setItem(SELECTED_TENANT_KEY, response.tenant.tenant_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Signup failed";
       setError(message);
@@ -234,28 +256,9 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await platformCreateWorkspace(token, input, backendUrl);
-      const tenant: PlatformTenant = {
-        tenant_id: response.tenant.tenant_id,
-        name: response.tenant.name,
-        allowed_domains: [response.tenant.domain],
-        business_profile: response.tenant.business_profile,
-        domain_verification: response.domain_verification,
-        widget: response.widget
-      };
-
-      setProfile((previous) => {
-        if (!previous) {
-          return previous;
-        }
-
-        return {
-          ...previous,
-          tenants: [...previous.tenants, tenant]
-        };
-      });
-
-      setSelectedTenantId(tenant.tenant_id);
-      localStorage.setItem(SELECTED_TENANT_KEY, tenant.tenant_id);
+      setProfile((previous) => upsertTenantInProfile(previous, response.tenant));
+      setSelectedTenantId(response.tenant.tenant_id);
+      localStorage.setItem(SELECTED_TENANT_KEY, response.tenant.tenant_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create workspace";
       setError(message);
@@ -289,23 +292,11 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await platformVerifyDomain(token, tenantId, backendUrl);
-      setProfile((previous) => {
-        if (!previous) {
-          return previous;
-        }
-
-        return {
-          ...previous,
-          tenants: previous.tenants.map((tenant) =>
-            tenant.tenant_id === tenantId
-              ? {
-                  ...tenant,
-                  domain_verification: response.domain_verification
-                }
-              : tenant
-          )
-        };
-      });
+      await refresh();
+      return {
+        verified: response.verified,
+        message: response.message
+      };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Domain verification failed";
       setError(message);
@@ -325,6 +316,24 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await platformRunIngest(token, tenantId, replace, backendUrl);
+      setProfile((previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          tenants: previous.tenants.map((tenant) =>
+            tenant.tenant_id === tenantId
+              ? {
+                  ...tenant,
+                  knowledge_base: response.knowledge_base
+                }
+              : tenant
+          )
+        };
+      });
+
       return {
         inserted: response.ingestion.inserted_chunks,
         errors: response.ingestion.errors
@@ -346,6 +355,18 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     support_email?: string;
     support_cta_label?: string;
     business_description?: string;
+    primary_color?: string;
+    user_bubble_color?: string;
+    bot_bubble_color?: string;
+    font_family?: string;
+    widget_position?: "left" | "right";
+    launcher_style?: "rounded" | "pill" | "square" | "minimal";
+    window_width?: number;
+    window_height?: number;
+    border_radius?: number;
+    welcome_message?: string;
+    bot_name?: string;
+    bot_avatar_url?: string;
   }) {
     if (!token) {
       throw new Error("Not authenticated");
@@ -356,25 +377,8 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await platformUpdateTenantProfile(token, input, backendUrl);
-      setProfile((previous) => {
-        if (!previous) {
-          return previous;
-        }
-
-        return {
-          ...previous,
-          tenants: previous.tenants.map((tenant) =>
-            tenant.tenant_id === input.tenant_id
-              ? {
-                  ...tenant,
-                  business_profile: response.business_profile
-                }
-              : tenant
-          )
-        };
-      });
-
-      return response.business_profile;
+      setProfile((previous) => upsertTenantInProfile(previous, response.tenant));
+      return response.tenant.business_profile;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update tenant profile";
       setError(message);
@@ -397,25 +401,7 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
     try {
       const response = await platformUpdateTenantDomain(token, input, backendUrl);
-      setProfile((previous) => {
-        if (!previous) {
-          return previous;
-        }
-
-        return {
-          ...previous,
-          tenants: previous.tenants.map((tenant) =>
-            tenant.tenant_id === input.tenant_id
-              ? {
-                  ...tenant,
-                  allowed_domains: response.allowed_domains,
-                  domain_verification: response.domain_verification,
-                  widget: response.widget ?? tenant.widget
-                }
-              : tenant
-          )
-        };
-      });
+      setProfile((previous) => upsertTenantInProfile(previous, response.tenant));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to update tenant domain";
       setError(message);
@@ -451,6 +437,25 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
         },
         backendUrl
       );
+
+      setProfile((previous) => {
+        if (!previous) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          tenants: previous.tenants.map((tenant) =>
+            tenant.tenant_id === tenantId
+              ? {
+                  ...tenant,
+                  knowledge_base: response.knowledge_base
+                }
+              : tenant
+          )
+        };
+      });
+
       return response.sources;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save tenant sources";
