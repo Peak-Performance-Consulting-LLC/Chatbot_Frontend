@@ -1,18 +1,15 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import PlatformLogo from "@/platform/components/PlatformLogo";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 function splitDocUrls(input: string): string[] {
-  return input
-    .split(/\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return input.split(/\n|,/).map((s) => s.trim()).filter(Boolean);
 }
 
 export default function SignupPage() {
   const navigate = useNavigate();
   const { signup, loading, error, setError } = usePlatformAuth();
-
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,130 +20,170 @@ export default function SignupPage() {
   const [docUrls, setDocUrls] = useState("");
   const [faqText, setFaqText] = useState("");
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setError("");
-
     try {
-      await signup({
-        full_name: fullName,
-        email,
-        password,
-        company_name: companyName,
-        website_url: websiteUrl,
-        sitemap_url: sitemapUrl || undefined,
-        doc_urls: splitDocUrls(docUrls),
-        faq_text: faqText || undefined
-      });
+      await signup({ full_name: fullName, email, password, company_name: companyName, website_url: websiteUrl, sitemap_url: sitemapUrl || undefined, doc_urls: splitDocUrls(docUrls), faq_text: faqText || undefined });
       navigate("/platform/app/overview");
-    } catch {
-      // handled in context
-    }
+    } catch { /* handled in context */ }
   }
 
+  const inputCls = "w-full rounded-xl border border-[#0a0a0f]/10 bg-white px-4 py-3 text-sm text-[#0a0a0f] shadow-sm placeholder:text-[#0a0a0f]/30 focus:border-[#1a5c5c]/40 focus:outline-none focus:ring-2 focus:ring-[#1a5c5c]/15 transition";
+  const labelCls = "block";
+  const labelSpan = "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#0a0a0f]/50";
+
   return (
-    <div className="platform-auth-page">
-      <section className="platform-auth-hero">
-        <p className="platform-auth-eyebrow">AeroConcierge Platform</p>
-        <h1>Launch your branded concierge.</h1>
-        <p>Connect domain, ingest knowledge, and deploy tenant-specific chat widget in minutes.</p>
+    <div className="flex min-h-screen font-[family-name:var(--font-body)] lg:h-screen lg:overflow-hidden">
+
+      {/* ── Left Panel ───────────────────────────── */}
+      <section className="relative hidden flex-col justify-between overflow-hidden bg-[#0a0a0f] p-10 lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[40%] lg:flex-shrink-0">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute -top-1/4 -right-1/4 h-[500px] w-[500px] rounded-full bg-[#1a5c5c]/20 blur-[120px]" />
+          <div className="absolute bottom-0 left-0 h-[350px] w-[350px] rounded-full bg-[#c9a96e]/10 blur-[90px]" />
+        </div>
+
+        <div className="relative flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#c9a96e]/10 text-[#c9a96e]">
+            <div className="flex items-center justify-center  text-[#c9a96e]">
+              <PlatformLogo className="h-8 w-8" />
+            </div>          </div>
+          <div>
+            <strong className="block text-sm font-semibold text-white">AeroConcierge</strong>
+            <p className="text-[11px] uppercase tracking-widest text-white/40">Travel commerce orchestration</p>
+          </div>
+        </div>
+
+        <div className="relative">
+          <p className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#c9a96e]">
+            <span className="h-px w-6 bg-[#c9a96e]" />
+            AeroConcierge Platform
+          </p>
+          <h1 className="font-[family-name:var(--font-display)] text-4xl font-light leading-tight text-white lg:text-5xl">
+            Launch your <em className="not-italic text-[#c9a96e]">branded</em> concierge.
+          </h1>
+          <p className="mt-4 text-sm leading-relaxed text-white/50">
+            Connect domain, ingest knowledge, and deploy a tenant-specific chat widget in minutes.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {["Brand-safe onboarding", "Knowledge-backed answers", "Responsive widget deployment"].map((pt) => (
+              <span key={pt} className="rounded-full border border-white/10 px-3 py-1 text-xs text-white/50">{pt}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative rounded-2xl border border-white/[0.08] bg-white/[0.04] p-6">
+          <p className="text-sm leading-relaxed text-white/70">
+            Go from website URL to launch-ready concierge with guided onboarding, domain verification, and live preview.
+          </p>
+          <strong className="mt-4 block text-xs font-semibold text-white">Premium setup flow</strong>
+          <span className="text-[11px] text-white/40">Purpose-built for modern travel operators</span>
+        </div>
       </section>
 
-      <section className="platform-auth-card">
-        <h2>Create Account</h2>
+      {/* ── Right Panel: Form ─────────────────────── */}
+      <section className="flex flex-1 items-start justify-center overflow-y-auto bg-[#faf8f4] px-5 py-12 sm:px-10 lg:h-screen lg:min-h-0">
+        <div className="w-full max-w-lg">
 
-        <form onSubmit={handleSubmit} className="platform-form-grid">
-          <label>
-            Full name
-            <input value={fullName} onChange={(event) => setFullName(event.target.value)} required />
-          </label>
-
-          <label>
-            Work email
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-          </label>
-
-          <label>
-            Password
-            <div className="platform-password-field">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={8}
-                required
-              />
-              <button
-                type="button"
-                className="platform-password-toggle"
-                onClick={() => setShowPassword((value) => !value)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                aria-pressed={showPassword}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
+          {/* Mobile brand */}
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <div className="flex items-center justify-center  text-[#c9a96e]">
+              <PlatformLogo className="h-8 w-8" />
             </div>
-          </label>
+            <div>
+              <strong className="block text-sm font-semibold ">AeroConcierge</strong>
+              <p className="text-[11px] uppercase tracking-widest ">Travel commerce orchestration</p>
+            </div>                   
+          </div>
 
-          <label>
-            Company name
-            <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} required />
-          </label>
+          <h2 className="font-[family-name:var(--font-display)] text-3xl font-light text-[#0a0a0f]">Create Account</h2>
+          <p className="mt-1 text-sm text-[#0a0a0f]/50">Create your account and connect the first workspace.</p>
 
-          <label>
-            Website URL
-            <input
-              placeholder="https://example.com"
-              value={websiteUrl}
-              onChange={(event) => setWebsiteUrl(event.target.value)}
-              required
-            />
-          </label>
+          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
 
-          <label>
-            Sitemap URL
-            <input
-              placeholder="https://example.com/sitemap.xml"
-              value={sitemapUrl}
-              onChange={(event) => setSitemapUrl(event.target.value)}
-            />
-          </label>
+            {/* Account section */}
+            <div>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-[#0a0a0f]/08" />
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#a07840]">Account</span>
+                <div className="h-px flex-1 bg-[#0a0a0f]/08" />
+              </div>
+              <div className="space-y-4">
+                <label className={labelCls}>
+                  <span className={labelSpan}>Full name</span>
+                  <input value={fullName} onChange={(e) => setFullName(e.target.value)} required className={inputCls} placeholder="Jane Smith" />
+                </label>
+                <label className={labelCls}>
+                  <span className={labelSpan}>Work email</span>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={inputCls} placeholder="jane@company.com" />
+                </label>
+                <label className={labelCls}>
+                  <span className={labelSpan}>Password</span>
+                  <div className="relative">
+                    <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required className={`${inputCls} pr-20`} placeholder="Min. 8 characters" />
+                    <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md px-2 py-1 text-xs font-semibold text-[#0a0a0f]/40 hover:text-[#0a0a0f] transition">
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                </label>
+              </div>
+            </div>
 
-          <label>
-            Doc URLs (comma/new line)
-            <textarea
-              rows={3}
-              placeholder="https://example.com/refund, https://example.com/baggage"
-              value={docUrls}
-              onChange={(event) => setDocUrls(event.target.value)}
-            />
-          </label>
+            {/* Company section */}
+            <div>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-[#0a0a0f]/08" />
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#a07840]">Company</span>
+                <div className="h-px flex-1 bg-[#0a0a0f]/08" />
+              </div>
+              <div className="space-y-4">
+                <label className={labelCls}>
+                  <span className={labelSpan}>Company name</span>
+                  <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} required className={inputCls} placeholder="Acme Travel Co." />
+                </label>
+                <label className={labelCls}>
+                  <span className={labelSpan}>Website URL</span>
+                  <input value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} required className={inputCls} placeholder="https://example.com" />
+                </label>
+              </div>
+            </div>
 
-          <label>
-            FAQs / support text
-            <textarea
-              rows={4}
-              placeholder="Paste FAQs or policy text"
-              value={faqText}
-              onChange={(event) => setFaqText(event.target.value)}
-            />
-          </label>
+            {/* Knowledge section */}
+            <div>
+              <div className="mb-4 flex items-center gap-3">
+                <div className="h-px flex-1 bg-[#0a0a0f]/08" />
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#a07840]">Knowledge</span>
+                <div className="h-px flex-1 bg-[#0a0a0f]/08" />
+              </div>
+              <div className="space-y-4">
+                <label className={labelCls}>
+                  <span className={labelSpan}>Sitemap URL <span className="text-[#0a0a0f]/30 normal-case font-normal">(optional)</span></span>
+                  <input value={sitemapUrl} onChange={(e) => setSitemapUrl(e.target.value)} className={inputCls} placeholder="https://example.com/sitemap.xml" />
+                </label>
+                <label className={labelCls}>
+                  <span className={labelSpan}>Doc URLs <span className="text-[#0a0a0f]/30 normal-case font-normal">(comma or new line)</span></span>
+                  <textarea rows={3} value={docUrls} onChange={(e) => setDocUrls(e.target.value)} className={`${inputCls} resize-none`} placeholder="https://example.com/refund&#10;https://example.com/baggage" />
+                </label>
+                <label className={labelCls}>
+                  <span className={labelSpan}>FAQs / support text <span className="text-[#0a0a0f]/30 normal-case font-normal">(optional)</span></span>
+                  <textarea rows={4} value={faqText} onChange={(e) => setFaqText(e.target.value)} className={`${inputCls} resize-none`} placeholder="Paste FAQs or policy text…" />
+                </label>
+              </div>
+            </div>
 
-          {error ? <p className="platform-error">{error}</p> : null}
-          {loading ? (
-            <p className="platform-success">
-              Creating the workspace, saving sources, and starting knowledge base ingestion.
-            </p>
-          ) : null}
+            {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+            {loading && <div className="rounded-xl border border-[#1a5c5c]/20 bg-[#1a5c5c]/05 px-4 py-3 text-sm text-[#1a5c5c]">Creating the workspace, saving sources, and starting knowledge base ingestion…</div>}
 
-          <button className="platform-primary-btn" type="submit" disabled={loading}>
-            {loading ? "Building workspace..." : "Create Workspace"}
-          </button>
-        </form>
+            <button type="submit" disabled={loading} className="w-full rounded-xl bg-[#0a0a0f] px-4 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#1a5c5c] hover:shadow-[#1a5c5c]/25 disabled:opacity-60">
+              {loading ? "Building workspace…" : "Create Workspace →"}
+            </button>
+          </form>
 
-        <p className="platform-auth-footnote">
-          Already have an account? <Link to="/platform/login">Login</Link>
-        </p>
+          <p className="mt-6 text-center text-sm text-[#0a0a0f]/50">
+            Already have an account?{" "}
+            <Link to="/platform/login" className="font-medium text-[#1a5c5c] hover:underline">Login</Link>
+          </p>
+        </div>
       </section>
     </div>
   );

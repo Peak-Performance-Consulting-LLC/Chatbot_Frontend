@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">AeroConcierge bot mark</title>
+  <desc id="desc">Golden circular badge with a concierge robot face.</desc>
+  <defs>
+    <radialGradient id="bgGlow" cx="34%" cy="28%" r="72%">
+      <stop offset="0%" stop-color="#ffd569"/>
+      <stop offset="58%" stop-color="#f0b73b"/>
+      <stop offset="100%" stop-color="#cd8921"/>
+    </radialGradient>
+    <linearGradient id="goldRing" x1="18%" y1="16%" x2="80%" y2="86%">
+      <stop offset="0%" stop-color="#fff1af"/>
+      <stop offset="46%" stop-color="#d89a2b"/>
+      <stop offset="100%" stop-color="#7a4d0c"/>
+    </linearGradient>
+    <linearGradient id="shellMetal" x1="14%" y1="10%" x2="84%" y2="90%">
+      <stop offset="0%" stop-color="#fff7d1"/>
+      <stop offset="25%" stop-color="#f5de96"/>
+      <stop offset="56%" stop-color="#b98a2f"/>
+      <stop offset="100%" stop-color="#5f3e0b"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="14%" y1="12%" x2="86%" y2="88%">
+      <stop offset="0%" stop-color="#11161d"/>
+      <stop offset="100%" stop-color="#343f4b"/>
+    </linearGradient>
+    <linearGradient id="mintFace" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#b3fbd2"/>
+      <stop offset="100%" stop-color="#71ecb1"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#6b430c" flood-opacity="0.24"/>
+    </filter>
+    <filter id="screenShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000000" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <circle cx="64" cy="64" r="62" fill="url(#bgGlow)"/>
+  <circle cx="64" cy="64" r="59.5" fill="none" stroke="url(#goldRing)" stroke-width="5"/>
+  <ellipse cx="47" cy="33" rx="23" ry="16" fill="#fff4b6" opacity="0.22"/>
+
+  <g filter="url(#shadow)">
+    <circle cx="64" cy="20" r="6.5" fill="url(#shellMetal)"/>
+    <rect x="61.5" y="24" width="5" height="12" rx="2.5" fill="#c9962f"/>
+
+    <rect x="23" y="29" width="82" height="70" rx="22" fill="url(#shellMetal)"/>
+    <rect x="28" y="34" width="72" height="60" rx="18" fill="#f7e6a4" opacity="0.44"/>
+
+    <rect x="33" y="39" width="62" height="50" rx="14" fill="url(#screen)" filter="url(#screenShadow)"/>
+
+    <circle cx="50" cy="58" r="3.6" fill="url(#mintFace)"/>
+    <circle cx="78" cy="58" r="3.6" fill="url(#mintFace)"/>
+    <path d="M47 69c4.3 6.5 29.7 6.5 34 0" fill="none" stroke="url(#mintFace)" stroke-linecap="round" stroke-width="5"/>
+
+    <circle cx="38" cy="64" r="4.5" fill="#5f3e0b"/>
+    <circle cx="90" cy="64" r="4.5" fill="#5f3e0b"/>
+    <rect x="21.5" y="54" width="7" height="20" rx="3.5" fill="url(#shellMetal)"/>
+    <rect x="99.5" y="54" width="7" height="20" rx="3.5" fill="url(#shellMetal)"/>
+  </g>
+</svg>

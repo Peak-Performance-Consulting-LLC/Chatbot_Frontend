@@ -18,6 +18,7 @@ type ChatWidgetProps = {
   tenantId?: string;
   backendUrl?: string;
   embedded?: boolean;
+  layoutVariant?: ChatWidgetLayoutVariant;
   portalToken?: string;
   supportPhoneOverride?: string | null;
   supportCtaLabelOverride?: string | null;
@@ -33,6 +34,7 @@ type HeaderCtaConfig = {
   label: string;
   notice: string;
 };
+type ChatWidgetLayoutVariant = "default" | "platform";
 type ChatWidgetAppearance = {
   primaryColor: string;
   userBubbleColor: string;
@@ -69,7 +71,14 @@ const defaultHeaderCtaConfig: HeaderCtaConfig = {
 };
 const poweredByBrand = "Vacation Vista";
 
-function normalizeAppearance(input?: Partial<ChatWidgetAppearance> | null): ChatWidgetAppearance {
+function normalizeAppearance(
+  input?: Partial<ChatWidgetAppearance> | null,
+  layoutVariant: ChatWidgetLayoutVariant = "default"
+): ChatWidgetAppearance {
+  const limits = layoutVariant === "platform"
+    ? { minWidth: 760, maxWidth: 1120, minHeight: 620, maxHeight: 860 }
+    : { minWidth: 320, maxWidth: 520, minHeight: 520, maxHeight: 860 };
+
   return {
     primaryColor: input?.primaryColor?.trim() || defaultAppearance.primaryColor,
     userBubbleColor: input?.userBubbleColor?.trim() || input?.primaryColor?.trim() || defaultAppearance.userBubbleColor,
@@ -81,9 +90,13 @@ function normalizeAppearance(input?: Partial<ChatWidgetAppearance> | null): Chat
         ? input.launcherStyle
         : defaultAppearance.launcherStyle,
     windowWidth:
-      typeof input?.windowWidth === "number" ? Math.min(520, Math.max(320, Math.round(input.windowWidth))) : defaultAppearance.windowWidth,
+      typeof input?.windowWidth === "number"
+        ? Math.min(limits.maxWidth, Math.max(limits.minWidth, Math.round(input.windowWidth)))
+        : defaultAppearance.windowWidth,
     windowHeight:
-      typeof input?.windowHeight === "number" ? Math.min(860, Math.max(520, Math.round(input.windowHeight))) : defaultAppearance.windowHeight,
+      typeof input?.windowHeight === "number"
+        ? Math.min(limits.maxHeight, Math.max(limits.minHeight, Math.round(input.windowHeight)))
+        : defaultAppearance.windowHeight,
     borderRadius:
       typeof input?.borderRadius === "number" ? Math.min(36, Math.max(8, Math.round(input.borderRadius))) : defaultAppearance.borderRadius,
     botName: input?.botName?.trim() || defaultAppearance.botName,
@@ -204,7 +217,7 @@ function formatMessageTime(iso: string) {
 // ── SVG Icons ──────────────────────────────────────────────────────────────────
 function IconChat() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   );
@@ -677,6 +690,7 @@ export function ChatWidget({
   tenantId: tenantIdProp,
   backendUrl,
   embedded = false,
+  layoutVariant = "default",
   portalToken,
   supportPhoneOverride,
   supportCtaLabelOverride,
@@ -686,6 +700,7 @@ export function ChatWidget({
 }: ChatWidgetProps) {
   const isPublicEmbed = embedded && !portalToken;
   const [isOpen, setIsOpen] = useState(embedded && Boolean(portalToken));
+  const [showLauncherNotification, setShowLauncherNotification] = useState(isPublicEmbed);
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -695,11 +710,11 @@ export function ChatWidget({
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMobileThreadsOpen, setIsMobileThreadsOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 900);
+  const [shellWidth, setShellWidth] = useState<number | null>(null);
   const [pendingLauncherReply, setPendingLauncherReply] = useState<string | null>(null);
 
+  const shellRef = useRef<HTMLElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const widgetQueryConfig = useMemo(() => parseWidgetConfigFromQuery(), []);
 
   const tenantId = useMemo(() => resolveTenantId(tenantIdProp), [tenantIdProp]);
@@ -725,8 +740,8 @@ export function ChatWidget({
     [headerCtaLabelOverride, headerCtaNoticeOverride, widgetQueryConfig]
   );
   const appearance = useMemo(
-    () => normalizeAppearance({ ...widgetQueryConfig.appearance, ...appearanceOverride }),
-    [appearanceOverride, widgetQueryConfig]
+    () => normalizeAppearance({ ...widgetQueryConfig.appearance, ...appearanceOverride }, layoutVariant),
+    [appearanceOverride, layoutVariant, widgetQueryConfig]
   );
   const shellStyle = useMemo(
     () =>
@@ -755,6 +770,10 @@ export function ChatWidget({
   const flightUi = latestAssistantMeta?.flight_ui ?? null;
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
+  const publicEmbedMode = isPublicEmbed ? (isOpen ? "open" : showLauncherNotification ? "peek" : "launcher") : null;
+  const shouldRenderShell = embedded ? (!isPublicEmbed || isOpen) : isOpen;
+  const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, appearance.windowWidth);
+  const isCompactLayout = effectiveShellWidth < 720;
   const teaserReplies = useMemo(() => {
     const fromAssistant = quickReplies.filter(Boolean).slice(0, 4);
     if (fromAssistant.length > 0) {
@@ -771,13 +790,6 @@ export function ChatWidget({
   }, [quickReplies, callCta]);
 
   useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 120)}px`;
-  }, [input]);
-
-  useEffect(() => {
     if (embedded && portalToken) setIsOpen(true);
   }, [embedded, portalToken]);
 
@@ -792,15 +804,39 @@ export function ChatWidget({
   }, [isPublicEmbed]);
 
   useEffect(() => {
-    const listener = () => setIsMobile(window.innerWidth < 900);
-    window.addEventListener("resize", listener);
-    return () => window.removeEventListener("resize", listener);
-  }, []);
+    if (!shouldRenderShell) {
+      setShellWidth(null);
+      return;
+    }
+
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    const updateWidth = () => {
+      setShellWidth(shell.getBoundingClientRect().width || null);
+    };
+
+    updateWidth();
+    const observer = new ResizeObserver(updateWidth);
+    observer.observe(shell);
+    window.addEventListener("resize", updateWidth);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", updateWidth);
+    };
+  }, [shouldRenderShell, appearance.windowWidth]);
+
+  useEffect(() => {
+    if (!isCompactLayout && isMobileThreadsOpen) {
+      setIsMobileThreadsOpen(false);
+    }
+  }, [isCompactLayout, isMobileThreadsOpen]);
 
   useEffect(() => {
     if (!isPublicEmbed || window.parent === window) return;
-    window.parent.postMessage({ type: "aeroconcierge:widget-state", open: isOpen }, "*");
-  }, [isPublicEmbed, isOpen]);
+    window.parent.postMessage({ type: "aeroconcierge:widget-state", open: isOpen, mode: publicEmbedMode }, "*");
+  }, [isPublicEmbed, isOpen, publicEmbedMode]);
 
   useEffect(() => {
     if (!pendingLauncherReply || !isOpen) return;
@@ -943,7 +979,11 @@ export function ChatWidget({
     refreshThreads().catch((err) => setError(err instanceof Error ? err.message : "Failed to initialize chat widget"));
   }, [embedded, isOpen, isPublicEmbed]);
 
-  const shouldRenderShell = embedded ? (!isPublicEmbed || isOpen) : isOpen;
+  function openPublicEmbedChat(reply?: string) {
+    if (reply) setPendingLauncherReply(reply);
+    if (isPublicEmbed) setShowLauncherNotification(false);
+    setIsOpen(true);
+  }
 
   return (
     <>
@@ -963,35 +1003,35 @@ export function ChatWidget({
 
       {isPublicEmbed && !isOpen ? (
         <div
-          className={`chat-peek-stack chat-peek-stack-${appearance.widgetPosition}`}
+          className={`chat-peek-stack chat-peek-stack-${appearance.widgetPosition}${showLauncherNotification ? "" : " launcher-only"}`}
           aria-label={`${appearance.botName} launcher`}
         >
-          <button type="button" className="chat-peek-card" onClick={() => setIsOpen(true)}>
-            <span className="chat-peek-pill">{headerCtaConfig.label}</span>
-            {/* <strong>{appearance.botName}</strong> */}
-            <p>{headerCtaConfig.notice}</p>
-          </button>
-
-          <div className="chat-peek-actions">
-            {teaserReplies.map((reply) => (
-              <button
-                key={reply}
-                type="button"
-                className="chat-peek-chip"
-                onClick={() => {
-                  setPendingLauncherReply(reply);
-                  setIsOpen(true);
-                }}
-              >
-                {reply}
+          {showLauncherNotification ? (
+            <>
+              <button type="button" className="chat-peek-card" onClick={() => openPublicEmbedChat()}>
+                <span className="chat-peek-pill">{headerCtaConfig.label}</span>
+                <p>{headerCtaConfig.notice}</p>
               </button>
-            ))}
-          </div>
+
+              <div className="chat-peek-actions">
+                {teaserReplies.map((reply) => (
+                  <button
+                    key={reply}
+                    type="button"
+                    className="chat-peek-chip"
+                    onClick={() => openPublicEmbedChat(reply)}
+                  >
+                    {reply}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
 
           <button
             type="button"
             className="chat-peek-launcher"
-            onClick={() => setIsOpen(true)}
+            onClick={() => openPublicEmbedChat()}
             aria-label={`Open ${appearance.botName}`}
           >
             <span className="chat-peek-launcher-badge">1</span>
@@ -1002,7 +1042,8 @@ export function ChatWidget({
 
       {shouldRenderShell ? (
         <section
-          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}${isPublicEmbed ? " public-embed-shell" : ""}`}
+          ref={shellRef}
+          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}${isPublicEmbed ? " public-embed-shell" : ""}${isCompactLayout ? " compact" : ""}${layoutVariant === "platform" ? " chat-shell-platform" : ""}`}
           style={shellStyle}
           aria-label={`${appearance.botName} chat widget`}
         >
@@ -1030,7 +1071,7 @@ export function ChatWidget({
                   <span>{callCta.label}</span>
                 </a>
               ) : null}
-              {isMobile ? (
+              {isCompactLayout ? (
                 <button className="thread-toggle" type="button" onClick={() => setIsMobileThreadsOpen((v) => !v)}>
                   <IconMenu />
                   Chats
@@ -1042,7 +1083,7 @@ export function ChatWidget({
           {/* ── Body ── */}
           <div className="chat-body">
             {/* Thread sidebar */}
-            <aside className={`thread-sidebar ${isMobile ? (isMobileThreadsOpen ? "mobile-open" : "mobile-hidden") : ""}`}>
+            <aside className={`thread-sidebar ${isCompactLayout ? (isMobileThreadsOpen ? "mobile-open" : "mobile-hidden") : ""}`}>
               <div className="thread-actions">
                 <button type="button" onClick={handleCreateChat}><IconPlus /> New Chat</button>
               </div>
@@ -1104,7 +1145,6 @@ export function ChatWidget({
               <form className="composer" onSubmit={handleSend}>
                 <div className="composer-textarea-wrap">
                   <textarea
-                    ref={textareaRef}
                     value={input}
                     placeholder="Type a message… (Enter to send)"
                     onChange={(e) => setInput(e.target.value)}
@@ -1112,7 +1152,7 @@ export function ChatWidget({
                     rows={1}
                     disabled={isSending}
                   />
-                  <span className="composer-hint">Shift+Enter for newline</span>
+                  {/* <span className="composer-hint">Shift+Enter for newline</span> */}
                 </div>
                 <button type="submit" className="composer-send-btn" disabled={isSending || !input.trim()} aria-label="Send message">
                   <IconSend />

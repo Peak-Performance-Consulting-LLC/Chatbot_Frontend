@@ -3,24 +3,25 @@ import { getDnsReminderMessage, getDnsStatusLabel, getDnsStatusTone } from "@/pl
 import { usePlatformAuth } from "@/platform/state/auth";
 
 function formatTimestamp(value?: string | null) {
-  if (!value) {
-    return "Not available yet";
-  }
-
+  if (!value) return "Not available yet";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
+  if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
 }
 
 export default function DnsPage() {
   const { selectedTenant, verifyDomain, loading, error, setError } = usePlatformAuth();
   const [status, setStatus] = useState("");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   if (!selectedTenant) {
-    return <section className="platform-panel"><p>Select a tenant to manage DNS verification.</p></section>;
+    return (
+      <div className="app-empty" style={{ maxWidth: 480, margin: "4rem auto" }}>
+        <div className="empty-icon">🔒</div>
+        <p className="empty-title">No workspace selected</p>
+        <p className="empty-desc">Select a tenant to manage DNS verification.</p>
+      </div>
+    );
   }
 
   const tenantId = selectedTenant.tenant_id;
@@ -28,83 +29,150 @@ export default function DnsPage() {
   const tone = getDnsStatusTone(verification?.status);
 
   async function handleVerify() {
-    setStatus("");
-    setError("");
-
+    setStatus(""); setError("");
     try {
       const result = await verifyDomain(tenantId);
       setStatus(result.message);
-    } catch {
-      // handled in context
-    }
+    } catch { /* handled in context */ }
   }
 
-  async function copy(value: string | null | undefined) {
-    if (!value) {
-      return;
-    }
-
+  async function copy(value: string | null | undefined, key: string) {
+    if (!value) return;
     await navigator.clipboard.writeText(value);
-    setStatus("Copied to clipboard.");
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 1800);
   }
+
+  const calloutType = tone === "success" ? "success" : tone === "danger" ? "danger" : "warning";
+  const calloutIcon = tone === "success" ? "✓" : "⚠";
 
   return (
-    <section className="platform-panel dns-page">
-      <h2>DNS Verification</h2>
-      <p>Add the TXT record below, then keep retrying verification until the domain status shows Verified.</p>
+    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
 
-      <div className={`platform-callout ${tone === "success" ? "success" : tone === "danger" ? "danger" : "warning"}`}>
-        <strong>{getDnsStatusLabel(verification?.status)}</strong>
-        <p>{getDnsReminderMessage(verification)}</p>
-      </div>
-
-      <div className="dns-grid">
-        <article>
-          <span>Domain</span>
-          <strong>{selectedTenant.allowed_domains?.[0] || "N/A"}</strong>
-        </article>
-        <article>
-          <span>Status</span>
-          <strong>{getDnsStatusLabel(verification?.status)}</strong>
-        </article>
-        <article>
-          <span>Last checked</span>
-          <strong>{formatTimestamp(verification?.last_checked_at)}</strong>
-        </article>
-        <article>
-          <span>Verified at</span>
-          <strong>{formatTimestamp(verification?.verified_at)}</strong>
-        </article>
-      </div>
-
-      <div className="snippet-block">
-        <p><strong>TXT host</strong></p>
-        <code>{verification?.txt_name || "Not generated"}</code>
-        <p><strong>TXT value</strong></p>
-        <code>{verification?.txt_value || "Not generated"}</code>
-        {verification?.last_seen_records?.length ? (
-          <>
-            <p><strong>Latest TXT values found</strong></p>
-            <code>{verification.last_seen_records.join("\n")}</code>
-          </>
-        ) : null}
-      </div>
-
-      <div className="action-row">
-        <button className="platform-primary-btn" type="button" onClick={handleVerify} disabled={loading}>
-          {loading ? "Checking..." : "Retry DNS check"}
-        </button>
-        <button className="platform-secondary-btn" type="button" onClick={() => copy(verification?.txt_name)}>
-          Copy TXT host
-        </button>
-        <button className="platform-secondary-btn" type="button" onClick={() => copy(verification?.txt_value)}>
-          Copy TXT value
+      {/* ── Page header ────────────────────────────────────────── */}
+      <div className="app-page-header">
+        <div>
+          <p className="app-kicker">Domain Security</p>
+          <h2 className="app-h1">DNS Verification</h2>
+          <p className="app-lead">
+            Add the TXT record below to your DNS provider, then retry verification until the domain status shows Verified.
+          </p>
+        </div>
+        <button className="app-btn-primary" type="button" onClick={handleVerify} disabled={loading}>
+          {loading ? "Checking…" : "↺ Retry DNS check"}
         </button>
       </div>
 
-      {verification?.last_error ? <p className="platform-error">{verification.last_error}</p> : null}
-      {error ? <p className="platform-error">{error}</p> : null}
-      {status ? <p className="platform-success">{status}</p> : null}
-    </section>
+      {/* ── Status banner ──────────────────────────────────────── */}
+      <div className={`app-callout ${calloutType}`}>
+        <span className="callout-icon">{calloutIcon}</span>
+        <div>
+          <p className="callout-title">{getDnsStatusLabel(verification?.status)}</p>
+          <p className="callout-body">{getDnsReminderMessage(verification)}</p>
+        </div>
+      </div>
+
+      {/* ── Domain stats ───────────────────────────────────────── */}
+      <div className="app-dns-grid">
+        <div className="app-dns-cell">
+          <p className="dns-label">Domain</p>
+          <p className="dns-value">{selectedTenant.allowed_domains?.[0] || "N/A"}</p>
+        </div>
+        <div className="app-dns-cell">
+          <p className="dns-label">Status</p>
+          <p className="dns-value">{getDnsStatusLabel(verification?.status)}</p>
+        </div>
+        <div className="app-dns-cell">
+          <p className="dns-label">Last checked</p>
+          <p className="dns-value" style={{ fontSize: "0.8rem" }}>{formatTimestamp(verification?.last_checked_at)}</p>
+        </div>
+        <div className="app-dns-cell">
+          <p className="dns-label">Verified at</p>
+          <p className="dns-value" style={{ fontSize: "0.8rem" }}>{formatTimestamp(verification?.verified_at)}</p>
+        </div>
+      </div>
+
+      {/* ── TXT record snippets ────────────────────────────────── */}
+      <div className="app-two-col">
+        <div>
+          {/* TXT Host */}
+          <div className="app-snippet" style={{ marginBottom: "14px" }}>
+            <div className="app-snippet-label">
+              <span>TXT Host</span>
+              <button
+                type="button"
+                onClick={() => copy(verification?.txt_name, "host")}
+                style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "6px", padding: "3px 10px", color: copiedKey === "host" ? "#c9a96e" : "rgba(255,255,255,0.5)", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                {copiedKey === "host" ? "✓ Copied" : "Copy"}
+              </button>
+            </div>
+            <code>{verification?.txt_name || "Not generated yet"}</code>
+          </div>
+
+          {/* TXT Value */}
+          <div className="app-snippet">
+            <div className="app-snippet-label">
+              <span>TXT Value</span>
+              <button
+                type="button"
+                onClick={() => copy(verification?.txt_value, "value")}
+                style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "6px", padding: "3px 10px", color: copiedKey === "value" ? "#c9a96e" : "rgba(255,255,255,0.5)", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                {copiedKey === "value" ? "✓ Copied" : "Copy"}
+              </button>
+            </div>
+            <code style={{ wordBreak: "break-all" }}>{verification?.txt_value || "Not generated yet"}</code>
+          </div>
+
+          {/* Last seen records */}
+          {verification?.last_seen_records?.length ? (
+            <div className="app-snippet" style={{ marginTop: "14px" }}>
+              <div className="app-snippet-label"><span>Latest TXT values found</span></div>
+              <code>{verification.last_seen_records.join("\n")}</code>
+            </div>
+          ) : null}
+
+          <div className="app-action-row">
+            <button className="app-btn-primary" type="button" onClick={handleVerify} disabled={loading}>
+              {loading ? "Checking…" : "Retry DNS check"}
+            </button>
+            <button className="app-btn-secondary" type="button" onClick={() => copy(verification?.txt_name, "host-btn")}>
+              {copiedKey === "host-btn" ? "✓ Copied host" : "Copy TXT host"}
+            </button>
+            <button className="app-btn-secondary" type="button" onClick={() => copy(verification?.txt_value, "val-btn")}>
+              {copiedKey === "val-btn" ? "✓ Copied value" : "Copy TXT value"}
+            </button>
+          </div>
+
+          {verification?.last_error && <p className="app-error" style={{ marginTop: "12px" }}>{verification.last_error}</p>}
+          {error  && <p className="app-error" style={{ marginTop: "12px" }}>{error}</p>}
+          {status && <p className="app-success" style={{ marginTop: "12px" }}>{status}</p>}
+        </div>
+
+        {/* Troubleshooting */}
+        <div>
+          <p className="app-card-subtitle" style={{ marginBottom: "14px" }}>Troubleshooting</p>
+          <div className="app-note-list">
+            <div className="app-note">
+              <strong>DNS propagation takes time</strong>
+              <p>After adding the TXT record, changes may take up to 48 hours to propagate globally. Check back periodically.</p>
+            </div>
+            <div className="app-note">
+              <strong>Remove conflicting TXT records</strong>
+              <p>If the host already has multiple TXT values, ensure the workspace verification record is present exactly as shown.</p>
+            </div>
+            <div className="app-note">
+              <strong>Retry after saving</strong>
+              <p>Once your DNS provider confirms the record is saved, run verification again from this screen.</p>
+            </div>
+            <div className="app-note">
+              <strong>Use a DNS lookup tool</strong>
+              <p>Tools like <em>dnschecker.org</em> or <em>dig</em> can confirm your TXT record is visible globally before retrying.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

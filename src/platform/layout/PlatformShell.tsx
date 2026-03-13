@@ -1,75 +1,194 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { appNavItems } from "@/platform/layout/nav";
 import PlatformLogo from "@/platform/components/PlatformLogo";
+import { IconChevronDown, IconClose, IconLogout, IconMenu, IconSupport, IconWorkspace } from "@/platform/components/PlatformIcons";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 export default function PlatformShell() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { profile, selectedTenant, selectedTenantId, selectTenant, logout, loading } = usePlatformAuth();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const tenantSelectRef = useRef<HTMLSelectElement | null>(null);
+
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
-    <div className="platform-shell">
-      <aside className="platform-sidebar">
-        <div className="platform-brand">
-          <PlatformLogo className="brand-logo-image" />
-          <div>
-            <strong>AeroConcierge</strong>
-            <p>Platform Console</p>
+    <div className="flex min-h-screen bg-[#faf8f4] font-[family-name:var(--font-body)]">
+
+      {/* ── Backdrop ─────────────────────────────── */}
+      {isSidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-[#0a0a0f]/40 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-hidden
+          tabIndex={-1}
+        />
+      )}
+
+      {/* ── Sidebar ──────────────────────────────── */}
+      <aside
+        className={`
+          fixed inset-y-0 left-0 z-40 flex w-[264px] flex-col
+          border-r border-white/[0.06] bg-[#0a0a0f] text-white shadow-[0_18px_50px_rgba(10,10,15,0.18)]
+          transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
+          lg:translate-x-0
+          ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
+        {/* Brand */}
+        <div className="flex items-center gap-3 border-b border-white/[0.06] px-5 py-5">
+          <div className="flex pl-0 flex-shrink-0 items-center justify-center  text-[18px] text-[#c9a96e]">
+            <PlatformLogo className="h-8 w-8" />
           </div>
+          <div className="flex-1 min-w-0">
+            <strong className="block truncate text-sm font-semibold tracking-tight text-white">
+              AeroConcierge
+            </strong>
+            <p className="text-[11px] text-white/40 tracking-wider uppercase">Platform Console</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(false)}
+            className="rounded-md p-1 text-white/40 hover:text-white lg:hidden"
+            aria-label="Close navigation"
+          >
+            <IconClose />
+          </button>
         </div>
 
-        <nav className="platform-nav">
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5">
           {appNavItems.map((item) => (
             <NavLink
               key={item.key}
               to={item.path}
-              className={({ isActive }) => `platform-nav-item ${isActive ? "active" : ""}`}
+              onClick={() => setIsSidebarOpen(false)}
+              className={({ isActive }) =>
+                `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150
+                ${isActive
+                  ? "bg-gradient-to-r from-[#c9a96e]/14 to-[#c9a96e]/6 text-[#e8d5a8] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+                  : "text-white/55 hover:bg-white/[0.06] hover:text-white/85"
+                }`
+              }
             >
-              <span className="platform-nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
+              <span
+                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border text-[17px] transition-all duration-150 ${
+                  location.pathname === item.path
+                    ? "border-[#c9a96e]/20 bg-[#c9a96e]/12 text-[#c9a96e]"
+                    : "border-white/[0.06] bg-white/[0.03] text-white/65 group-hover:border-white/[0.1] group-hover:bg-white/[0.05] group-hover:text-white/90"
+                }`}
+              >
+                {item.icon}
+              </span>
+              <span className="truncate">{item.label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <button
-          type="button"
-          className="platform-logout"
-          onClick={() => {
-            logout();
-            navigate("/platform/login");
-          }}
-        >
-          Logout
-        </button>
+        {/* Footer */}
+        <div className="border-t border-white/[0.06] px-3 py-4 space-y-2.5">
+          <div className="flex items-center gap-3 rounded-lg bg-white/[0.04] px-3 py-3">
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#1a5c5c]/20 text-[15px] text-[#2a8080]">
+              <IconSupport />
+            </span>
+            <div className="min-w-0 flex-1">
+              <strong className="block text-xs font-semibold text-white/70">Need Help?</strong>
+              <p className="truncate text-[11px] text-white/40">support@aeroconcierge.com</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => { logout(); navigate("/platform/login"); }}
+            className="flex w-full items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm font-medium text-white/55 transition hover:border-white/[0.1] hover:bg-white/[0.06] hover:text-white/85"
+          >
+            <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-white/[0.04] text-[15px] text-white/60">
+              <IconLogout />
+            </span>
+            <span>Logout</span>
+          </button>
+        </div>
       </aside>
 
-      <section className="platform-content-wrap">
-        <header className="platform-topbar">
-          <div>
-            <h1>{selectedTenant?.name || "Workspace"}</h1>
-            <p>{selectedTenant?.tenant_id || "Create your first workspace to continue"}</p>
+      {/* ── Main Content ─────────────────────────── */}
+      <section className="flex min-h-screen min-w-0 flex-1 flex-col overflow-hidden lg:pl-[264px]">
+
+        {/* Topbar */}
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#0a0a0f]/[0.07] bg-[#faf8f4]/90 px-4 py-3 backdrop-blur-md sm:px-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(true)}
+              aria-label="Open navigation"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#0a0a0f]/10 bg-white text-[#0a0a0f]/60 shadow-sm transition hover:border-[#0a0a0f]/20 hover:text-[#0a0a0f] lg:hidden"
+            >
+              <IconMenu />
+            </button>
+            <div className="min-w-0">
+              <span className="block text-[11px] font-medium uppercase tracking-widest text-[#a07840]">Dashboard</span>
+              <h1 className="truncate text-base font-semibold text-[#0a0a0f] sm:text-lg">
+                {selectedTenant?.name || "Workspace"}
+              </h1>
+            </div>
           </div>
 
-          <div className="platform-topbar-actions">
+          <div className="flex min-w-0 items-center gap-2">
             {profile?.tenants?.length ? (
-              <select
-                value={selectedTenantId || ""}
-                onChange={(event) => selectTenant(event.target.value)}
-                disabled={!profile?.tenants?.length || loading}
+              <label
+                className={`relative flex w-[164px] min-w-0 items-center gap-2 rounded-xl border bg-[linear-gradient(180deg,#ffffff,rgba(247,249,250,0.96))] pl-2 pr-9 py-1.5 shadow-[0_8px_20px_rgba(10,10,15,0.05)] text-sm transition sm:w-auto sm:min-w-[220px] sm:max-w-[290px] sm:gap-3 sm:rounded-2xl sm:pl-2.5 sm:pr-10 sm:py-2 sm:shadow-[0_10px_28px_rgba(10,10,15,0.06)] ${
+                  loading
+                    ? "border-[#0a0a0f]/8 opacity-70"
+                    : "border-[#0a0a0f]/10 hover:border-[#1a5c5c]/22 hover:shadow-[0_12px_32px_rgba(10,10,15,0.08)]"
+                }`}
               >
-                {(profile?.tenants ?? []).map((tenant) => (
-                  <option key={tenant.tenant_id} value={tenant.tenant_id}>
-                    {tenant.name || tenant.tenant_id}
-                  </option>
-                ))}
-              </select>
+                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1a5c5c]/10 bg-[#1a5c5c]/6 text-[14px] text-[#1a5c5c] sm:h-9 sm:w-9 sm:rounded-xl sm:text-[15px]">
+                  <IconWorkspace />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/38 sm:block">
+                    Active Workspace
+                  </span>
+                  <select
+                    ref={tenantSelectRef}
+                    value={selectedTenantId || ""}
+                    onChange={(e) => selectTenant(e.target.value)}
+                    disabled={loading}
+                    className="w-full cursor-pointer appearance-none bg-transparent pr-2 text-[13px] font-semibold text-[#0a0a0f] focus:outline-none disabled:cursor-not-allowed sm:pr-4 sm:text-sm"
+                    aria-label="Select workspace"
+                  >
+                    {(profile?.tenants ?? []).map((t) => (
+                      <option key={t.tenant_id} value={t.tenant_id}>{t.name || t.tenant_id}</option>
+                    ))}
+                  </select>
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    tenantSelectRef.current?.focus();
+                    tenantSelectRef.current?.click();
+                  }}
+                  disabled={loading}
+                  aria-label="Open workspace selector"
+                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#0a0a0f]/4 text-[14px] text-[#0a0a0f]/40 transition hover:bg-[#0a0a0f]/8 hover:text-[#0a0a0f]/60 disabled:cursor-not-allowed sm:right-3"
+                >
+                  <IconChevronDown />
+                </button>
+              </label>
             ) : (
-              <span className="topbar-empty-state">No workspace yet</span>
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 border border-amber-200">
+                No workspace yet
+              </span>
             )}
           </div>
         </header>
 
-        <main className="platform-content">
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <Outlet />
         </main>
       </section>
