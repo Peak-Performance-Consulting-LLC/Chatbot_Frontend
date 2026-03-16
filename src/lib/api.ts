@@ -30,6 +30,29 @@ export type AirportSuggestion = {
   label: string;
 };
 
+export type WidgetAppearanceConfig = {
+  primaryColor?: string;
+  userBubbleColor?: string;
+  botBubbleColor?: string;
+  fontFamily?: string;
+  widgetPosition?: "left" | "right";
+  launcherStyle?: "rounded" | "pill" | "square" | "minimal";
+  windowWidth?: number;
+  windowHeight?: number;
+  borderRadius?: number;
+  botName?: string;
+  welcomeMessage?: string;
+  botAvatarUrl?: string;
+};
+
+export type WidgetConfig = {
+  appearance: WidgetAppearanceConfig;
+  supportPhone?: string;
+  supportCtaLabel?: string;
+  headerCtaLabel?: string;
+  headerCtaNotice?: string;
+};
+
 function resolveBaseUrl(override?: string) {
   return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:4000").replace(/\/$/, "");
 }
@@ -55,6 +78,27 @@ async function parseError(response: Response): Promise<string> {
   } catch {
     return `HTTP ${response.status}`;
   }
+}
+
+export async function getWidgetConfig(input: {
+  tenantId: string;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<WidgetConfig> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(
+    `${base}/api/widget-config?tenant_id=${encodeURIComponent(input.tenantId)}`,
+    {
+      headers: buildHeaders(input)
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as WidgetConfig;
 }
 
 export async function listChats(input: {

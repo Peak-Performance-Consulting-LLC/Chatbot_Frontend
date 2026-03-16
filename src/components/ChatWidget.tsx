@@ -4,11 +4,13 @@ import remarkGfm from "remark-gfm";
 import {
   createChat,
   deleteChat,
+  getWidgetConfig,
   listChats,
   listMessages,
   renameChat,
   searchPlaceSuggestions,
-  streamChat
+  streamChat,
+  type WidgetConfig
 } from "@/lib/api";
 import { getOrCreateDeviceId } from "@/lib/device";
 import { resolveTenantId } from "@/lib/tenant";
@@ -712,6 +714,7 @@ export function ChatWidget({
   const [isMobileThreadsOpen, setIsMobileThreadsOpen] = useState(false);
   const [shellWidth, setShellWidth] = useState<number | null>(null);
   const [pendingLauncherReply, setPendingLauncherReply] = useState<string | null>(null);
+  const [runtimeWidgetConfig, setRuntimeWidgetConfig] = useState<WidgetConfig | null>(null);
 
   const shellRef = useRef<HTMLElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -723,25 +726,26 @@ export function ChatWidget({
     () => (portalToken ? undefined : embedded ? resolveEmbeddedSiteHost() : window.location.host),
     [embedded, portalToken]
   );
+  const runtimeAppearance = runtimeWidgetConfig?.appearance;
   const tenantCallCtaOverride = useMemo(
     () =>
       buildCallCtaOverride(
-        supportPhoneOverride ?? widgetQueryConfig.supportPhone,
-        supportCtaLabelOverride ?? widgetQueryConfig.supportCtaLabel
+        supportPhoneOverride ?? runtimeWidgetConfig?.supportPhone ?? widgetQueryConfig.supportPhone,
+        supportCtaLabelOverride ?? runtimeWidgetConfig?.supportCtaLabel ?? widgetQueryConfig.supportCtaLabel
       ),
-    [supportPhoneOverride, supportCtaLabelOverride, widgetQueryConfig]
+    [supportPhoneOverride, runtimeWidgetConfig, supportCtaLabelOverride, widgetQueryConfig]
   );
   const headerCtaConfig = useMemo(
     () =>
       normalizeHeaderCtaConfig({
-        label: headerCtaLabelOverride ?? widgetQueryConfig.headerCtaLabel,
-        notice: headerCtaNoticeOverride ?? widgetQueryConfig.headerCtaNotice
+        label: headerCtaLabelOverride ?? runtimeWidgetConfig?.headerCtaLabel ?? widgetQueryConfig.headerCtaLabel,
+        notice: headerCtaNoticeOverride ?? runtimeWidgetConfig?.headerCtaNotice ?? widgetQueryConfig.headerCtaNotice
       }),
-    [headerCtaLabelOverride, headerCtaNoticeOverride, widgetQueryConfig]
+    [headerCtaLabelOverride, headerCtaNoticeOverride, runtimeWidgetConfig, widgetQueryConfig]
   );
   const appearance = useMemo(
-    () => normalizeAppearance({ ...widgetQueryConfig.appearance, ...appearanceOverride }, layoutVariant),
-    [appearanceOverride, layoutVariant, widgetQueryConfig]
+    () => normalizeAppearance({ ...widgetQueryConfig.appearance, ...runtimeAppearance, ...appearanceOverride }, layoutVariant),
+    [appearanceOverride, layoutVariant, runtimeAppearance, widgetQueryConfig]
   );
   const shellStyle = useMemo(
     () =>
@@ -783,8 +787,7 @@ export function ChatWidget({
     const defaults = [
       "Find flight deals",
       "Change dates",
-      callCta?.label || "Talk to support",
-      "I have a different question"
+      callCta?.label || "Talk to support"
     ];
     return Array.from(new Set(defaults)).slice(0, 4);
   }, [quickReplies, callCta]);
@@ -792,6 +795,31 @@ export function ChatWidget({
   useEffect(() => {
     if (embedded && portalToken) setIsOpen(true);
   }, [embedded, portalToken]);
+
+  useEffect(() => {
+    if (!tenantId || portalToken) {
+      setRuntimeWidgetConfig(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    getWidgetConfig({ tenantId, backendUrl, authToken: portalToken, siteHost })
+      .then((config) => {
+        if (!cancelled) {
+          setRuntimeWidgetConfig(config);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRuntimeWidgetConfig(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [backendUrl, portalToken, siteHost, tenantId]);
 
   useEffect(() => {
     if (!isPublicEmbed) return;
@@ -1108,7 +1136,7 @@ export function ChatWidget({
                 {isLoadingMessages ? <p className="thread-hint">Loading messages…</p> : null}
                 {messages.length === 0 && !isLoadingMessages ? (
                   <div className="welcome-card">
-                    <h3>{appearance.botName}</h3>
+                    <span className="welcome-card-label">{appearance.botName}</span>
                     <p>{appearance.welcomeMessage}</p>
                   </div>
                 ) : null}
