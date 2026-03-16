@@ -1024,7 +1024,7 @@ export function ChatWidget({
                     {reply}
                   </button>
                 ))}
-              </div>
+              </div>\
             </>
           ) : null}
 

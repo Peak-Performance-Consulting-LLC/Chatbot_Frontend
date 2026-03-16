@@ -144,8 +144,8 @@ body.chat-widget-embedded {
   border-radius: 0; border: 0; box-shadow: none; animation: none;
 }
 .chat-shell.embedded.public-embed-shell {
-  top: 0; right: 0; bottom: 78px; left: 0;
-  width: 100vw; height: calc(100vh - 78px);
+  top: 0; right: 0; bottom: 96px; left: 0;
+  width: 100vw; height: calc(100vh - 96px);
   border: 1px solid rgba(10,10,15,0.08);
   border-radius: var(--widget-radius, 20px);
   box-shadow: none;
@@ -1163,7 +1163,7 @@ body.chat-widget-embedded {
   border-radius: 22px;
   color: #fff;
   cursor: pointer;
-  box-shadow: 0 10px 22px rgba(10,10,15,0.12);
+  box-shadow: none;
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
@@ -1194,7 +1194,7 @@ body.chat-widget-embedded {
   color: var(--brand);
   font-size: 11px;
   font-weight: 800;
-  box-shadow: 0 8px 18px rgba(10,10,15,0.16);
+  box-shadow: none;
 }
 
 .chat-peek-launcher-open {
@@ -1205,7 +1205,7 @@ body.chat-widget-embedded {
 
 .chat-embed-dock {
   position: fixed;
-  bottom: 12px;
+  bottom: 16px;
   z-index: 46;
   display: flex;
   align-items: center;
@@ -1227,7 +1227,7 @@ body.chat-widget-embedded {
   border-radius: 999px;
   background: rgba(255,255,255,0.88);
   backdrop-filter: blur(12px);
-  box-shadow: 0 8px 20px rgba(10,10,15,0.12);
+  box-shadow: none;
   font-size: 11px;
   font-weight: 700;
 }
@@ -1279,9 +1279,9 @@ body.chat-widget-embedded {
 
   .chat-shell.embedded.public-embed-shell {
     width: 100vw;
-    height: calc(100vh - 62px);
+    height: calc(100vh - 84px);
     border-radius: 18px 18px 0 0;
-    bottom: 62px;
+    bottom: 84px;
   }
 
   .chat-header {

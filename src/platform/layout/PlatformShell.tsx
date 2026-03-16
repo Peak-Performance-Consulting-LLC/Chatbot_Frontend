@@ -11,6 +11,8 @@ export default function PlatformShell() {
   const { profile, selectedTenant, selectedTenantId, selectTenant, logout, loading } = usePlatformAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const tenantSelectRef = useRef<HTMLSelectElement | null>(null);
+  const activeNavItem = appNavItems.find((item) => location.pathname.startsWith(item.path));
+  const activeSectionLabel = activeNavItem?.label || "Dashboard";
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -118,7 +120,7 @@ export default function PlatformShell() {
       <section className="flex min-h-screen min-w-0 flex-1 flex-col overflow-hidden lg:pl-[264px]">
 
         {/* Topbar */}
-        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#0a0a0f]/[0.07] bg-[#faf8f4]/90 px-4 py-3 backdrop-blur-md sm:px-6">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#0a0a0f]/[0.07] bg-[#faf8f4]/90 px-3 py-2.5 backdrop-blur-md sm:px-6 sm:py-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
@@ -128,10 +130,22 @@ export default function PlatformShell() {
             >
               <IconMenu />
             </button>
-            <div className="min-w-0">
+
+            <div className="flex min-w-0 items-center gap-2.5 lg:hidden">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-[#0a0a0f]/8 bg-white shadow-sm text-[#c9a96e]">
+                <PlatformLogo className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <strong className="block truncate text-sm font-semibold tracking-tight text-[#0a0a0f]">
+                  AeroConcierge
+                </strong>
+              </div>
+            </div>
+
+            <div className="hidden min-w-0 lg:block">
               <span className="block text-[11px] font-medium uppercase tracking-widest text-[#a07840]">Dashboard</span>
               <h1 className="truncate text-base font-semibold text-[#0a0a0f] sm:text-lg">
-                {selectedTenant?.name || "Workspace"}
+                {activeSectionLabel}
               </h1>
             </div>
           </div>
@@ -139,13 +153,13 @@ export default function PlatformShell() {
           <div className="flex min-w-0 items-center gap-2">
             {profile?.tenants?.length ? (
               <label
-                className={`relative flex w-[164px] min-w-0 items-center gap-2 rounded-xl border bg-[linear-gradient(180deg,#ffffff,rgba(247,249,250,0.96))] pl-2 pr-9 py-1.5 shadow-[0_8px_20px_rgba(10,10,15,0.05)] text-sm transition sm:w-auto sm:min-w-[220px] sm:max-w-[290px] sm:gap-3 sm:rounded-2xl sm:pl-2.5 sm:pr-10 sm:py-2 sm:shadow-[0_10px_28px_rgba(10,10,15,0.06)] ${
+                className={`relative flex w-[154px] min-w-0 items-center gap-2 rounded-xl border bg-[linear-gradient(180deg,#ffffff,rgba(247,249,250,0.96))] pl-2.5 pr-9 py-1.5 shadow-[0_6px_16px_rgba(10,10,15,0.04)] text-sm transition sm:w-auto sm:min-w-[220px] sm:max-w-[290px] sm:gap-3 sm:rounded-2xl sm:pl-2.5 sm:pr-10 sm:py-2 sm:shadow-[0_10px_28px_rgba(10,10,15,0.06)] ${
                   loading
                     ? "border-[#0a0a0f]/8 opacity-70"
                     : "border-[#0a0a0f]/10 hover:border-[#1a5c5c]/22 hover:shadow-[0_12px_32px_rgba(10,10,15,0.08)]"
                 }`}
               >
-                <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1a5c5c]/10 bg-[#1a5c5c]/6 text-[14px] text-[#1a5c5c] sm:h-9 sm:w-9 sm:rounded-xl sm:text-[15px]">
+                <span className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1a5c5c]/10 bg-[#1a5c5c]/6 text-[14px] text-[#1a5c5c] sm:flex sm:h-9 sm:w-9 sm:rounded-xl sm:text-[15px]">
                   <IconWorkspace />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -157,7 +171,7 @@ export default function PlatformShell() {
                     value={selectedTenantId || ""}
                     onChange={(e) => selectTenant(e.target.value)}
                     disabled={loading}
-                    className="w-full cursor-pointer appearance-none bg-transparent pr-2 text-[13px] font-semibold text-[#0a0a0f] focus:outline-none disabled:cursor-not-allowed sm:pr-4 sm:text-sm"
+                    className="w-full cursor-pointer appearance-none bg-transparent pr-2 text-[12px] font-semibold text-[#0a0a0f] focus:outline-none disabled:cursor-not-allowed sm:pr-4 sm:text-sm"
                     aria-label="Select workspace"
                   >
                     {(profile?.tenants ?? []).map((t) => (
@@ -174,7 +188,7 @@ export default function PlatformShell() {
                   }}
                   disabled={loading}
                   aria-label="Open workspace selector"
-                  className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-[#0a0a0f]/4 text-[14px] text-[#0a0a0f]/40 transition hover:bg-[#0a0a0f]/8 hover:text-[#0a0a0f]/60 disabled:cursor-not-allowed sm:right-3"
+                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#0a0a0f]/4 text-[13px] text-[#0a0a0f]/40 transition hover:bg-[#0a0a0f]/8 hover:text-[#0a0a0f]/60 disabled:cursor-not-allowed sm:right-3 sm:h-7 sm:w-7 sm:text-[14px]"
                 >
                   <IconChevronDown />
                 </button>

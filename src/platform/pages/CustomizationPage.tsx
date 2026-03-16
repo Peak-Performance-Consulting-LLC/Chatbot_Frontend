@@ -5,13 +5,19 @@ import { usePlatformAuth } from "@/platform/state/auth";
 const services: PlatformService[] = ["flights", "hotels", "cars", "cruises"];
 const launcherStyles: LauncherStyle[] = ["rounded", "pill", "square", "minimal"];
 const fontFamilies = ["Manrope", "Inter", "Poppins", "DM Sans", "Montserrat"];
+const SERVICE_LABELS: Record<PlatformService, string> = {
+  flights: "Flight deals",
+  hotels: "Hotels",
+  cars: "Car rentals",
+  cruises: "Cruises"
+};
 
-type Tab = "brand" | "colors" | "layout" | "content";
+type Tab = "brand" | "colors" | "widget" | "content";
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
   { id: "brand",   label: "Brand",   icon: "✦" },
   { id: "colors",  label: "Colors",  icon: "◉" },
-  { id: "layout",  label: "Layout",  icon: "⊞" },
+  { id: "widget",  label: "Website Widget", icon: "⊞" },
   { id: "content", label: "Content", icon: "✏" },
 ];
 
@@ -98,6 +104,14 @@ export default function CustomizationPage() {
     "--preview-radius":  `${borderRadius}px`,
     fontFamily,
   }) as CSSProperties, [primaryColor, userBubbleColor, botBubbleColor, borderRadius, fontFamily]);
+  const widgetPreviewReplies = useMemo(() => {
+    const chips = [
+      ...supportedServices.slice(0, 2).map((service) => SERVICE_LABELS[service]),
+      supportCtaLabel || "Talk to support",
+      "I have another question"
+    ];
+    return Array.from(new Set(chips.filter(Boolean))).slice(0, 4);
+  }, [supportedServices, supportCtaLabel]);
 
   if (!selectedTenant) {
     return (
@@ -181,6 +195,16 @@ export default function CustomizationPage() {
 
         {/* ── Left: Form ────────────────────────────────────────── */}
         <div className="app-card">
+          <div className="app-callout info" style={{ marginBottom: "20px" }}>
+            <span className="callout-icon">⌘</span>
+            <div>
+              <p className="callout-title">Client-side widget controls</p>
+              <p className="callout-body">
+                Settings in <strong>Website Widget</strong> are applied to the live website embed, including the launcher,
+                teaser notice, widget size, and launcher styling.
+              </p>
+            </div>
+          </div>
 
           {/* Tabs */}
           <div className="app-tabs">
@@ -228,14 +252,6 @@ export default function CustomizationPage() {
                   <label>
                     Support email
                     <input value={supportEmail} onChange={(e) => setSupportEmail(e.target.value)} placeholder="support@company.com" />
-                  </label>
-                  <label>
-                    CTA label
-                    <input value={supportCtaLabel} onChange={(e) => setSupportCtaLabel(e.target.value)} />
-                  </label>
-                  <label>
-                    Launcher badge label
-                    <input value={headerCtaLabel} onChange={(e) => setHeaderCtaLabel(e.target.value)} maxLength={40} />
                   </label>
                   <div className="full">
                     <span style={{ fontSize: "0.8rem", fontWeight: 500, color: "rgba(10,10,15,0.7)", display: "block", marginBottom: "8px" }}>
@@ -293,8 +309,16 @@ export default function CustomizationPage() {
               )}
 
               {/* ── Layout tab ── */}
-              {activeTab === "layout" && (
+              {activeTab === "widget" && (
                 <>
+                  <label>
+                    Launcher badge label
+                    <input value={headerCtaLabel} onChange={(e) => setHeaderCtaLabel(e.target.value)} maxLength={40} placeholder="New" />
+                  </label>
+                  <label>
+                    Support CTA label
+                    <input value={supportCtaLabel} onChange={(e) => setSupportCtaLabel(e.target.value)} placeholder="Connect with a specialist" />
+                  </label>
                   <label>
                     Widget position
                     <select value={widgetPosition} onChange={(e) => setWidgetPosition(e.target.value as WidgetPosition)}>
@@ -331,12 +355,6 @@ export default function CustomizationPage() {
                       <span className="app-range-val">{borderRadius}px</span>
                     </div>
                   </label>
-                </>
-              )}
-
-              {/* ── Content tab ── */}
-              {activeTab === "content" && (
-                <>
                   <label className="full">
                     Launcher notice text
                     <textarea
@@ -346,6 +364,16 @@ export default function CustomizationPage() {
                       placeholder="Hi! I am your AI assistant. Ask me anything about your trip."
                     />
                   </label>
+                  <div className="full app-note" style={{ marginTop: "4px" }}>
+                    <strong>Support phone comes from the Brand tab</strong>
+                    <p>The website widget uses the support phone and CTA label together for click-to-call prompts.</p>
+                  </div>
+                </>
+              )}
+
+              {/* ── Content tab ── */}
+              {activeTab === "content" && (
+                <>
                   <label className="full">
                     Welcome message
                     <textarea rows={3} value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)} placeholder="How can I help you today?" />
@@ -384,6 +412,39 @@ export default function CustomizationPage() {
           <p className="app-lead" style={{ marginBottom: "16px" }}>
             Updates instantly as you edit. Interactive preview is on the <em>My Chatbot</em> page.
           </p>
+
+          <div className={`app-widget-preview-stack ${widgetPosition === "left" ? "left" : "right"}`} style={previewStyle}>
+            <p className="app-card-subtitle" style={{ marginBottom: "0" }}>Client-side website widget</p>
+            <button type="button" className="app-widget-preview-card">
+              <span className="app-widget-preview-pill">{headerCtaLabel || "New"}</span>
+              <p>{headerCtaNotice}</p>
+            </button>
+            <div className="app-widget-preview-actions">
+              {widgetPreviewReplies.map((reply) => (
+                <span key={reply} className="app-widget-preview-chip">{reply}</span>
+              ))}
+            </div>
+            <div
+              className={`app-widget-preview-launcher ${widgetPosition === "left" ? "left" : "right"}`}
+              style={{
+                background: primaryColor,
+                borderRadius:
+                  launcherStyle === "square"
+                    ? "14px"
+                    : launcherStyle === "minimal"
+                      ? "12px"
+                      : launcherStyle === "pill"
+                        ? "22px"
+                        : "20px",
+                width: launcherStyle === "pill" ? "74px" : launcherStyle === "minimal" ? "54px" : "64px",
+                height: launcherStyle === "pill" ? "54px" : "64px"
+              }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+          </div>
 
           {/* Chat preview mock */}
           <div className="app-chat-preview" style={previewStyle}>
