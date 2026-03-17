@@ -1367,10 +1367,26 @@ body.chat-widget-embedded {
   }
 
   .chat-shell.embedded.public-embed-shell {
-    width: 100%;
-    height: calc(100% - 76px);
-    border-radius: 18px;
-    bottom: 76px;
+    top: auto;
+    width: min(calc(100% - 4px), 344px);
+    height: min(calc(100% - 68px), 500px);
+    border-radius: 22px;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 20px 48px rgba(7, 14, 23, 0.18), 0 6px 20px rgba(7, 14, 23, 0.08), 0 0 0 1px rgba(10, 10, 15, 0.08);
+  }
+
+  .chat-shell.embedded.public-embed-shell.chat-shell-right {
+    right: 2px;
+    left: auto;
+  }
+
+  .chat-shell.embedded.public-embed-shell.chat-shell-left {
+    left: 2px;
+    right: auto;
+  }
+
+  .chat-shell.embedded.public-embed-shell.pristine-mobile-embed {
+    height: min(calc(100% - 68px), 392px);
   }
 
   .chat-header {
@@ -1402,6 +1418,10 @@ body.chat-widget-embedded {
 
   .messages {
     padding: 12px 12px 8px;
+  }
+
+  .chat-shell.embedded.public-embed-shell.pristine-mobile-embed .messages {
+    padding-bottom: 6px;
   }
 
   .welcome-card {
@@ -1468,10 +1488,19 @@ body.chat-widget-embedded {
   }
 
   .chat-embed-dock {
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
+    width: min(calc(100% - 4px), 344px);
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
     justify-content: space-between;
+  }
+
+  .chat-embed-dock-right {
+    right: 2px;
+    left: auto;
+  }
+
+  .chat-embed-dock-left {
+    left: 2px;
+    right: auto;
   }
 
   .chat-peek-launcher-open {

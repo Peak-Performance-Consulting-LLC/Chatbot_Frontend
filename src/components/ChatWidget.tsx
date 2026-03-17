@@ -774,10 +774,21 @@ export function ChatWidget({
   const flightUi = latestAssistantMeta?.flight_ui ?? null;
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
-  const publicEmbedMode = isPublicEmbed ? (isOpen ? "open" : showLauncherNotification ? "peek" : "launcher") : null;
-  const shouldRenderShell = embedded ? (!isPublicEmbed || isOpen) : isOpen;
   const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, appearance.windowWidth);
   const isCompactLayout = effectiveShellWidth < 720;
+  const isPristinePublicEmbed =
+    isPublicEmbed &&
+    isOpen &&
+    isCompactLayout &&
+    messages.length === 0 &&
+    !isLoadingMessages &&
+    !isSending &&
+    !flightUi &&
+    !serviceUi;
+  const publicEmbedMode = isPublicEmbed
+    ? (isOpen ? (isPristinePublicEmbed ? "open-compact" : "open") : showLauncherNotification ? "peek" : "launcher")
+    : null;
+  const shouldRenderShell = embedded ? (!isPublicEmbed || isOpen) : isOpen;
   const teaserReplies = useMemo(() => {
     const fromAssistant = quickReplies.filter(Boolean).slice(0, 4);
     if (fromAssistant.length > 0) {
@@ -1071,7 +1082,7 @@ export function ChatWidget({
       {shouldRenderShell ? (
         <section
           ref={shellRef}
-          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}${isPublicEmbed ? " public-embed-shell" : ""}${isCompactLayout ? " compact" : ""}${layoutVariant === "platform" ? " chat-shell-platform" : ""}`}
+          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}${isPublicEmbed ? " public-embed-shell" : ""}${isCompactLayout ? " compact" : ""}${isPristinePublicEmbed ? " pristine-mobile-embed" : ""}${layoutVariant === "platform" ? " chat-shell-platform" : ""}`}
           style={shellStyle}
           aria-label={`${appearance.botName} chat widget`}
         >
