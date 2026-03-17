@@ -1082,3 +1082,101 @@ border: 1px solid rgba(10,10,15,0.08);
   height: 8px; border-radius: 4px;
   background: rgba(255,255,255,0.08);
 }
+
+/* ── Widget window (desktop preview) ──────────────────────────────────── */
+.cust-widget-window {
+  position: absolute; bottom: 38px; width: 210px;
+  border-radius: 14px; overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+  display: flex; flex-direction: column;
+  font-size: 0.72rem;
+}
+.cust-widget-window.right { right: 10px; }
+.cust-widget-window.left  { left:  10px; }
+
+.cust-w-header {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 10px; flex-shrink: 0;
+}
+.cust-w-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(255,255,255,0.2); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.55rem; font-weight: 700; color: #fff;
+  overflow: hidden;
+}
+.cust-w-name   { font-size: 0.62rem; font-weight: 700; color: #fff; }
+.cust-w-status { font-size: 0.5rem; color: rgba(255,255,255,0.65); display: flex; align-items: center; gap: 3px; }
+.cust-w-dot    { width: 5px; height: 5px; border-radius: 50%; background: #4ade80; display: inline-block; flex-shrink: 0; }
+.cust-w-badge  {
+  margin-left: auto; font-size: 0.48rem; font-weight: 700;
+  padding: 2px 6px; border-radius: 999px;
+  background: rgba(255,255,255,0.18); color: #fff;
+  white-space: nowrap;
+}
+
+/* Launcher preview overlay inside browser viewport */
+.cust-launcher-preview {
+  position: absolute; bottom: 9px;
+}
+.cust-launcher-preview.right { right: 8px; }
+.cust-launcher-preview.left  { left:  8px; }
+
+/* ── Mobile phone frame ─────────────────────────────────────────────── */
+.cust-mobile-preview-wrap {
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px 0 4px;
+}
+.cust-phone-frame {
+  width: 200px;
+  background: #1a2332;
+  border-radius: 28px;
+  border: 3px solid #2d3f55;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+  overflow: hidden;
+  position: relative;
+}
+.cust-phone-notch {
+  display: flex; align-items: center; justify-content: center;
+  height: 22px; background: #111;
+}
+.cust-phone-notch-pill {
+  width: 52px; height: 10px;
+  border-radius: 999px; background: #0a0a0f;
+}
+.cust-phone-screen {
+  background: #f8f8f8;
+  display: flex; flex-direction: column;
+  min-height: 320px;
+}
+.cust-phone-status {
+  display: flex; justify-content: space-between;
+  padding: 5px 14px; font-size: 0.5rem;
+  background: #f8f8f8; color: rgba(10,10,15,0.55);
+}
+.cust-mobile-chat {
+  display: flex; flex-direction: column; flex: 1;
+  overflow: hidden;
+}
+.cust-m-header {
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 10px; flex-shrink: 0;
+}
+.cust-m-avatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.52rem; font-weight: 700; color: #fff;
+  overflow: hidden;
+}
+.cust-m-name   { font-size: 0.6rem; font-weight: 700; color: #fff; }
+.cust-m-status { font-size: 0.48rem; color: rgba(255,255,255,0.62); display: flex; align-items: center; gap: 3px; }
+.cust-phone-bar {
+  height: 14px; background: #f8f8f8;
+  display: flex; align-items: center; justify-content: center;
+}
+.cust-phone-bar::after {
+  content: ''; width: 60px; height: 4px;
+  border-radius: 999px; background: rgba(10,10,15,0.2);
+}
+
