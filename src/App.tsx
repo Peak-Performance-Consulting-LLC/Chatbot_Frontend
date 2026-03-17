@@ -1,11 +1,14 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { usePlatformAuth } from "@/platform/state/auth";
 
+// Widget & shell — loaded once
 const ChatWidget = lazy(() =>
   import("@/components/ChatWidget").then((module) => ({ default: module.ChatWidget }))
 );
 const PlatformShell = lazy(() => import("@/platform/layout/PlatformShell"));
+
+// Platform pages — eagerly prefetched once shell mounts (see prefetchPlatformRoutes)
 const AccountPage = lazy(() => import("@/platform/pages/AccountPage"));
 const ChatbotPage = lazy(() => import("@/platform/pages/ChatbotPage"));
 const CustomizationPage = lazy(() => import("@/platform/pages/CustomizationPage"));
@@ -18,6 +21,19 @@ const PricingPage = lazy(() => import("@/platform/pages/PricingPage"));
 const SiteSetupPage = lazy(() => import("@/platform/pages/SiteSetupPage"));
 const SignupPage = lazy(() => import("@/platform/pages/SignupPage"));
 const WidgetCodePage = lazy(() => import("@/platform/pages/WidgetCodePage"));
+
+/** Kick off chunk downloads as soon as the authenticated shell is first shown. */
+function prefetchPlatformRoutes() {
+  void import("@/platform/pages/AccountPage");
+  void import("@/platform/pages/ChatbotPage");
+  void import("@/platform/pages/CustomizationPage");
+  void import("@/platform/pages/DnsPage");
+  void import("@/platform/pages/KnowledgePage");
+  void import("@/platform/pages/OverviewPage");
+  void import("@/platform/pages/PricingPage");
+  void import("@/platform/pages/SiteSetupPage");
+  void import("@/platform/pages/WidgetCodePage");
+}
 
 function RouteLoader() {
   return <div className="min-h-screen bg-[#faf8f4]" />;
@@ -71,10 +87,19 @@ function HomeEntryPage() {
 function RequirePlatformAuth() {
   const { token, loading } = usePlatformAuth();
 
+  // Kick off prefetching as soon as we know the user is authenticated
+  useEffect(() => {
+    if (token) {
+      prefetchPlatformRoutes();
+    }
+  }, [token]);
+
   if (!token && !loading) {
     return <Navigate to="/platform/login" replace />;
   }
 
+  // PlatformShell itself handles the inner-page Suspense boundary
+  // so sidebar + topbar stay mounted during all navigations
   return <PlatformShell />;
 }
 
@@ -95,6 +120,8 @@ function PlatformIndex() {
 
 export default function App() {
   return (
+    // Outer Suspense only covers the initial shell + public pages
+    // Platform page-to-page transitions are handled by PlatformShell's inner Suspense
     <Suspense fallback={<RouteLoader />}>
       <Routes>
         <Route path="/" element={<HomeEntryPage />} />
@@ -106,6 +133,7 @@ export default function App() {
           <Route path="/platform/signup" element={<SignupPage />} />
         </Route>
 
+        {/* PlatformShell owns the inner Suspense — pages load inside the shell without flash */}
         <Route path="/platform/app" element={<RequirePlatformAuth />}>
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<OverviewPage />} />

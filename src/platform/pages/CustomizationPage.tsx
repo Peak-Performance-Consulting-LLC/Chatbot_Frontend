@@ -1,86 +1,333 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
+import { MessageCircle, Sparkles, Headphones, Zap, Heart } from "lucide-react";
 import type { LauncherStyle, PlatformService, WidgetPosition } from "@/platform/types";
 import { usePlatformAuth } from "@/platform/state/auth";
 
-const services: PlatformService[] = ["flights", "hotels", "cars", "cruises"];
-const launcherStyles: LauncherStyle[] = ["rounded", "pill", "square", "minimal"];
-const fontFamilies = ["Manrope", "Inter", "Poppins", "DM Sans", "Montserrat"];
-const SERVICE_LABELS: Record<PlatformService, string> = {
-  flights: "Flight deals",
-  hotels: "Hotels",
-  cars: "Car rentals",
-  cruises: "Cruises"
-};
-
-type PreviewMode = "mobile" | "desktop";
+// ─── Types ────────────────────────────────────────────────────────────────────
+type TabId = "templates" | "appearance" | "layout" | "content" | "persona" | "notification";
+type ThemeStyle = "standard" | "glass" | "clay" | "dark" | "minimal";
+type AiTone = "friendly" | "professional" | "concise" | "enthusiastic";
+type BgPattern = "none" | "dots" | "grid" | "waves";
+type LauncherIcon = "chat" | "sparkle" | "headset" | "zap" | "heart";
+type NotifAnimation = "bounce" | "pulse" | "slide";
 
 type Template = {
-  id: string; name: string; emoji: string;
+  id: string; name: string; badge: string; badgeColor: string;
   primaryColor: string; userBubbleColor: string; botBubbleColor: string;
   fontFamily: string; launcherStyle: LauncherStyle; borderRadius: number;
-  botName: string; welcomeMessage: string; gradient: string;
+  botName: string; welcomeMessage: string; themeStyle: ThemeStyle;
+  bgGradient: string;
 };
 
+// ─── Data ────────────────────────────────────────────────────────────────────
+const SERVICES: PlatformService[] = ["flights", "hotels", "cars", "cruises"];
+const SERVICE_LABELS: Record<PlatformService, string> = {
+  flights: "Flights", hotels: "Hotels", cars: "Car rentals", cruises: "Cruises"
+};
+const FONT_FAMILIES = ["Manrope", "Inter", "Poppins", "DM Sans", "Montserrat", "Nunito", "Raleway"];
+const LAUNCHER_STYLES: LauncherStyle[] = ["rounded", "pill", "square", "minimal"];
+
 const TEMPLATES: Template[] = [
-  { id: "ocean",    name: "Ocean",    emoji: "🌊", primaryColor: "#006d77", userBubbleColor: "#006d77", botBubbleColor: "#edf6f9", fontFamily: "Manrope",    launcherStyle: "rounded", borderRadius: 20, botName: "Aqua",    welcomeMessage: "Hello! How can I help you today?",        gradient: "linear-gradient(135deg,#006d77,#83c5be)" },
-  { id: "midnight", name: "Midnight", emoji: "🌙", primaryColor: "#1e2d5a", userBubbleColor: "#253571", botBubbleColor: "#f0f2fb", fontFamily: "Inter",      launcherStyle: "square",  borderRadius: 14, botName: "ProBot",  welcomeMessage: "Welcome. I'm here to assist you.",       gradient: "linear-gradient(135deg,#1e2d5a,#4a69bd)" },
-  { id: "coral",    name: "Coral",    emoji: "🪸", primaryColor: "#e05a47", userBubbleColor: "#e05a47", botBubbleColor: "#fff5f4", fontFamily: "Poppins",    launcherStyle: "pill",    borderRadius: 24, botName: "Coral",  welcomeMessage: "Hi there! Great to see you 👋",          gradient: "linear-gradient(135deg,#e05a47,#f4a261)" },
-  { id: "forest",   name: "Forest",   emoji: "🌿", primaryColor: "#2d6a4f", userBubbleColor: "#2d6a4f", botBubbleColor: "#f0faf4", fontFamily: "DM Sans",    launcherStyle: "rounded", borderRadius: 18, botName: "Eco",    welcomeMessage: "Welcome! How can I assist you today?",   gradient: "linear-gradient(135deg,#2d6a4f,#74c69d)" },
-  { id: "royal",    name: "Royal",    emoji: "💜", primaryColor: "#6a0dad", userBubbleColor: "#6a0dad", botBubbleColor: "#f8f4ff", fontFamily: "Montserrat", launcherStyle: "pill",    borderRadius: 22, botName: "Luxe",   welcomeMessage: "Welcome to our premium service.",        gradient: "linear-gradient(135deg,#6a0dad,#c77dff)" },
-  { id: "mono",     name: "Mono",     emoji: "⬛", primaryColor: "#1a1a2e", userBubbleColor: "#1a1a2e", botBubbleColor: "#f5f5f5", fontFamily: "Inter",      launcherStyle: "square",  borderRadius: 10, botName: "Minimal",welcomeMessage: "Hello. What do you need?",              gradient: "linear-gradient(135deg,#1a1a2e,#6c6c8a)" },
+  { id: "ocean", name: "Ocean", badge: "Default", badgeColor: "rgba(26,92,92,0.15)", primaryColor: "#006d77", userBubbleColor: "#006d77", botBubbleColor: "#edf6f9", fontFamily: "Manrope", launcherStyle: "rounded", borderRadius: 20, botName: "Aqua", welcomeMessage: "Hello! How can I help you today?", themeStyle: "standard", bgGradient: "linear-gradient(135deg,#006d77,#83c5be)" },
+  { id: "glass", name: "Glassmorphism", badge: "Glass", badgeColor: "rgba(99,102,241,0.15)", primaryColor: "#4f46e5", userBubbleColor: "#6366f1", botBubbleColor: "rgba(255,255,255,0.18)", fontFamily: "Inter", launcherStyle: "pill", borderRadius: 24, botName: "Crystal", welcomeMessage: "Welcome! I'm here to help you.", themeStyle: "glass", bgGradient: "linear-gradient(135deg,#4f46e5,#818cf8)" },
+  { id: "clay", name: "Claymorphism", badge: "Clay", badgeColor: "rgba(251,146,60,0.2)", primaryColor: "#f97316", userBubbleColor: "#f97316", botBubbleColor: "#fff7ed", fontFamily: "Nunito", launcherStyle: "rounded", borderRadius: 28, botName: "Clay", welcomeMessage: "Hey there! What can I do for you? 🎨", themeStyle: "clay", bgGradient: "linear-gradient(135deg,#f97316,#fb923c)" },
+  { id: "noir", name: "Dark Premium", badge: "Premium", badgeColor: "rgba(201,169,110,0.2)", primaryColor: "#c9a96e", userBubbleColor: "#c9a96e", botBubbleColor: "#1e2040", fontFamily: "Montserrat", launcherStyle: "square", borderRadius: 14, botName: "Noir", welcomeMessage: "Welcome. I'm here to assist.", themeStyle: "dark", bgGradient: "linear-gradient(135deg,#0a0a1a,#c9a96e)" },
+  { id: "minimal", name: "Minimalist", badge: "Minimal", badgeColor: "rgba(10,10,15,0.08)", primaryColor: "#0a0a0f", userBubbleColor: "#0a0a0f", botBubbleColor: "#f5f5f5", fontFamily: "Inter", launcherStyle: "square", borderRadius: 8, botName: "Assistant", welcomeMessage: "Hello. What do you need?", themeStyle: "minimal", bgGradient: "linear-gradient(135deg,#374151,#6b7280)" },
+  { id: "forest", name: "Forest", badge: "Nature", badgeColor: "rgba(45,106,79,0.15)", primaryColor: "#2d6a4f", userBubbleColor: "#2d6a4f", botBubbleColor: "#f0faf4", fontFamily: "DM Sans", launcherStyle: "rounded", borderRadius: 18, botName: "Eco", welcomeMessage: "Welcome! How can I assist you today?", themeStyle: "standard", bgGradient: "linear-gradient(135deg,#2d6a4f,#74c69d)" },
+  { id: "coral", name: "Coral", badge: "Warm", badgeColor: "rgba(224,90,71,0.15)", primaryColor: "#e05a47", userBubbleColor: "#e05a47", botBubbleColor: "#fff5f4", fontFamily: "Poppins", launcherStyle: "pill", borderRadius: 24, botName: "Coral", welcomeMessage: "Hi there! Great to see you 👋", themeStyle: "standard", bgGradient: "linear-gradient(135deg,#e05a47,#f4a261)" },
+  { id: "royal", name: "Royal", badge: "Bold", badgeColor: "rgba(106,13,173,0.15)", primaryColor: "#6a0dad", userBubbleColor: "#6a0dad", botBubbleColor: "#f8f4ff", fontFamily: "Raleway", launcherStyle: "pill", borderRadius: 22, botName: "Luxe", welcomeMessage: "Welcome to our premium service.", themeStyle: "standard", bgGradient: "linear-gradient(135deg,#6a0dad,#c77dff)" },
+  { id: "sunset", name: "Sunset", badge: "Gradient", badgeColor: "rgba(251,113,133,0.2)", primaryColor: "#f43f5e", userBubbleColor: "#f43f5e", botBubbleColor: "#fff1f2", fontFamily: "Poppins", launcherStyle: "pill", borderRadius: 26, botName: "Sunny", welcomeMessage: "Hello sunshine! How can I help? ☀️", themeStyle: "standard", bgGradient: "linear-gradient(135deg,#f43f5e,#fb923c)" },
+  { id: "carbon", name: "Carbon", badge: "Tech", badgeColor: "rgba(71,85,105,0.15)", primaryColor: "#334155", userBubbleColor: "#475569", botBubbleColor: "#1e293b", fontFamily: "Inter", launcherStyle: "square", borderRadius: 10, botName: "Sys", welcomeMessage: "System online. How can I help?", themeStyle: "dark", bgGradient: "linear-gradient(135deg,#0f172a,#334155)" },
 ];
 
+const AI_TONES: { id: AiTone; label: string; desc: string; emoji: string }[] = [
+  { id: "friendly", label: "Friendly", desc: "Warm, approachable, uses emojis", emoji: "😊" },
+  { id: "professional", label: "Professional", desc: "Formal, precise, business-like", emoji: "💼" },
+  { id: "concise", label: "Concise", desc: "Short answers, straight to point", emoji: "⚡" },
+  { id: "enthusiastic", label: "Enthusiastic", desc: "Energetic, upbeat, motivating", emoji: "🚀" },
+];
+
+const LAUNCHER_ICONS: { id: LauncherIcon; icon: React.ReactNode; label: string }[] = [
+  { id: "chat", icon: <MessageCircle size={17} strokeWidth={1.8} />, label: "Chat" },
+  { id: "sparkle", icon: <Sparkles size={17} strokeWidth={1.8} />, label: "Sparkles" },
+  { id: "headset", icon: <Headphones size={17} strokeWidth={1.8} />, label: "Headset" },
+  { id: "zap", icon: <Zap size={17} strokeWidth={1.8} />, label: "Zap" },
+  { id: "heart", icon: <Heart size={17} strokeWidth={1.8} />, label: "Heart" },
+];
+
+// ─── Mini Template Preview ────────────────────────────────────────────────────
+function TemplatePreviewMini({ t, isSelected, onClick }: { t: Template; isSelected: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={`cust-tpl-card${isSelected ? " selected" : ""}`} onClick={onClick}>
+      <div className={`cust-tpl-preview ${t.themeStyle}`} style={{ background: t.bgGradient }}>
+        <div className="cust-tpl-mini-header" style={{ background: t.primaryColor }}>
+          <div className="cust-tpl-mini-avatar" />
+          <span className="cust-tpl-mini-name">{t.botName}</span>
+        </div>
+        <div className="cust-tpl-mini-body">
+          <div className="cust-tpl-mini-bubble bot" style={{ background: t.botBubbleColor, color: t.themeStyle === "dark" ? "rgba(255,255,255,0.85)" : "#333" }}>
+            {t.welcomeMessage.slice(0, 32)}…
+          </div>
+          <div className="cust-tpl-mini-bubble user" style={{ background: t.userBubbleColor }}>How can you help?</div>
+        </div>
+      </div>
+      <div className="cust-tpl-info">
+        <strong>{t.name}</strong>
+        <span style={{ color: "#a07840" }}>{t.badge}</span>
+      </div>
+      {isSelected && <div className="cust-tpl-check">✓</div>}
+      <div className="cust-tpl-badge" style={{ background: t.badgeColor, color: "rgba(10,10,15,0.65)" }}>{t.badge}</div>
+    </button>
+  );
+}
+
+// ─── Live Preview ─────────────────────────────────────────────────────────────
+function LivePreview({
+  primaryColor, userBubbleColor, botBubbleColor, borderRadius,
+  fontFamily, botName, botAvatarUrl, welcomeMessage, headerCtaLabel,
+  widgetPosition, launcherStyle, themeStyle, bgPattern, quickReplies,
+  notifEnabled, notifText, notifAnimation, launcherIcon, notifChips,
+}: {
+  primaryColor: string; userBubbleColor: string; botBubbleColor: string;
+  borderRadius: number; fontFamily: string; botName: string; botAvatarUrl: string;
+  welcomeMessage: string; headerCtaLabel: string; widgetPosition: WidgetPosition;
+  launcherStyle: string; themeStyle: ThemeStyle; bgPattern: BgPattern;
+  quickReplies: string[]; notifEnabled: boolean; notifText: string;
+  notifAnimation: NotifAnimation; launcherIcon: LauncherIcon; notifChips: string[];
+}) {
+  const [mode, setMode] = useState<"desktop" | "mobile" | "notification">("desktop");
+  const launcherBR = launcherStyle === "square" ? "12px" : launcherStyle === "minimal" ? "10px" : launcherStyle === "pill" ? "18px" : "999px";
+
+  const bodyBg = themeStyle === "dark" ? "#0d0d1a" : themeStyle === "glass" ? "rgba(255,255,255,0.08)" : "#f8fafa";
+  const botBubbleBg = themeStyle === "dark" ? "#1e2040" : themeStyle === "glass" ? "rgba(255,255,255,0.22)" : botBubbleColor;
+  const botBubbleBorder = themeStyle === "glass" ? "1px solid rgba(255,255,255,0.3)" : themeStyle === "minimal" ? "1px solid #e5e5e5" : "1px solid rgba(0,0,0,0.07)";
+  const botTextColor = themeStyle === "dark" ? "rgba(255,255,255,0.85)" : "#0a0a0f";
+  const clShadow = themeStyle === "clay" ? "3px 3px 0 rgba(0,0,0,0.08), 1px 1px 0 rgba(0,0,0,0.04)" : undefined;
+  const patternClass = bgPattern !== "none" ? `cust-bg-${bgPattern}` : "";
+  const iconNode = LAUNCHER_ICONS.find(i => i.id === launcherIcon)?.icon ?? <MessageCircle size={16} strokeWidth={1.8} />;
+
+  const avatar = botAvatarUrl
+    ? <img src={botAvatarUrl} alt={botName} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
+    : <span>{botName.slice(0, 2).toUpperCase()}</span>;
+
+  const chatBody = (scale: number) => {
+    const bR = Math.min(borderRadius, 16) * scale;
+    return (
+      <>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 * scale, padding: `${7 * scale}px ${8 * scale}px`, background: bodyBg, minHeight: 70 * scale, flex: 1 }} className={patternClass}>
+          <div style={{ padding: `${5 * scale}px ${8 * scale}px`, fontSize: `${0.62 * scale}rem`, lineHeight: 1.4, background: botBubbleBg, border: botBubbleBorder, borderRadius: `${bR}px ${bR}px ${bR}px ${3 * scale}px`, alignSelf: "flex-start", maxWidth: "84%", color: botTextColor, boxShadow: clShadow }}>{welcomeMessage}</div>
+          {quickReplies.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 2 }}>
+              {quickReplies.slice(0, 3).map((q, i) => (
+                <span key={i} style={{ padding: `${2 * scale}px ${7 * scale}px`, borderRadius: 999, border: "1px solid rgba(10,10,15,0.15)", background: "#fff", fontSize: `${0.52 * scale}rem`, color: "rgba(10,10,15,0.6)" }}>{q}</span>
+              ))}
+            </div>
+          )}
+          <div style={{ padding: `${5 * scale}px ${8 * scale}px`, fontSize: `${0.62 * scale}rem`, lineHeight: 1.4, background: userBubbleColor, borderRadius: `${bR}px ${bR}px ${3 * scale}px ${bR}px`, alignSelf: "flex-end", maxWidth: "84%", color: "#fff" }}>I'd like help with a booking.</div>
+          <div style={{ padding: `${5 * scale}px ${8 * scale}px`, fontSize: `${0.62 * scale}rem`, lineHeight: 1.4, background: botBubbleBg, border: botBubbleBorder, borderRadius: `${bR}px ${bR}px ${bR}px ${3 * scale}px`, alignSelf: "flex-start", maxWidth: "84%", color: botTextColor, boxShadow: clShadow }}>Of course! What dates work?</div>
+          <div style={{ display: "flex", gap: 3, alignItems: "center", padding: `${5 * scale}px ${7 * scale}px`, alignSelf: "flex-start", borderRadius: 10, background: botBubbleBg, border: botBubbleBorder, boxShadow: clShadow }}>
+            {[0, 150, 300].map(d => <span key={d} style={{ width: 4 * scale, height: 4 * scale, borderRadius: "50%", background: "rgba(10,10,15,0.28)", display: "inline-block", animation: `dot-bounce 1.2s ${d}ms infinite ease-in-out` }} />)}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 * scale, padding: `${5 * scale}px ${7 * scale}px`, borderTop: "1px solid rgba(0,0,0,0.07)", background: themeStyle === "dark" ? "#0a0a14" : "#fff" }}>
+          <span style={{ flex: 1, fontSize: `${0.58 * scale}rem`, color: "rgba(10,10,15,0.3)" }}>Type a message…</span>
+          <div style={{ width: 20 * scale, height: 20 * scale, display: "flex", alignItems: "center", justifyContent: "center", background: primaryColor, borderRadius: Math.min(borderRadius / 2, 10) * scale, flexShrink: 0, color: "#fff" }}>
+            <svg width={12 * scale} height={12 * scale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  // Pill-style launcher (desktop/mobile chat view)
+  const launcherBtn = (scale: number) => (
+    <div className="cust-launcher-wrap">
+      <div style={{ display: "inline-flex", alignItems: "center", gap: 5 * scale, padding: `${6 * scale}px ${11 * scale}px`, background: primaryColor, borderRadius: launcherBR, color: "#fff", fontSize: `${0.64 * scale}rem`, fontWeight: 700, boxShadow: `0 ${6 * scale}px ${18 * scale}px rgba(0,0,0,0.18)`, position: "relative" }}>
+        <span style={{ display: "flex", alignItems: "center", width: 17 * scale, height: 17 * scale }}>{iconNode}</span>
+        <span>{botName}</span>
+      </div>
+    </div>
+  );
+
+  // Round circle launcher with red badge (notification view)
+  const launcherRound = (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <div className="cust-launcher-round" style={{ background: primaryColor }}>
+        <span style={{ display: "flex", alignItems: "center", color: "#fff" }}>{iconNode}</span>
+      </div>
+      {notifEnabled && <div className="cust-launcher-badge">1</div>}
+    </div>
+  );
+
+  return (
+    <div className="cust-preview-panel app-card" style={{ position: "sticky", top: 80, alignSelf: "flex-start" }}>
+      <div className="cust-preview-header">
+        <span className="cust-preview-title">Live Preview</span>
+        <div className="cust-preview-toggle">
+          {(["desktop", "mobile", "notification"] as const).map(m => (
+            <button key={m} type="button" className={`cust-toggle-btn${mode === m ? " active" : ""}`} onClick={() => setMode(m)}>
+              {m === "desktop"
+                ? <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>
+                : m === "mobile"
+                ? <svg width="12" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="5" y="2" width="14" height="20" rx="2" /><circle cx="12" cy="18" r="1" fill="currentColor" stroke="none" /></svg>
+                : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>}
+              {m === "notification" ? "Notif" : m.charAt(0).toUpperCase() + m.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {mode === "desktop" && (
+        <div className="cust-desktop-preview-wrap">
+          <div className="cust-browser-chrome">
+            <div className="cust-browser-dots"><span style={{ background: "#ff5f57" }} /><span style={{ background: "#febc2e" }} /><span style={{ background: "#28c840" }} /></div>
+            <div className="cust-browser-bar">yourwebsite.com</div>
+          </div>
+          <div className="cust-browser-viewport" style={{ fontFamily }}>
+            <div className="cust-page-bg"><div className="cust-page-lines">{[80, 60, 72, 50, 65].map((w, i) => <div key={i} className="cust-page-line" style={{ width: `${w}%` }} />)}</div></div>
+            <div className={`cust-widget-window ${widgetPosition}`}>
+              <div className="cust-w-header" style={{ background: primaryColor }}>
+                <div className="cust-w-avatar">{avatar}</div>
+                <div><div className="cust-w-name">{botName}</div><div className="cust-w-status"><span className="cust-w-dot" />Online</div></div>
+                {headerCtaLabel && <span className="cust-w-badge">{headerCtaLabel}</span>}
+              </div>
+              {chatBody(1)}
+            </div>
+            <div className={`cust-launcher-preview ${widgetPosition}`} style={{ background: "transparent", padding: 0, bottom: 9, position: "absolute" }}>
+              {launcherBtn(1)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mode === "mobile" && (
+        <div className="cust-mobile-preview-wrap">
+          <div className="cust-phone-frame">
+            <div className="cust-phone-notch"><div className="cust-phone-notch-pill" /></div>
+            <div className="cust-phone-screen" style={{ fontFamily }}>
+              <div className="cust-phone-status"><span>9:41</span><span>●●●</span></div>
+              <div className="cust-mobile-chat">
+                <div className="cust-m-header" style={{ background: primaryColor }}>
+                  <div className="cust-m-avatar">{avatar}</div>
+                  <div><div className="cust-m-name">{botName}</div><div className="cust-m-status"><span className="cust-w-dot" style={{ width: 5, height: 5 }} />Online</div></div>
+                </div>
+                {chatBody(0.9)}
+              </div>
+            </div>
+            <div className="cust-phone-bar" />
+          </div>
+        </div>
+      )}
+
+      {/* ── Notification card scene ── */}
+      {mode === "notification" && (
+        <div className={`cust-preview-notif-scene ${widgetPosition === "left" ? "left" : ""}`}>
+          <div className="cust-notif-scene-lines">
+            {[70, 55, 65, 40].map((w, i) => <div key={i} className="cust-notif-scene-line" style={{ width: `${w}%` }} />)}
+          </div>
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: widgetPosition === "left" ? "flex-start" : "flex-end", gap: 10, zIndex: 2 }}>
+            {notifEnabled ? (
+              <>
+                <div style={{ background: "#fff", borderRadius: 16, padding: "14px 18px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", fontSize: "0.88rem", color: "#0a0a0f", lineHeight: 1.5, position: "relative", maxWidth: 260, fontFamily, animation: "notif-card-in 0.35s cubic-bezier(0.16,1,0.3,1)" }}>
+                  <div style={{ position: "absolute", top: -9, right: -9, width: 24, height: 24, borderRadius: "50%", background: "#e8e8e8", border: "2px solid #1a2332", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(10,10,15,0.55)", fontSize: "0.6rem", boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>✕</div>
+                  <span style={{ marginRight: 6 }}>👋</span>{notifText || "Hi! How can we help?"}
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: widgetPosition === "left" ? "flex-start" : "flex-end", gap: 8 }}>
+                  {(notifChips.length > 0 ? notifChips : ["I have a question", "Tell me more"]).map((chip, i) => (
+                    <div key={i} style={{ padding: "9px 18px", borderRadius: 999, background: "#fff", border: "1.5px solid rgba(255,255,255,0.2)", fontSize: "0.82rem", color: "#1a2332", fontWeight: 500, boxShadow: "0 2px 10px rgba(0,0,0,0.14)", whiteSpace: "nowrap", fontFamily }}>{chip}</div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.78rem", paddingBottom: 14 }}>Notification bubble is disabled</div>
+            )}
+            {launcherRound}
+          </div>
+        </div>
+      )}
+
+      <div className="cust-swatch-row">
+        <div className="cust-swatch" style={{ background: primaryColor }} />
+        <div className="cust-swatch" style={{ background: userBubbleColor }} />
+        <div className="cust-swatch" style={{ background: botBubbleColor, border: "1px solid rgba(10,10,15,0.1)" }} />
+        <span className="cust-swatch-label">{fontFamily} · r{borderRadius} · {launcherStyle} · {themeStyle}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CustomizationPage() {
   const { selectedTenant, updateTenantProfile, loading, error, setError } = usePlatformAuth();
   const profile = selectedTenant?.business_profile;
-  const [previewMode, setPreviewMode] = useState<PreviewMode>("desktop");
+  const [tab, setTab] = useState<TabId>("templates");
+  const [appliedTemplate, setAppliedTemplate] = useState<string | null>(null);
+  const [success, setSuccess] = useState("");
+  const [newChip, setNewChip] = useState("");
+  const chipInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Form state ─────────────────────────────────────────────────────────────
-  const [businessType,        setBusinessType]        = useState(profile?.business_type || "general_travel");
-  const [supportedServices,   setSupportedServices]   = useState<PlatformService[]>(profile?.supported_services || ["flights"]);
-  const [supportPhone,        setSupportPhone]        = useState(profile?.support_phone || "");
-  const [supportEmail,        setSupportEmail]        = useState(profile?.support_email || "");
-  const [supportCtaLabel,     setSupportCtaLabel]     = useState(profile?.support_cta_label || "Connect with a specialist");
-  const [headerCtaLabel,      setHeaderCtaLabel]      = useState(profile?.header_cta_label || "New");
-  const [headerCtaNotice,     setHeaderCtaNotice]     = useState(profile?.header_cta_notice || "Hi! I am your AI assistant. Ask me anything about your trip.");
-  const [businessDescription, setBusinessDescription] = useState(profile?.business_description || "");
-  const [primaryColor,        setPrimaryColor]        = useState(profile?.primary_color || "#006d77");
-  const [userBubbleColor,     setUserBubbleColor]     = useState(profile?.user_bubble_color || "#006d77");
-  const [botBubbleColor,      setBotBubbleColor]      = useState(profile?.bot_bubble_color || "#edf6f9");
-  const [fontFamily,          setFontFamily]          = useState(profile?.font_family || "Manrope");
-  const [widgetPosition,      setWidgetPosition]      = useState<WidgetPosition>(profile?.widget_position || "right");
-  const [launcherStyle,       setLauncherStyle]       = useState<LauncherStyle>(profile?.launcher_style || "rounded");
-  const [windowWidth,         setWindowWidth]         = useState(profile?.window_width || 380);
-  const [windowHeight,        setWindowHeight]        = useState(profile?.window_height || 640);
-  const [borderRadius,        setBorderRadius]        = useState(profile?.border_radius || 18);
-  const [welcomeMessage,      setWelcomeMessage]      = useState(profile?.welcome_message || "Welcome. How can I help today?");
-  const [botName,             setBotName]             = useState(profile?.bot_name || "AeroConcierge");
-  const [botAvatarUrl,        setBotAvatarUrl]        = useState(profile?.bot_avatar_url || "");
-  const [success,             setSuccess]             = useState("");
-  const [appliedTemplate,     setAppliedTemplate]     = useState<string | null>(null);
+  // Core appearance
+  const [primaryColor, setPrimaryColor] = useState(profile?.primary_color || "#006d77");
+  const [userBubbleColor, setUserBubbleColor] = useState(profile?.user_bubble_color || "#006d77");
+  const [botBubbleColor, setBotBubbleColor] = useState(profile?.bot_bubble_color || "#edf6f9");
+  const [fontFamily, setFontFamily] = useState(profile?.font_family || "Manrope");
+  const [borderRadius, setBorderRadius] = useState(profile?.border_radius || 18);
+  const [themeStyle, setThemeStyle] = useState<ThemeStyle>("standard");
+  const [bgPattern, setBgPattern] = useState<BgPattern>("none");
+
+  // Layout
+  const [widgetPosition, setWidgetPosition] = useState<WidgetPosition>(profile?.widget_position || "right");
+  const [launcherStyle, setLauncherStyle] = useState<LauncherStyle>(profile?.launcher_style || "rounded");
+  const [windowWidth, setWindowWidth] = useState(profile?.window_width || 380);
+  const [windowHeight, setWindowHeight] = useState(profile?.window_height || 640);
+  const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>("chat");
+
+  // Content
+  const [botName, setBotName] = useState(profile?.bot_name || "AeroConcierge");
+  const [botAvatarUrl, setBotAvatarUrl] = useState(profile?.bot_avatar_url || "");
+  const [welcomeMessage, setWelcomeMessage] = useState(profile?.welcome_message || "Welcome. How can I help today?");
+  const [headerCtaLabel, setHeaderCtaLabel] = useState(profile?.header_cta_label || "New");
+  const [headerCtaNotice, setHeaderCtaNotice] = useState(profile?.header_cta_notice || "Hi! I am your AI assistant.");
+  const [supportPhone, setSupportPhone] = useState(profile?.support_phone || "");
+  const [supportEmail, setSupportEmail] = useState(profile?.support_email || "");
+  const [supportCtaLabel, setSupportCtaLabel] = useState(profile?.support_cta_label || "Connect with a specialist");
+  const [quickReplies, setQuickReplies] = useState<string[]>(["How does this work?", "Pricing plans", "Get support"]);
+
+  // Persona
+  const [businessType, setBusinessType] = useState(profile?.business_type || "general_travel");
+  const [supportedServices, setSupportedServices] = useState<PlatformService[]>(profile?.supported_services || ["flights"]);
+  const [businessDesc, setBusinessDesc] = useState(profile?.business_description || "");
+  const [aiTone, setAiTone] = useState<AiTone>("friendly");
+
+  // Notification
+  const [notifEnabled, setNotifEnabled] = useState(true);
+  const [notifText, setNotifText] = useState("👋 Need help?");
+  const [notifAnimation, setNotifAnimation] = useState<NotifAnimation>("bounce");
+  const [notifChips, setNotifChips] = useState<string[]>(["I have a question", "Tell me more"]);
+
 
   useEffect(() => {
     if (!profile) return;
-    setBusinessType(profile.business_type || "general_travel");
-    setSupportedServices(profile.supported_services || ["flights"]);
-    setSupportPhone(profile.support_phone || "");
-    setSupportEmail(profile.support_email || "");
-    setSupportCtaLabel(profile.support_cta_label || "Connect with a specialist");
-    setHeaderCtaLabel(profile.header_cta_label || "New");
-    setHeaderCtaNotice(profile.header_cta_notice || "Hi! I am your AI assistant. Ask me anything about your trip.");
-    setBusinessDescription(profile.business_description || "");
     setPrimaryColor(profile.primary_color || "#006d77");
     setUserBubbleColor(profile.user_bubble_color || "#006d77");
     setBotBubbleColor(profile.bot_bubble_color || "#edf6f9");
     setFontFamily(profile.font_family || "Manrope");
+    setBorderRadius(profile.border_radius || 18);
     setWidgetPosition(profile.widget_position || "right");
     setLauncherStyle(profile.launcher_style || "rounded");
     setWindowWidth(profile.window_width || 380);
     setWindowHeight(profile.window_height || 640);
-    setBorderRadius(profile.border_radius || 18);
-    setWelcomeMessage(profile.welcome_message || "Welcome. How can I help today?");
     setBotName(profile.bot_name || "AeroConcierge");
     setBotAvatarUrl(profile.bot_avatar_url || "");
+    setWelcomeMessage(profile.welcome_message || "Welcome. How can I help today?");
+    setHeaderCtaLabel(profile.header_cta_label || "New");
+    setHeaderCtaNotice(profile.header_cta_notice || "Hi! I am your AI assistant.");
+    setSupportPhone(profile.support_phone || "");
+    setSupportEmail(profile.support_email || "");
+    setSupportCtaLabel(profile.support_cta_label || "Connect with a specialist");
+    setBusinessType(profile.business_type || "general_travel");
+    setSupportedServices(profile.supported_services || ["flights"]);
+    setBusinessDesc(profile.business_description || "");
   }, [profile]);
 
   function applyTemplate(t: Template) {
@@ -88,426 +335,390 @@ export default function CustomizationPage() {
     setBotBubbleColor(t.botBubbleColor); setFontFamily(t.fontFamily);
     setLauncherStyle(t.launcherStyle); setBorderRadius(t.borderRadius);
     setBotName(t.botName); setWelcomeMessage(t.welcomeMessage);
-    setAppliedTemplate(t.id);
+    setThemeStyle(t.themeStyle); setAppliedTemplate(t.id);
+    setTab("appearance");
   }
 
-  function toggleService(service: PlatformService) {
-    setSupportedServices(prev => {
-      if (prev.includes(service)) {
-        const next = prev.filter(s => s !== service);
-        return next.length > 0 ? next : ["flights"];
-      }
-      return [...prev, service];
-    });
+  function toggleService(s: PlatformService) {
+    setSupportedServices(prev => prev.includes(s) ? (prev.filter(x => x !== s).length > 0 ? prev.filter(x => x !== s) : ["flights"]) : [...prev, s]);
   }
 
-  async function handleSubmit(event: React.FormEvent) {
-    event.preventDefault();
-    setSuccess(""); setError("");
+  function addChip() {
+    const v = newChip.trim();
+    if (v && !quickReplies.includes(v) && quickReplies.length < 6) {
+      setQuickReplies(prev => [...prev, v]);
+      setNewChip("");
+      chipInputRef.current?.focus();
+    }
+  }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault(); setSuccess(""); setError("");
     try {
       await updateTenantProfile({
-        tenant_id: selectedTenant!.tenant_id, business_type: businessType,
-        supported_services: supportedServices,
-        support_phone: supportPhone || undefined, support_email: supportEmail || undefined,
-        support_cta_label: supportCtaLabel, header_cta_label: headerCtaLabel,
-        header_cta_notice: headerCtaNotice, business_description: businessDescription || undefined,
-        primary_color: primaryColor, user_bubble_color: userBubbleColor, bot_bubble_color: botBubbleColor,
-        font_family: fontFamily, widget_position: widgetPosition, launcher_style: launcherStyle,
-        window_width: windowWidth, window_height: windowHeight, border_radius: borderRadius,
-        welcome_message: welcomeMessage, bot_name: botName, bot_avatar_url: botAvatarUrl || undefined,
+        tenant_id: selectedTenant!.tenant_id,
+        primary_color: primaryColor, user_bubble_color: userBubbleColor,
+        bot_bubble_color: botBubbleColor, font_family: fontFamily,
+        border_radius: borderRadius, widget_position: widgetPosition,
+        launcher_style: launcherStyle, window_width: windowWidth, window_height: windowHeight,
+        bot_name: botName, bot_avatar_url: botAvatarUrl || undefined,
+        welcome_message: welcomeMessage, header_cta_label: headerCtaLabel,
+        header_cta_notice: headerCtaNotice, support_phone: supportPhone || undefined,
+        support_email: supportEmail || undefined, support_cta_label: supportCtaLabel,
+        business_type: businessType, supported_services: supportedServices,
+        business_description: businessDesc || undefined,
       });
       setSuccess("Customization saved successfully!");
-    } catch { /* handled by context */ }
+      setTimeout(() => setSuccess(""), 3500);
+    } catch { /* errors handled by context */ }
   }
-
-  const previewStyle = useMemo(() => ({
-    "--preview-primary":  primaryColor,
-    "--preview-user":     userBubbleColor,
-    "--preview-bot":      botBubbleColor,
-    "--preview-radius":   `${borderRadius}px`,
-    fontFamily,
-  }) as CSSProperties, [primaryColor, userBubbleColor, botBubbleColor, borderRadius, fontFamily]);
-
-  const launcherBorderRadius =
-    launcherStyle === "square" ? "14px" :
-    launcherStyle === "minimal" ? "12px" :
-    launcherStyle === "pill" ? "20px" : "999px";
 
   if (!selectedTenant) {
     return (
       <div className="app-empty" style={{ maxWidth: 480, margin: "4rem auto" }}>
         <div className="empty-icon">🎨</div>
         <p className="empty-title">No workspace selected</p>
-        <p className="empty-desc">Select a tenant to configure chatbot customization.</p>
+        <p className="empty-desc">Select a workspace to configure chatbot appearance.</p>
       </div>
     );
   }
 
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+  const TABS: { id: TabId; label: string; emoji: string }[] = [
+    { id: "templates", label: "Templates", emoji: "🎨" },
+    { id: "appearance", label: "Appearance", emoji: "✨" },
+    { id: "layout", label: "Layout", emoji: "📐" },
+    { id: "content", label: "Content", emoji: "✏️" },
+    { id: "persona", label: "Persona", emoji: "🤖" },
+    { id: "notification", label: "Notification", emoji: "🔔" },
+  ];
 
-      {/* ── Page header ── */}
+  const ColorField = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
+    <label className="cust-label">
+      {label}
+      <div className="cust-color-row">
+        <input type="color" value={value} onChange={e => onChange(e.target.value)} />
+        <input className="cust-input" type="text" value={value} onChange={e => onChange(e.target.value)} style={{ flex: 1 }} placeholder="#000000" />
+      </div>
+    </label>
+  );
+
+  const RangeField = ({ label, value, min, max, unit, onChange }: { label: string; value: number; min: number; max: number; unit: string; onChange: (v: number) => void }) => (
+    <label className="cust-label">
+      {label}
+      <div className="cust-range-row">
+        <input type="range" min={min} max={max} value={value} onChange={e => onChange(Number(e.target.value))} style={{ flex: 1 }} />
+        <span className="cust-range-val">{value}{unit}</span>
+      </div>
+    </label>
+  );
+
+  return (
+    <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+
+      {/* Header */}
       <div className="app-page-header">
         <div>
-          <p className="app-kicker">Chatbot Appearance</p>
-          <h2 className="app-h1">Customization</h2>
-          <p className="app-lead">Pick a template or fine-tune every detail. Preview updates instantly.</p>
+          <p className="app-kicker">Widget Customization</p>
+          <h2 className="app-h1">Chatbot Designer</h2>
+          <p className="app-lead">Choose a template or fine-tune every visual, behavioral, and notification detail.</p>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {success && <span className="app-success" style={{ padding: "8px 14px" }}>{success}</span>}
+          {error && <span className="app-error" style={{ padding: "8px 14px" }}>{error}</span>}
+          <button className="app-btn-primary" type="submit" disabled={loading}>
+            {loading ? "Saving…" : "💾 Save changes"}
+          </button>
         </div>
       </div>
 
-      {/* ── Theme template picker ── */}
-      <div className="app-card" style={{ padding: "20px 24px" }}>
-        <p className="app-card-subtitle" style={{ marginBottom: "12px" }}>Quick themes</p>
-        <div className="cust-template-row">
-          {TEMPLATES.map(t => (
-            <button
-              key={t.id}
-              type="button"
-              className={`cust-theme-card${appliedTemplate === t.id ? " selected" : ""}`}
-              onClick={() => applyTemplate(t)}
-              title={t.name}
-            >
-              <span className="cust-theme-swatch" style={{ background: t.gradient }} />
-              <span className="cust-theme-emoji">{t.emoji}</span>
-              <span className="cust-theme-name">{t.name}</span>
-              {appliedTemplate === t.id && <span className="cust-theme-check">✓</span>}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* Main layout: tabs + preview */}
+      <div className="cust-layout" style={{ gap: 24 }}>
 
-      {/* ── Main: form + preview side by side ── */}
-      <div className="cust-layout">
-
-        {/* ── Left: Settings form ── */}
+        {/* LEFT: Tab editor */}
         <div className="app-card cust-form-card">
-          <form onSubmit={handleSubmit}>
 
-            {/* SECTION: Identity */}
-            <div className="cust-section">
-              <p className="cust-section-label">Identity</p>
+          {/* Tab bar */}
+          <div className="cust-tab-bar">
+            {TABS.map(t => (
+              <button key={t.id} type="button" className={`cust-tab-item${tab === t.id ? " active" : ""}`} onClick={() => setTab(t.id)}>
+                <span>{t.emoji}</span> {t.label}
+              </button>
+            ))}
+          </div>
+
+          {/* ── TAB: Templates ── */}
+          {tab === "templates" && (
+            <div>
+              <p className="cust-section-label" style={{ marginBottom: 14 }}>Choose a visual theme — click to apply, then refine in other tabs</p>
+              <div className="cust-tpl-grid">
+                {TEMPLATES.map(t => (
+                  <TemplatePreviewMini key={t.id} t={t} isSelected={appliedTemplate === t.id} onClick={() => applyTemplate(t)} />
+                ))}
+              </div>
+              <p style={{ fontSize: "0.76rem", color: "rgba(10,10,15,0.42)", marginTop: 14 }}>
+                💡 Templates set colors, font, shape, and effect style. Your other settings are preserved — refine them in the Appearance, Layout, and Content tabs.
+              </p>
+            </div>
+          )}
+
+          {/* ── TAB: Appearance ── */}
+          {tab === "appearance" && (
+            <div>
+              <p className="cust-sub-heading">Theme Style</p>
+              <div className="cust-tone-grid" style={{ marginBottom: 16 }}>
+                {([["standard", "Standard", "Clean, classic look", "🪟"], ["glass", "Glassmorphism", "Frosted blur effect", "🫧"], ["clay", "Claymorphism", "3D puffy clay cards", "🎨"], ["dark", "Dark Mode", "Deep, premium dark bg", "🌑"], ["minimal", "Minimalist", "Flat, no shadows", "⬜"]] as [ThemeStyle, string, string, string][]).map(([id, label, desc, emoji]) => (
+                  <button key={id} type="button" className={`cust-tone-card${themeStyle === id ? " selected" : ""}`} onClick={() => setThemeStyle(id)}>
+                    <strong>{emoji} {label}</strong><span>{desc}</span>
+                  </button>
+                ))}
+              </div>
+
+              <p className="cust-sub-heading">Colors</p>
               <div className="cust-field-grid">
-                <label className="cust-label">
-                  Bot name
+                <ColorField label="Brand / primary" value={primaryColor} onChange={setPrimaryColor} />
+                <ColorField label="User bubble" value={userBubbleColor} onChange={setUserBubbleColor} />
+                <ColorField label="Bot bubble" value={botBubbleColor} onChange={setBotBubbleColor} />
+                <RangeField label="Corner radius" value={borderRadius} min={4} max={36} unit="px" onChange={setBorderRadius} />
+              </div>
+
+              <p className="cust-sub-heading">Typography</p>
+              <div className="cust-field-grid">
+                <label className="cust-label">Font family
+                  <select className="cust-input" value={fontFamily} onChange={e => setFontFamily(e.target.value)}>
+                    {FONT_FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <p className="cust-sub-heading">Chat Background</p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {(["none", "dots", "grid", "waves"] as BgPattern[]).map(p => (
+                  <button key={p} type="button" className={`cust-chip${bgPattern === p ? " active" : ""}`} onClick={() => setBgPattern(p)}>
+                    {p === "none" ? "Solid" : p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: Layout ── */}
+          {tab === "layout" && (
+            <div>
+              <p className="cust-sub-heading">Widget Position</p>
+              <div style={{ display: "flex", gap: 10, marginBottom: 4 }}>
+                {(["right", "left"] as WidgetPosition[]).map(p => (
+                  <button key={p} type="button" className={`cust-tone-card${widgetPosition === p ? " selected" : ""}`} onClick={() => setWidgetPosition(p)} style={{ flex: 1 }}>
+                    <strong>{p === "right" ? "↗ Right side" : "↖ Left side"}</strong>
+                    <span>{p === "right" ? "Standard position" : "Left-aligned widget"}</span>
+                  </button>
+                ))}
+              </div>
+
+              <p className="cust-sub-heading">Launcher Button</p>
+              <div className="cust-field-grid">
+                <label className="cust-label">Button shape
+                  <select className="cust-input" value={launcherStyle} onChange={e => setLauncherStyle(e.target.value as LauncherStyle)}>
+                    {LAUNCHER_STYLES.map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+                  </select>
+                </label>
+              </div>
+              <label className="cust-label" style={{ marginTop: 10 }}>Launcher icon
+                <div className="cust-icon-row" style={{ marginTop: 6 }}>
+                  {LAUNCHER_ICONS.map(i => (
+                    <button key={i.id} type="button" className={`cust-icon-btn${launcherIcon === i.id ? " selected" : ""}`} onClick={() => setLauncherIcon(i.id as LauncherIcon)} >
+                      {i.icon}
+                    </button>
+                  ))}
+                </div>
+              </label>
+
+              <p className="cust-sub-heading">Window Dimensions</p>
+              <div className="cust-field-grid">
+                <RangeField label="Width (desktop)" value={windowWidth} min={320} max={520} unit="px" onChange={setWindowWidth} />
+                <RangeField label="Height (desktop)" value={windowHeight} min={520} max={860} unit="px" onChange={setWindowHeight} />
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: Content ── */}
+          {tab === "content" && (
+            <div>
+              <p className="cust-sub-heading">Bot Identity</p>
+              <div className="cust-field-grid">
+                <label className="cust-label">Bot name
                   <input className="cust-input" value={botName} onChange={e => setBotName(e.target.value)} maxLength={60} placeholder="My Assistant" />
                 </label>
-                <label className="cust-label">
-                  Business type
-                  <input className="cust-input" value={businessType} onChange={e => setBusinessType(e.target.value)} placeholder="travel / e-commerce / support" />
-                </label>
-                <label className="cust-label full">
-                  Avatar URL
-                  <input className="cust-input" value={botAvatarUrl} onChange={e => setBotAvatarUrl(e.target.value)} placeholder="https://…/avatar.png" />
-                </label>
-                <label className="cust-label">
-                  Font
-                  <select className="cust-input" value={fontFamily} onChange={e => setFontFamily(e.target.value)}>
-                    {fontFamilies.map(f => <option key={f} value={f}>{f}</option>)}
-                  </select>
-                </label>
-                <div className="cust-label full">
-                  <span className="cust-field-title">Enabled services</span>
-                  <div className="cust-chip-row">
-                    {services.map(s => (
-                      <button key={s} type="button"
-                        className={`cust-chip${supportedServices.includes(s) ? " active" : ""}`}
-                        onClick={() => toggleService(s)}
-                      >{SERVICE_LABELS[s]}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* SECTION: Colors */}
-            <div className="cust-section">
-              <p className="cust-section-label">Colors</p>
-              <div className="cust-field-grid">
-                <label className="cust-label">
-                  Brand color
-                  <div className="cust-color-row">
-                    <input type="color" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} />
-                    <input className="cust-input" type="text" value={primaryColor} onChange={e => setPrimaryColor(e.target.value)} style={{ flex: 1 }} />
-                  </div>
-                </label>
-                <label className="cust-label">
-                  User bubble
-                  <div className="cust-color-row">
-                    <input type="color" value={userBubbleColor} onChange={e => setUserBubbleColor(e.target.value)} />
-                    <input className="cust-input" type="text" value={userBubbleColor} onChange={e => setUserBubbleColor(e.target.value)} style={{ flex: 1 }} />
-                  </div>
-                </label>
-                <label className="cust-label">
-                  Bot bubble
-                  <div className="cust-color-row">
-                    <input type="color" value={botBubbleColor} onChange={e => setBotBubbleColor(e.target.value)} />
-                    <input className="cust-input" type="text" value={botBubbleColor} onChange={e => setBotBubbleColor(e.target.value)} style={{ flex: 1 }} />
-                  </div>
-                </label>
-                <label className="cust-label">
-                  Corner radius
-                  <div className="cust-range-row">
-                    <input type="range" min={8} max={36} value={borderRadius} onChange={e => setBorderRadius(Number(e.target.value))} style={{ flex: 1 }} />
-                    <span className="cust-range-val">{borderRadius}px</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* SECTION: Widget layout */}
-            <div className="cust-section">
-              <p className="cust-section-label">Widget layout</p>
-              <div className="cust-field-grid">
-                <label className="cust-label">
-                  Position
-                  <select className="cust-input" value={widgetPosition} onChange={e => setWidgetPosition(e.target.value as WidgetPosition)}>
-                    <option value="right">Right side</option>
-                    <option value="left">Left side</option>
-                  </select>
-                </label>
-                <label className="cust-label">
-                  Launcher style
-                  <select className="cust-input" value={launcherStyle} onChange={e => setLauncherStyle(e.target.value as LauncherStyle)}>
-                    {launcherStyles.map(s => (
-                      <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="cust-label">
-                  Width (desktop)
-                  <div className="cust-range-row">
-                    <input type="range" min={320} max={520} value={windowWidth} onChange={e => setWindowWidth(Number(e.target.value))} style={{ flex: 1 }} />
-                    <span className="cust-range-val">{windowWidth}px</span>
-                  </div>
-                </label>
-                <label className="cust-label">
-                  Height (desktop)
-                  <div className="cust-range-row">
-                    <input type="range" min={520} max={860} value={windowHeight} onChange={e => setWindowHeight(Number(e.target.value))} style={{ flex: 1 }} />
-                    <span className="cust-range-val">{windowHeight}px</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* SECTION: Content */}
-            <div className="cust-section">
-              <p className="cust-section-label">Content</p>
-              <div className="cust-field-grid">
-                <label className="cust-label">
-                  Launcher badge text
+                <label className="cust-label">Header badge text
                   <input className="cust-input" value={headerCtaLabel} onChange={e => setHeaderCtaLabel(e.target.value)} maxLength={30} placeholder="New" />
                 </label>
-                <label className="cust-label">
-                  Support CTA label
-                  <input className="cust-input" value={supportCtaLabel} onChange={e => setSupportCtaLabel(e.target.value)} placeholder="Connect with a specialist" />
+                <label className="cust-label full">Avatar URL
+                  <input className="cust-input" value={botAvatarUrl} onChange={e => setBotAvatarUrl(e.target.value)} placeholder="https://example.com/avatar.png" />
                 </label>
-                <label className="cust-label">
-                  Support phone
-                  <input className="cust-input" value={supportPhone} onChange={e => setSupportPhone(e.target.value)} placeholder="+1 800 000 0000" />
-                </label>
-                <label className="cust-label">
-                  Support email
-                  <input className="cust-input" value={supportEmail} onChange={e => setSupportEmail(e.target.value)} placeholder="support@company.com" />
-                </label>
-                <label className="cust-label full">
-                  Welcome message
+                <label className="cust-label full">Welcome message
                   <textarea className="cust-input cust-textarea" rows={2} value={welcomeMessage} onChange={e => setWelcomeMessage(e.target.value)} placeholder="How can I help you today?" />
                 </label>
-                <label className="cust-label full">
-                  Launcher notice
+                <label className="cust-label full">Launcher pop-up notice
                   <textarea className="cust-input cust-textarea" rows={2} value={headerCtaNotice} onChange={e => setHeaderCtaNotice(e.target.value)} placeholder="Hi! I am your AI assistant." />
                 </label>
-                <label className="cust-label full">
-                  Business description
-                  <textarea className="cust-input cust-textarea" rows={3} value={businessDescription} onChange={e => setBusinessDescription(e.target.value)} placeholder="Describe your business…" />
+              </div>
+
+              <p className="cust-sub-heading">Quick Reply Chips</p>
+              <p style={{ fontSize: "0.76rem", color: "rgba(10,10,15,0.45)", marginBottom: 10 }}>Add up to 6 pre-set questions shown below the welcome message.</p>
+              <div className="cust-chip-editor">
+                <div className="cust-chip-editor-list">
+                  {quickReplies.map((q, i) => (
+                    <div key={i} className="cust-chip-editor-item">
+                      {q}
+                      <button type="button" onClick={() => setQuickReplies(prev => prev.filter((_, j) => j !== i))}>✕</button>
+                    </div>
+                  ))}
+                </div>
+                {quickReplies.length < 6 && (
+                  <div className="cust-chip-add-row">
+                    <input ref={chipInputRef} className="cust-input" style={{ flex: 1 }} value={newChip} onChange={e => setNewChip(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addChip(); } }} placeholder="e.g. What are your prices?" maxLength={60} />
+                    <button type="button" className="app-btn-secondary" onClick={addChip} style={{ whiteSpace: "nowrap" }}>+ Add</button>
+                  </div>
+                )}
+              </div>
+
+              <p className="cust-sub-heading">Support Contact</p>
+              <div className="cust-field-grid">
+                <label className="cust-label">Support phone
+                  <input className="cust-input" value={supportPhone} onChange={e => setSupportPhone(e.target.value)} placeholder="+1 800 000 0000" />
+                </label>
+                <label className="cust-label">Support email
+                  <input className="cust-input" value={supportEmail} onChange={e => setSupportEmail(e.target.value)} placeholder="support@company.com" />
+                </label>
+                <label className="cust-label full">Support CTA label
+                  <input className="cust-input" value={supportCtaLabel} onChange={e => setSupportCtaLabel(e.target.value)} placeholder="Connect with a specialist" />
                 </label>
               </div>
             </div>
+          )}
 
-            {error   && <p className="app-error"   style={{ marginTop: 14 }}>{error}</p>}
-            {success && <p className="app-success" style={{ marginTop: 14 }}>{success}</p>}
-
-            <button className="app-btn-primary" disabled={loading} type="submit"
-              style={{ width: "100%", justifyContent: "center", marginTop: "20px" }}>
-              {loading ? "Saving…" : "Save customization"}
-            </button>
-          </form>
-        </div>
-
-        {/* ── Right: Live preview ── */}
-        <div className="cust-preview-panel app-card" style={{ position: "sticky", top: "80px", alignSelf: "flex-start" }}>
-          {/* Preview header: toggle */}
-          <div className="cust-preview-header">
-            <span className="cust-preview-title">Live preview</span>
-            <div className="cust-preview-toggle">
-              <button
-                type="button"
-                className={`cust-toggle-btn${previewMode === "desktop" ? " active" : ""}`}
-                onClick={() => setPreviewMode("desktop")}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                Desktop
-              </button>
-              <button
-                type="button"
-                className={`cust-toggle-btn${previewMode === "mobile" ? " active" : ""}`}
-                onClick={() => setPreviewMode("mobile")}
-              >
-                <svg width="13" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="1" fill="currentColor" stroke="none"/></svg>
-                Mobile
-              </button>
-            </div>
-          </div>
-
-          {/* ── DESKTOP preview ── */}
-          {previewMode === "desktop" && (
-            <div className="cust-desktop-preview-wrap">
-              {/* Simulated browser chrome */}
-              <div className="cust-browser-chrome">
-                <div className="cust-browser-dots">
-                  <span style={{ background: "#ff5f57" }} />
-                  <span style={{ background: "#febc2e" }} />
-                  <span style={{ background: "#28c840" }} />
-                </div>
-                <div className="cust-browser-bar">yourwebsite.com</div>
+          {/* ── TAB: Persona ── */}
+          {tab === "persona" && (
+            <div>
+              <p className="cust-sub-heading">Business Profile</p>
+              <div className="cust-field-grid">
+                <label className="cust-label">Business type
+                  <input className="cust-input" value={businessType} onChange={e => setBusinessType(e.target.value)} placeholder="e.g. travel, e-commerce, support" />
+                </label>
               </div>
-              {/* Browser viewport */}
-              <div className="cust-browser-viewport" style={previewStyle}>
-                {/* Page content bg */}
-                <div className="cust-page-bg">
-                  <div className="cust-page-lines">
-                    {[...Array(5)].map((_, i) => <div key={i} className="cust-page-line" style={{ width: `${[80,60,72,50,65][i]}%` }} />)}
-                  </div>
+              <label className="cust-label" style={{ marginTop: 12 }}>Enabled services
+                <div className="cust-chip-row" style={{ marginTop: 6 }}>
+                  {SERVICES.map(s => (
+                    <button key={s} type="button" className={`cust-chip${supportedServices.includes(s) ? " active" : ""}`} onClick={() => toggleService(s)}>{SERVICE_LABELS[s]}</button>
+                  ))}
                 </div>
+              </label>
+              <label className="cust-label full" style={{ marginTop: 12 }}>Business description
+                <textarea className="cust-input cust-textarea" rows={3} value={businessDesc} onChange={e => setBusinessDesc(e.target.value)} placeholder="Describe your business to help the AI give better, context-aware answers…" />
+              </label>
 
-                {/* Widget chat window */}
-                <div className={`cust-widget-window ${widgetPosition === "left" ? "left" : "right"}`}>
-                  {/* Header */}
-                  <div className="cust-w-header" style={{ background: primaryColor }}>
-                    <div className="cust-w-avatar">
-                      {botAvatarUrl
-                        ? <img src={botAvatarUrl} alt={botName} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
-                        : <span>{botName.slice(0, 2).toUpperCase()}</span>}
+              <p className="cust-sub-heading">AI Response Tone</p>
+              <p style={{ fontSize: "0.76rem", color: "rgba(10,10,15,0.45)", marginBottom: 12 }}>Controls how your chatbot communicates with visitors.</p>
+              <div className="cust-tone-grid">
+                {AI_TONES.map(t => (
+                  <button key={t.id} type="button" className={`cust-tone-card${aiTone === t.id ? " selected" : ""}`} onClick={() => setAiTone(t.id)}>
+                    <strong>{t.emoji} {t.label}</strong>
+                    <span>{t.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: Notification ── */}
+          {tab === "notification" && (
+            <div>
+              <p className="cust-sub-heading">Notification Bubble</p>
+              <p style={{ fontSize: "0.76rem", color: "rgba(10,10,15,0.45)", marginBottom: 14 }}>A small popup appears near the launcher button to catch attention.</p>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, padding: "12px 14px", borderRadius: 10, background: "rgba(10,10,15,0.03)", border: "1px solid rgba(10,10,15,0.07)" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: "0.84rem", fontWeight: 500, color: "#0a0a0f", userSelect: "none" }}>
+                  <input type="checkbox" checked={notifEnabled} onChange={e => setNotifEnabled(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#1a5c5c" }} />
+                  Enable notification bubble
+                </label>
+                {notifEnabled && <span className="app-status-badge ready">Active</span>}
+              </div>
+
+              {notifEnabled && (
+                <>
+                  <div className="cust-field-grid">
+                    <label className="cust-label full">Bubble message
+                      <input className="cust-input" value={notifText} onChange={e => setNotifText(e.target.value)} maxLength={60} placeholder="👋 Need help?" />
+                    </label>
+                  </div>
+
+                  <p className="cust-sub-heading">Quick Reply Chips</p>
+                  <p style={{ fontSize: "0.76rem", color: "rgba(10,10,15,0.45)", marginBottom: 10 }}>Shown as pill buttons beside the notification card (up to 4).</p>
+                  <div className="cust-chip-editor">
+                    <div className="cust-chip-editor-list">
+                      {notifChips.map((c, i) => (
+                        <div key={i} className="cust-chip-editor-item">
+                          {c}
+                          <button type="button" onClick={() => setNotifChips(prev => prev.filter((_, j) => j !== i))}>✕</button>
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <div className="cust-w-name">{botName}</div>
-                      <div className="cust-w-status"><span className="cust-w-dot" />Online</div>
-                    </div>
-                    {headerCtaLabel && (
-                      <span className="cust-w-badge">{headerCtaLabel}</span>
+                    {notifChips.length < 4 && (
+                      <div className="cust-chip-add-row">
+                        <input id="notif-chip-input" className="cust-input" style={{ flex: 1 }}
+                          placeholder='e.g. "Tell me more"' maxLength={40}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              const v = (e.target as HTMLInputElement).value.trim();
+                              if (v && !notifChips.includes(v)) { setNotifChips(prev => [...prev, v]); (e.target as HTMLInputElement).value = ""; }
+                            }
+                          }}
+                        />
+                        <button type="button" className="app-btn-secondary" onClick={() => {
+                          const el = document.getElementById("notif-chip-input") as HTMLInputElement;
+                          const v = el?.value.trim();
+                          if (v && !notifChips.includes(v)) { setNotifChips(prev => [...prev, v]); el.value = ""; }
+                        }}>+ Add</button>
+                      </div>
                     )}
                   </div>
-                  {/* Messages */}
-                  <div className="cust-w-body">
-                    <div className="cust-w-bubble bot" style={{ background: botBubbleColor, borderRadius: `${Math.min(borderRadius, 16)}px ${Math.min(borderRadius, 16)}px ${Math.min(borderRadius, 16)}px 4px` }}>
-                      {welcomeMessage}
-                    </div>
-                    <div className="cust-w-bubble user" style={{ background: userBubbleColor, borderRadius: `${Math.min(borderRadius, 16)}px ${Math.min(borderRadius, 16)}px 4px ${Math.min(borderRadius, 16)}px` }}>
-                      I'd like help with a booking.
-                    </div>
-                    <div className="cust-w-bubble bot" style={{ background: botBubbleColor, borderRadius: `${Math.min(borderRadius, 16)}px ${Math.min(borderRadius, 16)}px ${Math.min(borderRadius, 16)}px 4px` }}>
-                      Of course! Could you share your travel dates?
-                    </div>
-                    <div className="cust-w-typing" style={{ background: botBubbleColor }}>
-                      <span /><span /><span />
-                    </div>
-                  </div>
-                  {/* Composer */}
-                  <div className="cust-w-composer">
-                    <span className="cust-w-composer-text">Type a message…</span>
-                    <div className="cust-w-send" style={{ background: primaryColor, borderRadius: `${Math.min(borderRadius / 2, 10)}px` }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Launcher button */}
-                <div className={`cust-launcher-preview ${widgetPosition === "left" ? "left" : "right"}`}
-                  style={{ background: primaryColor, borderRadius: launcherBorderRadius }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  </svg>
-                  <span>{botName}</span>
-                </div>
-              </div>
+                  <p className="cust-sub-heading">Animation Style</p>
+                  <div className="cust-tone-grid">
+                    {([["bounce", "Bounce", "Playful up-down bounce", "🏀"], ["pulse", "Pulse", "Expanding ring glow", "💓"], ["slide", "Slide", "Subtle float in/out", "🌊"]] as [NotifAnimation, string, string, string][]).map(([id, label, desc, emoji]) => (
+                      <button key={id} type="button" className={`cust-tone-card${notifAnimation === id ? " selected" : ""}`} onClick={() => setNotifAnimation(id)}>
+                        <strong>{emoji} {label}</strong><span>{desc}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="app-callout info" style={{ marginTop: 18 }}>
+                    <span className="callout-icon">💡</span>
+                    <div>
+                      <p className="callout-title">Preview updates live</p>
+                      <p className="callout-body">Check the live preview on the right to see your notification bubble animation in action. The bubble appears near the launcher button after a short delay.</p>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
-          {/* ── MOBILE preview ── */}
-          {previewMode === "mobile" && (
-            <div className="cust-mobile-preview-wrap">
-              {/* Phone frame */}
-              <div className="cust-phone-frame">
-                {/* Notch */}
-                <div className="cust-phone-notch">
-                  <div className="cust-phone-notch-pill" />
-                </div>
-                {/* Screen */}
-                <div className="cust-phone-screen" style={previewStyle}>
-                  {/* Status bar */}
-                  <div className="cust-phone-status">
-                    <span>9:41</span>
-                    <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M1.5 8.5C5.5 4.5 18.5 4.5 22.5 8.5"/><path d="M5 12c2.8-2.8 12-2.8 14 0"/><path d="M8.5 15.5c1.4-1.4 7.6-1.4 7 0"/><circle cx="12" cy="19" r="1"/></svg>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="2" y="7" width="4" height="12" rx="1"/><rect x="8" y="4" width="4" height="15" rx="1"/><rect x="14" y="2" width="4" height="17" rx="1"/><rect x="20" y="7" width="2" height="12" rx="1"/></svg>
-                    </span>
-                  </div>
-
-                  {/* Full-screen chat (mobile embed style) */}
-                  <div className="cust-mobile-chat">
-                    {/* Chat header */}
-                    <div className="cust-m-header" style={{ background: primaryColor }}>
-                      <div className="cust-m-avatar">
-                        {botAvatarUrl
-                          ? <img src={botAvatarUrl} alt={botName} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} />
-                          : <span>{botName.slice(0, 2).toUpperCase()}</span>}
-                      </div>
-                      <div>
-                        <div className="cust-m-name">{botName}</div>
-                        <div className="cust-m-status"><span className="cust-w-dot" style={{ width: 5, height: 5 }} />Online</div>
-                      </div>
-                    </div>
-                    {/* Chat body */}
-                    <div className="cust-m-body">
-                      <div className="cust-m-bubble bot" style={{ background: botBubbleColor, borderRadius: `${Math.min(borderRadius, 14)}px ${Math.min(borderRadius, 14)}px ${Math.min(borderRadius, 14)}px 3px` }}>
-                        {welcomeMessage}
-                      </div>
-                      <div className="cust-m-bubble user" style={{ background: userBubbleColor, borderRadius: `${Math.min(borderRadius, 14)}px ${Math.min(borderRadius, 14)}px 3px ${Math.min(borderRadius, 14)}px` }}>
-                        I'd like help with a booking.
-                      </div>
-                      <div className="cust-m-bubble bot" style={{ background: botBubbleColor, borderRadius: `${Math.min(borderRadius, 14)}px ${Math.min(borderRadius, 14)}px ${Math.min(borderRadius, 14)}px 3px` }}>
-                        Of course! What dates work for you?
-                      </div>
-                      <div className="cust-w-typing" style={{ background: botBubbleColor, alignSelf: "flex-start" }}>
-                        <span /><span /><span />
-                      </div>
-                    </div>
-                    {/* Composer */}
-                    <div className="cust-m-composer">
-                      <div className="cust-m-input">Type a message…</div>
-                      <div className="cust-m-send" style={{ background: primaryColor, borderRadius: `${Math.min(borderRadius / 2, 10)}px` }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Home bar */}
-                <div className="cust-phone-bar" />
-              </div>
-            </div>
-          )}
-
-          {/* Color summary row */}
-          <div className="cust-swatch-row">
-            <div className="cust-swatch" style={{ background: primaryColor }} title={`Brand: ${primaryColor}`} />
-            <div className="cust-swatch" style={{ background: userBubbleColor }} title={`User: ${userBubbleColor}`} />
-            <div className="cust-swatch" style={{ background: botBubbleColor, border: "1px solid rgba(10,10,15,0.1)" }} title={`Bot: ${botBubbleColor}`} />
-            <span className="cust-swatch-label">{fontFamily} · r{borderRadius} · {launcherStyle}</span>
-          </div>
         </div>
 
+        {/* RIGHT: Live Preview */}
+        <LivePreview
+          primaryColor={primaryColor} userBubbleColor={userBubbleColor}
+          botBubbleColor={botBubbleColor} borderRadius={borderRadius}
+          fontFamily={fontFamily} botName={botName} botAvatarUrl={botAvatarUrl}
+          welcomeMessage={welcomeMessage} headerCtaLabel={headerCtaLabel}
+          widgetPosition={widgetPosition} launcherStyle={launcherStyle}
+          themeStyle={themeStyle} bgPattern={bgPattern} quickReplies={quickReplies}
+          notifEnabled={notifEnabled} notifText={notifText}
+          notifAnimation={notifAnimation} launcherIcon={launcherIcon}
+          notifChips={notifChips}
+        />
       </div>
-    </div>
+    </form>
   );
 }

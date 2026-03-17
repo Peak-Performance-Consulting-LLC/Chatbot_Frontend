@@ -774,3 +774,311 @@ border: 1px solid rgba(10,10,15,0.08);
 .cust-m-send    { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #fff; }
 .cust-phone-bar { width: 55px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.22); margin: 5px auto 0; }
 
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CUSTOMIZATION V2  — templates, effects, tabs, notification, quick chips
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Large template cards ─────────────────────────────────────────────── */
+.cust-tpl-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+@media (max-width: 1100px) { .cust-tpl-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 780px)  { .cust-tpl-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 540px)  { .cust-tpl-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.cust-tpl-card {
+  position: relative; border-radius: 14px; overflow: hidden;
+  border: 2px solid rgba(10,10,15,0.08); background: #fff;
+  cursor: pointer; transition: all 0.2s; text-align: left;
+}
+.cust-tpl-card:hover { border-color: rgba(26,92,92,0.4); box-shadow: 0 10px 28px rgba(0,0,0,0.1); transform: translateY(-2px); }
+.cust-tpl-card.selected { border-color: #1a5c5c; box-shadow: 0 4px 20px rgba(26,92,92,0.25); }
+.cust-tpl-preview { width: 100%; height: 90px; position: relative; overflow: hidden; flex-shrink: 0; }
+.cust-tpl-mini-header { height: 22px; display: flex; align-items: center; padding: 0 8px; gap: 5px; }
+.cust-tpl-mini-avatar { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,0.3); flex-shrink: 0; }
+.cust-tpl-mini-name { font-size: 0.5rem; font-weight: 700; color: #fff; }
+.cust-tpl-mini-body { padding: 5px 7px; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.cust-tpl-mini-bubble { padding: 3px 7px; font-size: 0.46rem; line-height: 1.3; border-radius: 8px; max-width: 80%; }
+.cust-tpl-mini-bubble.bot  { align-self: flex-start; }
+.cust-tpl-mini-bubble.user { align-self: flex-end; color: #fff; }
+.cust-tpl-info { padding: 9px 11px 10px; }
+.cust-tpl-info strong { display: block; font-size: 0.76rem; font-weight: 700; color: #0a0a0f; margin-bottom: 1px; }
+.cust-tpl-info span { font-size: 0.64rem; color: rgba(10,10,15,0.42); }
+.cust-tpl-badge { position: absolute; top: 5px; right: 6px; font-size: 0.54rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; }
+.cust-tpl-check { position: absolute; top: 5px; left: 6px; width: 16px; height: 16px; border-radius: 50%; background: #1a5c5c; color: #fff; font-size: 0.55rem; display: flex; align-items: center; justify-content: center; }
+
+/* Glass effect preview */
+.cust-tpl-preview.glass .cust-tpl-mini-body { background: rgba(255,255,255,0.12); backdrop-filter: blur(6px); }
+.cust-tpl-preview.glass .cust-tpl-mini-bubble.bot { background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.3); color: #fff; }
+
+/* Clay effect preview */
+.cust-tpl-preview.clay .cust-tpl-mini-bubble.bot { box-shadow: 3px 3px 0 rgba(0,0,0,0.08), 1px 1px 0 rgba(0,0,0,0.05); }
+.cust-tpl-preview.clay .cust-tpl-mini-header { box-shadow: 0 3px 8px rgba(0,0,0,0.12); }
+
+/* Dark effect preview */
+.cust-tpl-preview.dark .cust-tpl-mini-body { background: #0d0d1a; }
+.cust-tpl-preview.dark .cust-tpl-mini-bubble.bot { background: #1e2040; color: rgba(255,255,255,0.85); }
+
+/* Minimal effect preview */
+.cust-tpl-preview.minimal .cust-tpl-mini-body { background: #fff; }
+.cust-tpl-preview.minimal .cust-tpl-mini-bubble.bot { background: #f5f5f5; border: 1px solid #e5e5e5; color: #333; }
+.cust-tpl-preview.minimal .cust-tpl-mini-header { box-shadow: none; border-bottom: 1px solid rgba(0,0,0,0.08); }
+
+/* ── Tab bar (reuse app-tabs but add icon support) ─────────────────────── */
+.cust-tab-bar {
+  display: flex; gap: 4px; padding: 4px;
+  background: rgba(10,10,15,0.04); border-radius: 12px;
+  margin-bottom: 22px; overflow-x: auto;
+  scrollbar-width: none;
+}
+.cust-tab-bar::-webkit-scrollbar { display: none; }
+.cust-tab-item {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 9px; border: none; background: transparent;
+  font-size: 0.81rem; font-family: inherit; color: rgba(10,10,15,0.5);
+  cursor: pointer; transition: all 0.18s; white-space: nowrap;
+}
+.cust-tab-item:hover { color: rgba(10,10,15,0.8); background: rgba(10,10,15,0.04); }
+.cust-tab-item.active { background: #fff; color: #0a0a0f; font-weight: 600; box-shadow: 0 1px 6px rgba(0,0,0,0.09); }
+.cust-tab-item svg { flex-shrink: 0; }
+
+/* ── Notification bubble on launcher preview ───────────────────────────── */
+.cust-notif-dot {
+  position: absolute; top: -3px; right: -3px;
+  background: #ef4444; color: #fff; border: 2px solid #fff;
+  border-radius: 999px; font-size: 0.48rem; font-weight: 700;
+  padding: 1px 5px; white-space: nowrap; z-index: 2;
+  animation: notif-bounce 1s ease-in-out infinite;
+}
+@keyframes notif-bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+.cust-notif-dot.pulse { animation: notif-pulse 1.5s ease-in-out infinite; }
+@keyframes notif-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+}
+.cust-notif-dot.slide { animation: notif-slide 2s ease-in-out infinite; }
+@keyframes notif-slide {
+  0%, 100% { transform: translateY(0); opacity: 1; }
+  50% { transform: translateY(-3px); opacity: 0.8; }
+}
+
+/* ── Quick reply chips in preview ──────────────────────────────────────── */
+.cust-quick-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; padding: 0 8px; }
+.cust-quick-chip {
+  padding: 2px 7px; border-radius: 999px;
+  border: 1px solid rgba(10,10,15,0.15); background: #fff;
+  font-size: 0.53rem; color: rgba(10,10,15,0.65);
+}
+
+/* ── Chat background patterns ──────────────────────────────────────────── */
+.cust-bg-dots {
+  background-image: radial-gradient(circle, rgba(10,10,15,0.07) 1px, transparent 1px);
+  background-size: 14px 14px;
+}
+.cust-bg-grid {
+  background-image:
+    linear-gradient(rgba(10,10,15,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(10,10,15,0.05) 1px, transparent 1px);
+  background-size: 16px 16px;
+}
+.cust-bg-waves {
+  background-image: repeating-linear-gradient(
+    -45deg, rgba(10,10,15,0.04) 0px, rgba(10,10,15,0.04) 2px,
+    transparent 2px, transparent 10px
+  );
+}
+
+/* ── Chip editor (quick replies input) ─────────────────────────────────── */
+.cust-chip-editor { display: flex; flex-direction: column; gap: 8px; }
+.cust-chip-add-row { display: flex; gap: 7px; }
+.cust-chip-editor-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.cust-chip-editor-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px 4px 11px; border-radius: 999px;
+  background: rgba(26,92,92,0.08); border: 1px solid rgba(26,92,92,0.2);
+  font-size: 0.76rem; color: #1a5c5c;
+}
+.cust-chip-editor-item button {
+  border: none; background: none; color: rgba(26,92,92,0.5);
+  cursor: pointer; font-size: 0.8rem; line-height: 1; padding: 0;
+  display: flex; align-items: center;
+}
+.cust-chip-editor-item button:hover { color: #b91c1c; }
+
+/* ── Section subheader ─────────────────────────────────────────────────── */
+.cust-sub-heading {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(10,10,15,0.35);
+  margin: 18px 0 10px; padding-top: 18px;
+  border-top: 1px solid rgba(10,10,15,0.06);
+}
+.cust-sub-heading:first-child { margin-top: 0; padding-top: 0; border-top: none; }
+
+/* ── Tone pills ────────────────────────────────────────────────────────── */
+.cust-tone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.cust-tone-card {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 12px; border-radius: 10px;
+  border: 2px solid rgba(10,10,15,0.09); background: #fff;
+  cursor: pointer; transition: all 0.16s; text-align: left;
+}
+.cust-tone-card:hover { border-color: rgba(26,92,92,0.3); }
+.cust-tone-card.selected { border-color: #1a5c5c; background: rgba(26,92,92,0.04); }
+.cust-tone-card strong { font-size: 0.78rem; font-weight: 600; color: #0a0a0f; }
+.cust-tone-card span { font-size: 0.68rem; color: rgba(10,10,15,0.45); line-height: 1.3; }
+
+/* ── Launcher icon picker ──────────────────────────────────────────────── */
+.cust-icon-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.cust-icon-btn {
+  width: 38px; height: 38px; border-radius: 10px;
+  border: 2px solid rgba(10,10,15,0.09); background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.16s; font-size: 1rem;
+}
+.cust-icon-btn:hover { border-color: rgba(26,92,92,0.3); transform: scale(1.05); }
+.cust-icon-btn.selected { border-color: #1a5c5c; background: rgba(26,92,92,0.06); }
+
+/* ── Notif preview bubble (in launcher preview area) ───────────────────── */
+.cust-launcher-wrap { position: relative; display: inline-flex; }
+
+/* ── Notification Popup Card (floats above launcher) ─────────────────────── */
+.cust-notif-popup {
+  position: absolute;
+  bottom: calc(100% + 14px);
+  right: 0;
+  width: 290px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 10;
+  pointer-events: none;
+}
+.cust-notif-popup.left { right: auto; left: 0; }
+
+.cust-notif-card {
+  position: relative;
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.14), 0 1px 4px rgba(0,0,0,0.06);
+  font-size: 0.9rem;
+  color: #0a0a0f;
+  line-height: 1.5;
+  animation: notif-card-in 0.35s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes notif-card-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+
+.cust-notif-close {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(10,10,15,0.55);
+  font-size: 0.62rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.cust-notif-chips {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.cust-notif-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1.5px solid rgba(10,10,15,0.12);
+  font-size: 0.82rem;
+  color: rgba(10,10,15,0.72);
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  cursor: pointer;
+  pointer-events: all;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.cust-notif-chip:hover {
+  border-color: rgba(10,10,15,0.3);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+}
+
+/* Round launcher with badge */
+.cust-launcher-round {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.cust-launcher-badge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(239,68,68,0.5);
+}
+
+/* Desktop preview — larger notif popup */
+.cust-preview-notif-scene {
+  position: relative;
+  background: #1a2332;
+  border-radius: 12px;
+  min-height: 280px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 10px;
+  overflow: hidden;
+}
+.cust-preview-notif-scene.left { align-items: flex-start; }
+
+/* Fake page lines in notif scene */
+.cust-notif-scene-lines {
+  position: absolute;
+  top: 20px; left: 20px; right: 20px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cust-notif-scene-line {
+  height: 8px; border-radius: 4px;
+  background: rgba(255,255,255,0.08);
+}

@@ -1,9 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { appNavItems } from "@/platform/layout/nav";
 import PlatformLogo from "@/platform/components/PlatformLogo";
 import { IconChevronDown, IconClose, IconLogout, IconMenu, IconSupport, IconWorkspace } from "@/platform/components/PlatformIcons";
 import { usePlatformAuth } from "@/platform/state/auth";
+
+/** Shimmer skeleton shown inside the content area while a lazy page chunk loads. */
+function PageSkeleton() {
+  return (
+    <div className="animate-pulse space-y-5" aria-hidden>
+      {/* Breadcrumb + title */}
+      <div className="space-y-2">
+        <div className="h-2.5 w-24 rounded-full bg-[#0a0a0f]/08" />
+        <div className="h-7 w-48 rounded-xl bg-[#0a0a0f]/08" />
+        <div className="h-3 w-72 rounded-full bg-[#0a0a0f]/06" />
+      </div>
+      {/* Stat cards row */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-24 rounded-2xl bg-[#0a0a0f]/06" />
+        ))}
+      </div>
+      {/* Main content block */}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_360px]">
+        <div className="h-80 rounded-2xl bg-[#0a0a0f]/06" />
+        <div className="space-y-4">
+          <div className="h-36 rounded-2xl bg-[#0a0a0f]/06" />
+          <div className="h-36 rounded-2xl bg-[#0a0a0f]/06" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function PlatformShell() {
   const navigate = useNavigate();
@@ -201,9 +229,11 @@ export default function PlatformShell() {
           </div>
         </header>
 
-        {/* Page Content */}
+        {/* Page Content — inner Suspense keeps sidebar + topbar mounted during transitions */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <Outlet />
+          <Suspense fallback={<PageSkeleton />}>
+            <Outlet />
+          </Suspense>
         </main>
       </section>
     </div>
