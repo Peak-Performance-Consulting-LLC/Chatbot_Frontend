@@ -1355,34 +1355,65 @@ body.chat-widget-embedded {
 
 @media (max-width: 640px) {
   .chat-shell {
-    width: calc(100vw - 16px);
-    height: calc(100vh - 74px);
-    right: 8px;
-    bottom: 66px;
+    width: min(var(--widget-width, 380px), calc(100vw - 28px), 356px);
+    height: min(var(--widget-height, 640px), calc(100vh - 118px), 620px);
+    right: 14px;
+    bottom: 78px;
   }
 
   .chat-shell-left {
-    left: 8px;
+    left: 14px;
     right: auto;
   }
 
   .chat-shell.embedded.public-embed-shell {
-    width: 100vw;
-    height: calc(100vh - 84px);
-    border-radius: 18px 18px 0 0;
-    bottom: 84px;
+    width: 100%;
+    height: calc(100% - 76px);
+    border-radius: 18px;
+    bottom: 76px;
   }
 
   .chat-header {
-    padding: 12px 14px;
+    padding: 10px 12px;
+    min-height: 52px;
+  }
+
+  .chat-avatar {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+  }
+
+  .chat-brand-info strong {
+    font-size: 13px;
+  }
+
+  .chat-brand-info p {
+    font-size: 10.5px;
+  }
+
+  .thread-toggle {
+    padding: 6px 9px;
   }
 
   .header-call-btn span {
     display: none;
   }
 
+  .messages {
+    padding: 12px 12px 8px;
+  }
+
+  .welcome-card {
+    padding: 14px 14px 12px !important;
+    border-radius: 14px;
+  }
+
   .message-bubble {
-    max-width: 92%;
+    max-width: 90%;
+    padding: 10px 12px 9px;
+    font-size: 13px;
+    border-radius: 16px;
   }
 
   .passenger-grid {
@@ -1394,16 +1425,34 @@ body.chat-widget-embedded {
     align-items: stretch;
   }
 
-  .composer-send-btn {
-    width: 40px;
-    height: 40px;
-    flex-basis: 40px;
+  .guided-input {
+    margin: 0 10px 10px;
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .composer {
+    padding: 8px 10px 10px;
+  }
+
+  .composer-textarea-wrap {
     border-radius: 12px;
   }
 
+  .composer textarea {
+    font-size: 13px;
+  }
+
+  .composer-send-btn {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    border-radius: 11px;
+  }
+
   .chat-peek-stack {
-    left: 8px;
-    right: 8px;
+    left: 12px;
+    right: 12px;
     width: auto;
     align-items: stretch;
   }
@@ -1413,13 +1462,26 @@ body.chat-widget-embedded {
   }
 
   .chat-peek-launcher {
-    width: 58px;
-    height: 58px;
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
   }
 
   .chat-embed-dock {
-    left: 8px;
-    right: 8px;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
     justify-content: space-between;
+  }
+
+  .chat-peek-launcher-open {
+    width: 48px;
+    height: 48px;
+    border-radius: 16px;
+  }
+
+  .chat-embed-powered {
+    padding: 7px 11px;
+    font-size: 10.5px;
   }
 }

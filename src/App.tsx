@@ -1,19 +1,27 @@
-import { Navigate, Route, Routes } from "react-router-dom";
-import { ChatWidget } from "@/components/ChatWidget";
-import PlatformShell from "@/platform/layout/PlatformShell";
-import AccountPage from "@/platform/pages/AccountPage";
-import ChatbotPage from "@/platform/pages/ChatbotPage";
-import CustomizationPage from "@/platform/pages/CustomizationPage";
-import DnsPage from "@/platform/pages/DnsPage";
-import KnowledgePage from "@/platform/pages/KnowledgePage";
-import LandingPage from "@/platform/pages/LandingPage";
-import LoginPage from "@/platform/pages/LoginPage";
-import OverviewPage from "@/platform/pages/OverviewPage";
-import PricingPage from "@/platform/pages/PricingPage";
-import SiteSetupPage from "@/platform/pages/SiteSetupPage";
-import SignupPage from "@/platform/pages/SignupPage";
-import WidgetCodePage from "@/platform/pages/WidgetCodePage";
+import { Suspense, lazy } from "react";
+import { Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { usePlatformAuth } from "@/platform/state/auth";
+
+const ChatWidget = lazy(() =>
+  import("@/components/ChatWidget").then((module) => ({ default: module.ChatWidget }))
+);
+const PlatformShell = lazy(() => import("@/platform/layout/PlatformShell"));
+const AccountPage = lazy(() => import("@/platform/pages/AccountPage"));
+const ChatbotPage = lazy(() => import("@/platform/pages/ChatbotPage"));
+const CustomizationPage = lazy(() => import("@/platform/pages/CustomizationPage"));
+const DnsPage = lazy(() => import("@/platform/pages/DnsPage"));
+const KnowledgePage = lazy(() => import("@/platform/pages/KnowledgePage"));
+const LandingPage = lazy(() => import("@/platform/pages/LandingPage"));
+const LoginPage = lazy(() => import("@/platform/pages/LoginPage"));
+const OverviewPage = lazy(() => import("@/platform/pages/OverviewPage"));
+const PricingPage = lazy(() => import("@/platform/pages/PricingPage"));
+const SiteSetupPage = lazy(() => import("@/platform/pages/SiteSetupPage"));
+const SignupPage = lazy(() => import("@/platform/pages/SignupPage"));
+const WidgetCodePage = lazy(() => import("@/platform/pages/WidgetCodePage"));
+
+function RouteLoader() {
+  return <div className="min-h-screen bg-[#faf8f4]" />;
+}
 
 function WidgetDemoPage() {
   const params = new URLSearchParams(window.location.search);
@@ -70,6 +78,16 @@ function RequirePlatformAuth() {
   return <PlatformShell />;
 }
 
+function RequirePlatformGuest() {
+  const { token } = usePlatformAuth();
+
+  if (token) {
+    return <Navigate to="/platform/app/overview" replace />;
+  }
+
+  return <Outlet />;
+}
+
 function PlatformIndex() {
   const { token } = usePlatformAuth();
   return <Navigate to={token ? "/platform/app/overview" : "/platform/login"} replace />;
@@ -77,27 +95,32 @@ function PlatformIndex() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<HomeEntryPage />} />
-      <Route path="/demo" element={<WidgetDemoPage />} />
-      <Route path="/platform" element={<PlatformIndex />} />
-      <Route path="/platform/login" element={<LoginPage />} />
-      <Route path="/platform/signup" element={<SignupPage />} />
+    <Suspense fallback={<RouteLoader />}>
+      <Routes>
+        <Route path="/" element={<HomeEntryPage />} />
+        <Route path="/demo" element={<WidgetDemoPage />} />
+        <Route path="/platform" element={<PlatformIndex />} />
 
-      <Route path="/platform/app" element={<RequirePlatformAuth />}>
-        <Route index element={<Navigate to="overview" replace />} />
-        <Route path="overview" element={<OverviewPage />} />
-        <Route path="site-setup" element={<SiteSetupPage />} />
-        <Route path="chatbot" element={<ChatbotPage />} />
-        <Route path="customization" element={<CustomizationPage />} />
-        <Route path="knowledge" element={<KnowledgePage />} />
-        <Route path="dns" element={<DnsPage />} />
-        <Route path="widget" element={<WidgetCodePage />} />
-        <Route path="account" element={<AccountPage />} />
-        <Route path="pricing" element={<PricingPage />} />
-      </Route>
+        <Route element={<RequirePlatformGuest />}>
+          <Route path="/platform/login" element={<LoginPage />} />
+          <Route path="/platform/signup" element={<SignupPage />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="/platform/app" element={<RequirePlatformAuth />}>
+          <Route index element={<Navigate to="overview" replace />} />
+          <Route path="overview" element={<OverviewPage />} />
+          <Route path="site-setup" element={<SiteSetupPage />} />
+          <Route path="chatbot" element={<ChatbotPage />} />
+          <Route path="customization" element={<CustomizationPage />} />
+          <Route path="knowledge" element={<KnowledgePage />} />
+          <Route path="dns" element={<DnsPage />} />
+          <Route path="widget" element={<WidgetCodePage />} />
+          <Route path="account" element={<AccountPage />} />
+          <Route path="pricing" element={<PricingPage />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

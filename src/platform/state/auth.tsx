@@ -155,6 +155,38 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     localStorage.setItem(SELECTED_TENANT_KEY, selectedTenant.tenant_id);
   }, [selectedTenant?.tenant_id]);
 
+  useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      if (event.storageArea !== localStorage) {
+        return;
+      }
+
+      if (event.key === null) {
+        setToken("");
+        setProfile(null);
+        setSelectedTenantId(null);
+        setError("");
+        return;
+      }
+
+      if (event.key === TOKEN_KEY) {
+        const nextToken = event.newValue ?? "";
+        setToken(nextToken);
+        setProfile(null);
+        setSelectedTenantId(localStorage.getItem(SELECTED_TENANT_KEY));
+        setError("");
+        return;
+      }
+
+      if (event.key === SELECTED_TENANT_KEY) {
+        setSelectedTenantId(event.newValue);
+      }
+    }
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   async function refresh() {
     if (!token) {
       setProfile(null);
@@ -182,6 +214,8 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
       setError(message);
       setProfile(null);
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(SELECTED_TENANT_KEY);
+      setSelectedTenantId(null);
       setToken("");
     } finally {
       setLoading(false);
