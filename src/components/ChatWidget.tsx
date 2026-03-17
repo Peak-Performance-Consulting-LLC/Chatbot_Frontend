@@ -71,7 +71,7 @@ const defaultHeaderCtaConfig: HeaderCtaConfig = {
   label: "New",
   notice: "Hi! I am your AI assistant. Ask me anything about your trip."
 };
-const poweredByBrand = "Vacation Vista";
+const poweredByBrand = "PPConsultings";
 
 function normalizeAppearance(
   input?: Partial<ChatWidgetAppearance> | null,
