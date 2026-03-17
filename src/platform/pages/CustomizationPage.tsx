@@ -265,6 +265,7 @@ export default function CustomizationPage() {
   const [success, setSuccess] = useState("");
   const [newChip, setNewChip] = useState("");
   const chipInputRef = useRef<HTMLInputElement>(null);
+  const initializedRef = useRef(false); // tracks whether we already synced from saved profile
 
   // Core appearance
   const [primaryColor, setPrimaryColor] = useState(profile?.primary_color || "#006d77");
@@ -306,9 +307,11 @@ export default function CustomizationPage() {
   const [notifChips, setNotifChips] = useState<string[]>(["I have a question", "Tell me more"]);
 
 
-  // Only reset form when the selected workspace changes (not after every profile update)
+  // Sync form state from saved profile, but only ONCE per mount.
+  // This ensures saved values load correctly while user edits are never overwritten.
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || initializedRef.current) return;
+    initializedRef.current = true;
     setPrimaryColor(profile.primary_color || "#006d77");
     setUserBubbleColor(profile.user_bubble_color || "#006d77");
     setBotBubbleColor(profile.bot_bubble_color || "#edf6f9");
@@ -329,8 +332,13 @@ export default function CustomizationPage() {
     setBusinessType(profile.business_type || "general_travel");
     setSupportedServices(profile.supported_services || ["flights"]);
     setBusinessDesc(profile.business_description || "");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTenant?.tenant_id]); // only reset when switching workspaces
+  }, [profile]);
+
+  // Reset on workspace switch
+  useEffect(() => {
+    initializedRef.current = false;
+  }, [selectedTenant?.tenant_id]);
+
 
   function applyTemplate(t: Template) {
     setPrimaryColor(t.primaryColor); setUserBubbleColor(t.userBubbleColor);
