@@ -29,7 +29,7 @@ const LAUNCHER_STYLES: LauncherStyle[] = ["rounded", "pill", "square", "minimal"
 
 const TEMPLATES: Template[] = [
   { id: "ocean", name: "Ocean", badge: "Default", badgeColor: "rgba(26,92,92,0.15)", primaryColor: "#006d77", userBubbleColor: "#006d77", botBubbleColor: "#edf6f9", fontFamily: "Manrope", launcherStyle: "rounded", borderRadius: 20, botName: "Aqua", welcomeMessage: "Hello! How can I help you today?", themeStyle: "standard", bgGradient: "linear-gradient(135deg,#006d77,#83c5be)" },
-  { id: "glass", name: "Glassmorphism", badge: "Glass", badgeColor: "rgba(99,102,241,0.15)", primaryColor: "#4f46e5", userBubbleColor: "#6366f1", botBubbleColor: "rgba(255,255,255,0.18)", fontFamily: "Inter", launcherStyle: "pill", borderRadius: 24, botName: "Crystal", welcomeMessage: "Welcome! I'm here to help you.", themeStyle: "glass", bgGradient: "linear-gradient(135deg,#4f46e5,#818cf8)" },
+  { id: "glass", name: "Glassmorphism", badge: "Glass", badgeColor: "rgba(99,102,241,0.15)", primaryColor: "#4f46e5", userBubbleColor: "#6366f1", botBubbleColor: "#eef2ff", fontFamily: "Inter", launcherStyle: "pill", borderRadius: 24, botName: "Crystal", welcomeMessage: "Welcome! I'm here to help you.", themeStyle: "glass", bgGradient: "linear-gradient(135deg,#4f46e5,#818cf8)" },
   { id: "clay", name: "Claymorphism", badge: "Clay", badgeColor: "rgba(251,146,60,0.2)", primaryColor: "#f97316", userBubbleColor: "#f97316", botBubbleColor: "#fff7ed", fontFamily: "Nunito", launcherStyle: "rounded", borderRadius: 28, botName: "Clay", welcomeMessage: "Hey there! What can I do for you? 🎨", themeStyle: "clay", bgGradient: "linear-gradient(135deg,#f97316,#fb923c)" },
   { id: "noir", name: "Dark Premium", badge: "Premium", badgeColor: "rgba(201,169,110,0.2)", primaryColor: "#c9a96e", userBubbleColor: "#c9a96e", botBubbleColor: "#1e2040", fontFamily: "Montserrat", launcherStyle: "square", borderRadius: 14, botName: "Noir", welcomeMessage: "Welcome. I'm here to assist.", themeStyle: "dark", bgGradient: "linear-gradient(135deg,#0a0a1a,#c9a96e)" },
   { id: "minimal", name: "Minimalist", badge: "Minimal", badgeColor: "rgba(10,10,15,0.08)", primaryColor: "#0a0a0f", userBubbleColor: "#0a0a0f", botBubbleColor: "#f5f5f5", fontFamily: "Inter", launcherStyle: "square", borderRadius: 8, botName: "Assistant", welcomeMessage: "Hello. What do you need?", themeStyle: "minimal", bgGradient: "linear-gradient(135deg,#374151,#6b7280)" },
@@ -306,6 +306,7 @@ export default function CustomizationPage() {
   const [notifChips, setNotifChips] = useState<string[]>(["I have a question", "Tell me more"]);
 
 
+  // Only reset form when the selected workspace changes (not after every profile update)
   useEffect(() => {
     if (!profile) return;
     setPrimaryColor(profile.primary_color || "#006d77");
@@ -328,7 +329,8 @@ export default function CustomizationPage() {
     setBusinessType(profile.business_type || "general_travel");
     setSupportedServices(profile.supported_services || ["flights"]);
     setBusinessDesc(profile.business_description || "");
-  }, [profile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTenant?.tenant_id]); // only reset when switching workspaces
 
   function applyTemplate(t: Template) {
     setPrimaryColor(t.primaryColor); setUserBubbleColor(t.userBubbleColor);
@@ -361,16 +363,24 @@ export default function CustomizationPage() {
         bot_bubble_color: botBubbleColor, font_family: fontFamily,
         border_radius: borderRadius, widget_position: widgetPosition,
         launcher_style: launcherStyle, window_width: windowWidth, window_height: windowHeight,
-        bot_name: botName, bot_avatar_url: botAvatarUrl || undefined,
-        welcome_message: welcomeMessage, header_cta_label: headerCtaLabel,
-        header_cta_notice: headerCtaNotice, support_phone: supportPhone || undefined,
-        support_email: supportEmail || undefined, support_cta_label: supportCtaLabel,
-        business_type: businessType, supported_services: supportedServices,
-        business_description: businessDesc || undefined,
+        bot_name: botName.trim() || "Assistant",
+        bot_avatar_url: botAvatarUrl || undefined,
+        welcome_message: welcomeMessage.trim() || "Hello! How can I help you?",
+        header_cta_label: headerCtaLabel.trim() || "New",
+        header_cta_notice: headerCtaNotice.trim() || "Hi! I am your AI assistant.",
+        support_phone: supportPhone.trim() || undefined,
+        support_email: supportEmail.trim() || undefined,
+        support_cta_label: supportCtaLabel.trim() || "Connect with a specialist",
+        business_type: businessType.trim() || "general_travel",
+        supported_services: supportedServices.length > 0 ? supportedServices : ["flights"],
+        business_description: businessDesc.trim() || undefined,
       });
-      setSuccess("Customization saved successfully!");
-      setTimeout(() => setSuccess(""), 3500);
-    } catch { /* errors handled by context */ }
+      setSuccess("✅ Customization saved! Changes are live.");
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(`Save failed: ${msg}`);
+    }
   }
 
   if (!selectedTenant) {
