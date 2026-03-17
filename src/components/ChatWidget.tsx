@@ -718,6 +718,9 @@ export function ChatWidget({
 
   const shellRef = useRef<HTMLElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const streamedAssistantIdRef = useRef<string | null>(null);
+  const streamedAssistantTextRef = useRef("");
+  const streamFlushTimerRef = useRef<number | null>(null);
   const widgetQueryConfig = useMemo(() => parseWidgetConfigFromQuery(), []);
 
   const tenantId = useMemo(() => resolveTenantId(tenantIdProp), [tenantIdProp]);
@@ -803,9 +806,50 @@ export function ChatWidget({
     return Array.from(new Set(defaults)).slice(0, 4);
   }, [quickReplies, callCta]);
 
+  function flushStreamedAssistantText() {
+    const assistantMessageId = streamedAssistantIdRef.current;
+    const pendingText = streamedAssistantTextRef.current;
+
+    if (!assistantMessageId || !pendingText) {
+      return;
+    }
+
+    streamedAssistantTextRef.current = "";
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.id === assistantMessageId
+          ? { ...message, content: `${message.content}${pendingText}` }
+          : message
+      )
+    );
+  }
+
+  function scheduleStreamFlush() {
+    if (streamFlushTimerRef.current !== null) {
+      return;
+    }
+
+    streamFlushTimerRef.current = window.setTimeout(() => {
+      streamFlushTimerRef.current = null;
+      flushStreamedAssistantText();
+    }, 32);
+  }
+
+  function resetStreamBuffer() {
+    if (streamFlushTimerRef.current !== null) {
+      window.clearTimeout(streamFlushTimerRef.current);
+      streamFlushTimerRef.current = null;
+    }
+
+    streamedAssistantIdRef.current = null;
+    streamedAssistantTextRef.current = "";
+  }
+
   useEffect(() => {
     if (embedded && portalToken) setIsOpen(true);
   }, [embedded, portalToken]);
+
+  useEffect(() => () => resetStreamBuffer(), []);
 
   useEffect(() => {
     if (!tenantId || portalToken) {
@@ -956,46 +1000,70 @@ export function ChatWidget({
     if (!text || isSending) return;
 
     setInput(""); setError(null);
-    let chatId = activeChatId;
-
-    if (!chatId) {
-      const chat = await createChat({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
-      chatId = chat.id;
-      setActiveChatId(chatId);
-      await refreshThreads(chatId);
-    }
+    const existingChatId = activeChatId;
+    const localChatId = existingChatId ?? `local-chat-${Date.now()}`;
 
     const now = new Date().toISOString();
-    const userMessage: ChatMessage = { id: `local-user-${Date.now()}`, chat_id: chatId, role: "user", content: text, metadata: null, created_at: now };
+    const userMessage: ChatMessage = { id: `local-user-${Date.now()}`, chat_id: localChatId, role: "user", content: text, metadata: null, created_at: now };
     const assistantMessageId = `local-assistant-${Date.now()}`;
-    const assistantMessage: ChatMessage = { id: assistantMessageId, chat_id: chatId, role: "assistant", content: "", metadata: null, created_at: now };
+    const assistantMessage: ChatMessage = { id: assistantMessageId, chat_id: localChatId, role: "assistant", content: "", metadata: null, created_at: now };
 
+    resetStreamBuffer();
+    streamedAssistantIdRef.current = assistantMessageId;
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setIsSending(true);
 
     try {
       const done = await streamChat({
         backendUrl,
-        payload: { tenant_id: tenantId, device_id: deviceId, chat_id: chatId, message: text, page_context: { url: window.location.href, title: document.title } },
+        payload: {
+          tenant_id: tenantId,
+          device_id: deviceId,
+          chat_id: existingChatId ?? undefined,
+          message: text,
+          page_context: { url: window.location.href, title: document.title }
+        },
         onToken(token) {
-          setMessages((prev) => prev.map((m) => m.id === assistantMessageId ? { ...m, content: `${m.content}${token}` } : m));
+          streamedAssistantTextRef.current += token;
+          scheduleStreamFlush();
         },
         onError(message) {
-          setMessages((prev) => prev.map((m) => m.id === assistantMessageId ? { ...m, content: message || "Unable to process this request." } : m));
+          flushStreamedAssistantText();
+          setMessages((prev) =>
+            prev.map((messageItem) =>
+              messageItem.id === assistantMessageId
+                ? {
+                    ...messageItem,
+                    content: messageItem.content.trim() ? messageItem.content : (message || "Unable to process this request.")
+                  }
+                : messageItem
+            )
+          );
         },
         authToken: portalToken,
         siteHost
       });
 
-      const finalChatId = done.chat_id || chatId;
+      flushStreamedAssistantText();
+      const finalChatId = done.chat_id || existingChatId || localChatId;
       setActiveChatId(finalChatId);
-      const synced = await listMessages({ chatId: finalChatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
-      setMessages(synced);
-      const syncedThreads = await listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
-      setThreads(syncedThreads);
+      setIsSending(false);
+
+      try {
+        const [syncedMessages, syncedThreads] = await Promise.all([
+          listMessages({ chatId: finalChatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost }),
+          listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost })
+        ]);
+        setMessages(syncedMessages);
+        setThreads(syncedThreads);
+      } catch (syncError) {
+        setError(syncError instanceof Error ? syncError.message : "Reply received, but chat sync failed");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Message send failed");
     } finally {
+      flushStreamedAssistantText();
+      resetStreamBuffer();
       setIsSending(false);
     }
   }
