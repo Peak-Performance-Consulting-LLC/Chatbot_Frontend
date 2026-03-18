@@ -19,10 +19,15 @@ import {
   platformVerifyDomain
 } from "@/lib/platformApi";
 import type {
+  AiTone,
+  BgPattern,
+  LauncherIcon,
+  NotifAnimation,
   PlatformProfile,
   PlatformSource,
   PlatformTenant,
   PlatformService,
+  ThemeStyle,
   TenantBusinessProfile
 } from "@/platform/types";
 
@@ -83,12 +88,21 @@ type PlatformAuthContextValue = {
     font_family?: string;
     widget_position?: "left" | "right";
     launcher_style?: "rounded" | "pill" | "square" | "minimal";
+    theme_style?: ThemeStyle;
+    bg_pattern?: BgPattern;
+    launcher_icon?: LauncherIcon;
     window_width?: number;
     window_height?: number;
     border_radius?: number;
     welcome_message?: string;
     bot_name?: string;
     bot_avatar_url?: string;
+    quick_replies?: string[];
+    ai_tone?: AiTone;
+    notif_enabled?: boolean;
+    notif_text?: string;
+    notif_animation?: NotifAnimation;
+    notif_chips?: string[];
   }) => Promise<TenantBusinessProfile>;
   updateTenantDomain: (input: {
     tenant_id: string;
@@ -399,12 +413,21 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     font_family?: string;
     widget_position?: "left" | "right";
     launcher_style?: "rounded" | "pill" | "square" | "minimal";
+    theme_style?: ThemeStyle;
+    bg_pattern?: BgPattern;
+    launcher_icon?: LauncherIcon;
     window_width?: number;
     window_height?: number;
     border_radius?: number;
     welcome_message?: string;
     bot_name?: string;
     bot_avatar_url?: string;
+    quick_replies?: string[];
+    ai_tone?: AiTone;
+    notif_enabled?: boolean;
+    notif_text?: string;
+    notif_animation?: NotifAnimation;
+    notif_chips?: string[];
   }) {
     if (!token) {
       throw new Error("Not authenticated");

@@ -117,7 +117,7 @@ export default function WidgetCodePage() {
           <p className="app-kicker">Deployment</p>
           <h2 className="app-h1">Widget Code</h2>
           <p className="app-lead">
-            Install the widget on your verified website. Requests remain tenant-scoped and domain-validated.
+            Install the widget on your verified website once. Future customization changes sync automatically without editing the site script again.
           </p>
         </div>
         <div className="app-callout success" style={{ margin: 0, padding: "10px 16px" }}>
@@ -141,11 +141,11 @@ export default function WidgetCodePage() {
         <div className="app-note-list">
           <div className="app-note">
             <strong>Step 1 – Choose a snippet</strong>
-            <p>Use the script snippet for plain HTML websites, or the React snippet for React / Next.js app integrations.</p>
+            <p>Use the script snippet for plain HTML websites, or the React snippet for React / Next.js app integrations. Both now read live widget configuration at runtime.</p>
           </div>
           <div className="app-note">
             <strong>Step 2 – Place before <code style={{ fontSize: "0.75rem" }}>&lt;/body&gt;</code></strong>
-            <p>Add the script tag just before the closing body tag on every page you want the widget to appear.</p>
+            <p>Add the script tag just before the closing body tag on every page you want the widget to appear. After that, design and content changes come from the dashboard, not from editing the site code.</p>
           </div>
           <div className="app-note">
             <strong>Step 3 – Verified domain only</strong>

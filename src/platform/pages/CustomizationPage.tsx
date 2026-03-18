@@ -1,15 +1,19 @@
 import { useEffect, useMemo, useState, useRef, type CSSProperties } from "react";
 import { MessageCircle, Sparkles, Headphones, Zap, Heart } from "lucide-react";
-import type { LauncherStyle, PlatformService, WidgetPosition } from "@/platform/types";
+import type {
+  AiTone,
+  BgPattern,
+  LauncherIcon,
+  LauncherStyle,
+  NotifAnimation,
+  PlatformService,
+  ThemeStyle,
+  WidgetPosition
+} from "@/platform/types";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TabId = "templates" | "appearance" | "layout" | "content" | "persona" | "notification";
-type ThemeStyle = "standard" | "glass" | "clay" | "dark" | "minimal";
-type AiTone = "friendly" | "professional" | "concise" | "enthusiastic";
-type BgPattern = "none" | "dots" | "grid" | "waves";
-type LauncherIcon = "chat" | "sparkle" | "headset" | "zap" | "heart";
-type NotifAnimation = "bounce" | "pulse" | "slide";
 
 type Template = {
   id: string; name: string; badge: string; badgeColor: string;
@@ -275,15 +279,15 @@ export default function CustomizationPage() {
   const [botBubbleColor, setBotBubbleColor] = useState(profile?.bot_bubble_color || "#edf6f9");
   const [fontFamily, setFontFamily] = useState(profile?.font_family || "Manrope");
   const [borderRadius, setBorderRadius] = useState(profile?.border_radius || 18);
-  const [themeStyle, setThemeStyle] = useState<ThemeStyle>("standard");
-  const [bgPattern, setBgPattern] = useState<BgPattern>("none");
+  const [themeStyle, setThemeStyle] = useState<ThemeStyle>(profile?.theme_style || "standard");
+  const [bgPattern, setBgPattern] = useState<BgPattern>(profile?.bg_pattern || "none");
 
   // Layout
   const [widgetPosition, setWidgetPosition] = useState<WidgetPosition>(profile?.widget_position || "right");
   const [launcherStyle, setLauncherStyle] = useState<LauncherStyle>(profile?.launcher_style || "rounded");
   const [windowWidth, setWindowWidth] = useState(profile?.window_width || 380);
   const [windowHeight, setWindowHeight] = useState(profile?.window_height || 640);
-  const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>("chat");
+  const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>(profile?.launcher_icon || "chat");
 
   // Content
   const [botName, setBotName] = useState(profile?.bot_name || "AeroConcierge");
@@ -294,19 +298,19 @@ export default function CustomizationPage() {
   const [supportPhone, setSupportPhone] = useState(profile?.support_phone || "");
   const [supportEmail, setSupportEmail] = useState(profile?.support_email || "");
   const [supportCtaLabel, setSupportCtaLabel] = useState(profile?.support_cta_label || "Connect with a specialist");
-  const [quickReplies, setQuickReplies] = useState<string[]>(["How does this work?", "Pricing plans", "Get support"]);
+  const [quickReplies, setQuickReplies] = useState<string[]>(profile?.quick_replies || ["How does this work?", "Pricing plans", "Get support"]);
 
   // Persona
   const [businessType, setBusinessType] = useState(profile?.business_type || "general_travel");
   const [supportedServices, setSupportedServices] = useState<PlatformService[]>(profile?.supported_services || ["flights"]);
   const [businessDesc, setBusinessDesc] = useState(profile?.business_description || "");
-  const [aiTone, setAiTone] = useState<AiTone>("friendly");
+  const [aiTone, setAiTone] = useState<AiTone>(profile?.ai_tone || "friendly");
 
   // Notification
-  const [notifEnabled, setNotifEnabled] = useState(true);
-  const [notifText, setNotifText] = useState("👋 Need help?");
-  const [notifAnimation, setNotifAnimation] = useState<NotifAnimation>("bounce");
-  const [notifChips, setNotifChips] = useState<string[]>(["I have a question", "Tell me more"]);
+  const [notifEnabled, setNotifEnabled] = useState(profile?.notif_enabled ?? true);
+  const [notifText, setNotifText] = useState(profile?.notif_text || "👋 Need help?");
+  const [notifAnimation, setNotifAnimation] = useState<NotifAnimation>(profile?.notif_animation || "bounce");
+  const [notifChips, setNotifChips] = useState<string[]>(profile?.notif_chips || ["I have a question", "Tell me more"]);
 
 
   // Sync form state from saved profile whenever the tenant changes.
@@ -321,8 +325,11 @@ export default function CustomizationPage() {
     setBotBubbleColor(profile.bot_bubble_color || "#edf6f9");
     setFontFamily(profile.font_family || "Manrope");
     setBorderRadius(profile.border_radius || 18);
+    setThemeStyle(profile.theme_style || "standard");
+    setBgPattern(profile.bg_pattern || "none");
     setWidgetPosition(profile.widget_position || "right");
     setLauncherStyle(profile.launcher_style || "rounded");
+    setLauncherIcon(profile.launcher_icon || "chat");
     setWindowWidth(profile.window_width || 380);
     setWindowHeight(profile.window_height || 640);
     setBotName(profile.bot_name || "AeroConcierge");
@@ -333,9 +340,15 @@ export default function CustomizationPage() {
     setSupportPhone(profile.support_phone || "");
     setSupportEmail(profile.support_email || "");
     setSupportCtaLabel(profile.support_cta_label || "Connect with a specialist");
+    setQuickReplies(profile.quick_replies || ["How does this work?", "Pricing plans", "Get support"]);
     setBusinessType(profile.business_type || "general_travel");
     setSupportedServices(profile.supported_services || ["flights"]);
     setBusinessDesc(profile.business_description || "");
+    setAiTone(profile.ai_tone || "friendly");
+    setNotifEnabled(profile.notif_enabled ?? true);
+    setNotifText(profile.notif_text || "👋 Need help?");
+    setNotifAnimation(profile.notif_animation || "bounce");
+    setNotifChips(profile.notif_chips || ["I have a question", "Tell me more"]);
   }, [profile, selectedTenant?.tenant_id]);
 
 
@@ -374,6 +387,7 @@ export default function CustomizationPage() {
         bot_bubble_color: botBubbleColor, font_family: fontFamily,
         border_radius: borderRadius, widget_position: widgetPosition,
         launcher_style: launcherStyle, window_width: windowWidth, window_height: windowHeight,
+        theme_style: themeStyle, bg_pattern: bgPattern, launcher_icon: launcherIcon,
         bot_name: botName.trim() || "Assistant",
         bot_avatar_url: botAvatarUrl || undefined,
         welcome_message: welcomeMessage.trim() || "Hello! How can I help you?",
@@ -382,9 +396,15 @@ export default function CustomizationPage() {
         support_phone: supportPhone.trim() || undefined,
         support_email: supportEmail.trim() || undefined,
         support_cta_label: supportCtaLabel.trim() || "Connect with a specialist",
+        quick_replies: quickReplies,
         business_type: businessType.trim() || "general_travel",
         supported_services: supportedServices.length > 0 ? supportedServices : ["flights"],
         business_description: businessDesc.trim() || undefined,
+        ai_tone: aiTone,
+        notif_enabled: notifEnabled,
+        notif_text: notifText.trim() || "👋 Need help?",
+        notif_animation: notifAnimation,
+        notif_chips: notifChips,
       });
       setSuccess("✅ Customization saved! Changes are live.");
       setTimeout(() => setSuccess(""), 4000);

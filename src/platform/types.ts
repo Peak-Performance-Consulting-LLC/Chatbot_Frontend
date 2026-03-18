@@ -3,6 +3,11 @@ export type DomainVerificationStatus = "pending" | "txt_not_found" | "txt_mismat
 export type KnowledgeBaseStatus = "pending" | "processing" | "ready" | "warning" | "error";
 export type WidgetPosition = "left" | "right";
 export type LauncherStyle = "rounded" | "pill" | "square" | "minimal";
+export type ThemeStyle = "standard" | "glass" | "clay" | "dark" | "minimal";
+export type BgPattern = "none" | "dots" | "grid" | "waves";
+export type LauncherIcon = "chat" | "sparkle" | "headset" | "zap" | "heart";
+export type NotifAnimation = "bounce" | "pulse" | "slide";
+export type AiTone = "friendly" | "professional" | "concise" | "enthusiastic";
 
 export type TenantBusinessProfile = {
   business_type: string;
@@ -19,12 +24,21 @@ export type TenantBusinessProfile = {
   font_family: string;
   widget_position: WidgetPosition;
   launcher_style: LauncherStyle;
+  theme_style: ThemeStyle;
+  bg_pattern: BgPattern;
+  launcher_icon: LauncherIcon;
   window_width: number;
   window_height: number;
   border_radius: number;
   welcome_message: string;
   bot_name: string;
   bot_avatar_url: string | null;
+  quick_replies: string[];
+  ai_tone: AiTone;
+  notif_enabled: boolean;
+  notif_text: string;
+  notif_animation: NotifAnimation;
+  notif_chips: string[];
 };
 
 export type PlatformWidgetConfig = {

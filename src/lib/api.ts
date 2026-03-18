@@ -37,12 +37,20 @@ export type WidgetAppearanceConfig = {
   fontFamily?: string;
   widgetPosition?: "left" | "right";
   launcherStyle?: "rounded" | "pill" | "square" | "minimal";
+  themeStyle?: "standard" | "glass" | "clay" | "dark" | "minimal";
+  bgPattern?: "none" | "dots" | "grid" | "waves";
+  launcherIcon?: "chat" | "sparkle" | "headset" | "zap" | "heart";
   windowWidth?: number;
   windowHeight?: number;
   borderRadius?: number;
   botName?: string;
   welcomeMessage?: string;
   botAvatarUrl?: string;
+  quickReplies?: string[];
+  notifEnabled?: boolean;
+  notifText?: string;
+  notifAnimation?: "bounce" | "pulse" | "slide";
+  notifChips?: string[];
 };
 
 export type WidgetConfig = {

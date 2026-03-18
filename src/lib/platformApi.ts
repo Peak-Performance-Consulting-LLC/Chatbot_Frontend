@@ -1,8 +1,13 @@
 import type {
+  AiTone,
+  BgPattern,
+  LauncherIcon,
+  NotifAnimation,
   PlatformProfile,
   PlatformService,
   PlatformSource,
   PlatformTenant,
+  ThemeStyle,
   PlatformUser,
   TenantBusinessProfile
 } from "@/platform/types";
@@ -218,12 +223,21 @@ export async function platformUpdateTenantProfile(
     font_family?: string;
     widget_position?: "left" | "right";
     launcher_style?: "rounded" | "pill" | "square" | "minimal";
+    theme_style?: ThemeStyle;
+    bg_pattern?: BgPattern;
+    launcher_icon?: LauncherIcon;
     window_width?: number;
     window_height?: number;
     border_radius?: number;
     welcome_message?: string;
     bot_name?: string;
     bot_avatar_url?: string;
+    quick_replies?: string[];
+    ai_tone?: AiTone;
+    notif_enabled?: boolean;
+    notif_text?: string;
+    notif_animation?: NotifAnimation;
+    notif_chips?: string[];
   },
   backendUrl?: string
 ) {

@@ -44,12 +44,20 @@ type ChatWidgetAppearance = {
   fontFamily: string;
   widgetPosition: "left" | "right";
   launcherStyle: "rounded" | "pill" | "square" | "minimal";
+  themeStyle: "standard" | "glass" | "clay" | "dark" | "minimal";
+  bgPattern: "none" | "dots" | "grid" | "waves";
+  launcherIcon: "chat" | "sparkle" | "headset" | "zap" | "heart";
   windowWidth: number;
   windowHeight: number;
   borderRadius: number;
   botName: string;
   welcomeMessage: string;
   botAvatarUrl?: string | null;
+  quickReplies: string[];
+  notifEnabled: boolean;
+  notifText: string;
+  notifAnimation: "bounce" | "pulse" | "slide";
+  notifChips: string[];
 };
 
 const defaultAppearance: ChatWidgetAppearance = {
@@ -59,12 +67,20 @@ const defaultAppearance: ChatWidgetAppearance = {
   fontFamily: "Manrope",
   widgetPosition: "right",
   launcherStyle: "rounded",
+  themeStyle: "standard",
+  bgPattern: "none",
+  launcherIcon: "chat",
   windowWidth: 440,
   windowHeight: 700,
   borderRadius: 18,
   botName: "AeroConcierge",
   welcomeMessage: "Welcome. How can I help today?",
-  botAvatarUrl: null
+  botAvatarUrl: null,
+  quickReplies: ["How does this work?", "Pricing plans", "Get support"],
+  notifEnabled: true,
+  notifText: "👋 Need help?",
+  notifAnimation: "bounce",
+  notifChips: ["I have a question", "Tell me more"]
 };
 
 const defaultHeaderCtaConfig: HeaderCtaConfig = {
@@ -91,6 +107,18 @@ function normalizeAppearance(
       input?.launcherStyle === "pill" || input?.launcherStyle === "square" || input?.launcherStyle === "minimal"
         ? input.launcherStyle
         : defaultAppearance.launcherStyle,
+    themeStyle:
+      input?.themeStyle === "glass" || input?.themeStyle === "clay" || input?.themeStyle === "dark" || input?.themeStyle === "minimal"
+        ? input.themeStyle
+        : defaultAppearance.themeStyle,
+    bgPattern:
+      input?.bgPattern === "dots" || input?.bgPattern === "grid" || input?.bgPattern === "waves"
+        ? input.bgPattern
+        : defaultAppearance.bgPattern,
+    launcherIcon:
+      input?.launcherIcon === "sparkle" || input?.launcherIcon === "headset" || input?.launcherIcon === "zap" || input?.launcherIcon === "heart"
+        ? input.launcherIcon
+        : defaultAppearance.launcherIcon,
     windowWidth:
       typeof input?.windowWidth === "number"
         ? Math.min(limits.maxWidth, Math.max(limits.minWidth, Math.round(input.windowWidth)))
@@ -103,7 +131,21 @@ function normalizeAppearance(
       typeof input?.borderRadius === "number" ? Math.min(36, Math.max(8, Math.round(input.borderRadius))) : defaultAppearance.borderRadius,
     botName: input?.botName?.trim() || defaultAppearance.botName,
     welcomeMessage: input?.welcomeMessage?.trim() || defaultAppearance.welcomeMessage,
-    botAvatarUrl: input?.botAvatarUrl?.trim() || defaultAppearance.botAvatarUrl
+    botAvatarUrl: input?.botAvatarUrl?.trim() || defaultAppearance.botAvatarUrl,
+    quickReplies:
+      Array.isArray(input?.quickReplies)
+        ? Array.from(new Set(input.quickReplies.map((reply) => reply.trim()).filter(Boolean))).slice(0, 6)
+        : defaultAppearance.quickReplies,
+    notifEnabled: input?.notifEnabled ?? defaultAppearance.notifEnabled,
+    notifText: input?.notifText?.trim() || defaultAppearance.notifText,
+    notifAnimation:
+      input?.notifAnimation === "pulse" || input?.notifAnimation === "slide"
+        ? input.notifAnimation
+        : defaultAppearance.notifAnimation,
+    notifChips:
+      Array.isArray(input?.notifChips)
+        ? Array.from(new Set(input.notifChips.map((chip) => chip.trim()).filter(Boolean))).slice(0, 4)
+        : defaultAppearance.notifChips
   };
 }
 
@@ -147,12 +189,40 @@ function parseWidgetConfigFromQuery(): {
           params.get("launcher_style") === "minimal"
           ? (params.get("launcher_style") as ChatWidgetAppearance["launcherStyle"])
           : undefined,
+      themeStyle:
+        params.get("theme_style") === "glass" ||
+          params.get("theme_style") === "clay" ||
+          params.get("theme_style") === "dark" ||
+          params.get("theme_style") === "minimal"
+          ? (params.get("theme_style") as ChatWidgetAppearance["themeStyle"])
+          : undefined,
+      bgPattern:
+        params.get("bg_pattern") === "dots" ||
+          params.get("bg_pattern") === "grid" ||
+          params.get("bg_pattern") === "waves"
+          ? (params.get("bg_pattern") as ChatWidgetAppearance["bgPattern"])
+          : undefined,
+      launcherIcon:
+        params.get("launcher_icon") === "sparkle" ||
+          params.get("launcher_icon") === "headset" ||
+          params.get("launcher_icon") === "zap" ||
+          params.get("launcher_icon") === "heart"
+          ? (params.get("launcher_icon") as ChatWidgetAppearance["launcherIcon"])
+          : undefined,
       windowWidth: Number.isFinite(width) ? width : undefined,
       windowHeight: Number.isFinite(height) ? height : undefined,
       borderRadius: Number.isFinite(radius) ? radius : undefined,
       botName: params.get("bot_name") || undefined,
       welcomeMessage: params.get("welcome_message") || undefined,
-      botAvatarUrl: params.get("avatar_url") || undefined
+      botAvatarUrl: params.get("avatar_url") || undefined,
+      quickReplies: params.getAll("quick_reply"),
+      notifEnabled: params.get("notif_enabled") === "0" ? false : undefined,
+      notifText: params.get("notif_text") || undefined,
+      notifAnimation:
+        params.get("notif_animation") === "pulse" || params.get("notif_animation") === "slide"
+          ? (params.get("notif_animation") as ChatWidgetAppearance["notifAnimation"])
+          : undefined,
+      notifChips: params.getAll("notif_chip")
     },
     supportPhone: params.get("support_phone") || undefined,
     supportCtaLabel: params.get("support_cta_label") || undefined,
@@ -188,6 +258,41 @@ function getRenderableMessageContent(message: ChatMessage) {
   const content = message.content.trim();
   if (message.role !== "assistant" || !message.metadata?.flight_deals?.length) return content;
   return "Here are the best live fares I found. Compare the cards below, or tell me what you want to change.";
+}
+
+function LauncherIconGlyph({ icon }: { icon: ChatWidgetAppearance["launcherIcon"] }) {
+  if (icon === "sparkle") {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z" />
+      </svg>
+    );
+  }
+  if (icon === "headset") {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M4 13a8 8 0 0 1 16 0" />
+        <rect x="3" y="12" width="4" height="7" rx="2" />
+        <rect x="17" y="12" width="4" height="7" rx="2" />
+        <path d="M21 18a3 3 0 0 1-3 3h-2" />
+      </svg>
+    );
+  }
+  if (icon === "zap") {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+      </svg>
+    );
+  }
+  if (icon === "heart") {
+    return (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+        <path d="m12 20-1.45-1.32C5.4 14.03 2 10.94 2 7.15 2 4.06 4.42 2 7.5 2c1.74 0 3.41.81 4.5 2.09C13.09 2.81 14.76 2 16.5 2 19.58 2 22 4.06 22 7.15c0 3.79-3.4 6.88-8.55 11.54L12 20Z" />
+      </svg>
+    );
+  }
+  return <IconChat />;
 }
 
 function formatDealDateTime(value?: string) {
@@ -751,17 +856,67 @@ export function ChatWidget({
     [appearanceOverride, layoutVariant, runtimeAppearance, widgetQueryConfig]
   );
   const shellStyle = useMemo(
-    () =>
-      ({
+    () => {
+      const darkTheme = appearance.themeStyle === "dark";
+      const glassTheme = appearance.themeStyle === "glass";
+      const clayTheme = appearance.themeStyle === "clay";
+      const minimalTheme = appearance.themeStyle === "minimal";
+
+      return {
         "--brand": appearance.primaryColor,
         "--brand-strong": darkenHex(appearance.primaryColor),
         "--user-bubble": appearance.userBubbleColor,
         "--assistant-bubble": appearance.botBubbleColor,
+        "--assistant-bubble-border":
+          glassTheme
+            ? "1px solid rgba(255,255,255,0.34)"
+            : minimalTheme
+              ? "1px solid rgba(10,10,15,0.08)"
+              : darkTheme
+                ? "1px solid rgba(255,255,255,0.08)"
+                : "1px solid rgba(10,10,15,0.08)",
+        "--assistant-bubble-shadow":
+          clayTheme
+            ? "3px 3px 0 rgba(10,10,15,0.08), 0 8px 18px rgba(10,10,15,0.08)"
+            : "0 2px 8px rgba(10,10,15,0.06)",
+        "--widget-shell-bg":
+          darkTheme
+            ? "linear-gradient(180deg, rgba(12,18,30,0.98), rgba(8,10,22,0.995))"
+            : glassTheme
+              ? "linear-gradient(180deg, rgba(255,255,255,0.58), rgba(238,244,255,0.44))"
+              : clayTheme
+                ? "linear-gradient(180deg, #fff6ef, #f7efe4)"
+                : minimalTheme
+                  ? "#ffffff"
+                  : "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(248,250,251,0.985))",
+        "--widget-panel-bg":
+          darkTheme ? "#0b1220" : glassTheme ? "rgba(255,255,255,0.26)" : clayTheme ? "#f7efe4" : minimalTheme ? "#fafafa" : "#f8fafa",
+        "--widget-thread-bg":
+          darkTheme ? "#111827" : glassTheme ? "rgba(255,255,255,0.2)" : clayTheme ? "#f4eadf" : minimalTheme ? "#ffffff" : "#f8fafa",
+        "--widget-header-bg":
+          darkTheme ? "rgba(10,16,28,0.92)" : glassTheme ? "rgba(255,255,255,0.34)" : clayTheme ? "rgba(255,247,239,0.92)" : minimalTheme ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.97)",
+        "--widget-composer-bg":
+          darkTheme ? "rgba(10,16,28,0.98)" : glassTheme ? "rgba(255,255,255,0.28)" : "#ffffff",
+        "--widget-input-bg":
+          darkTheme ? "rgba(255,255,255,0.06)" : glassTheme ? "rgba(255,255,255,0.55)" : minimalTheme ? "#ffffff" : "#f8fafa",
+        "--widget-peek-bg":
+          darkTheme ? "rgba(12,18,30,0.96)" : glassTheme ? "rgba(255,255,255,0.68)" : "#ffffff",
+        "--widget-peek-border":
+          darkTheme ? "rgba(255,255,255,0.1)" : glassTheme ? "rgba(255,255,255,0.28)" : "rgba(26,92,92,0.12)",
+        "--widget-peek-pill-bg":
+          darkTheme ? "rgba(255,255,255,0.08)" : "rgba(26,92,92,0.1)",
+        "--widget-peek-pill-color":
+          darkTheme ? "rgba(255,255,255,0.88)" : appearance.primaryColor,
+        "--widget-line":
+          darkTheme ? "rgba(255,255,255,0.08)" : glassTheme ? "rgba(255,255,255,0.28)" : "rgba(10,10,15,0.08)",
+        "--ink": darkTheme ? "#f3f6fb" : "#0a0a0f",
+        "--muted": darkTheme ? "rgba(237,242,247,0.72)" : "rgba(10,10,15,0.6)",
         "--widget-width": `${appearance.windowWidth}px`,
         "--widget-height": `${appearance.windowHeight}px`,
         "--widget-radius": `${appearance.borderRadius}px`,
         fontFamily: appearance.fontFamily
-      }) as CSSProperties,
+      } as CSSProperties;
+    },
     [appearance]
   );
 
@@ -774,6 +929,7 @@ export function ChatWidget({
   }, [messages]);
 
   const quickReplies = latestAssistantMeta?.quick_replies ?? [];
+  const visibleQuickReplies = messages.length === 0 ? appearance.quickReplies : quickReplies;
   const flightUi = latestAssistantMeta?.flight_ui ?? null;
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
@@ -788,11 +944,17 @@ export function ChatWidget({
     !isSending &&
     !flightUi &&
     !serviceUi;
+  const shouldShowNotificationCard = showLauncherNotification && appearance.notifEnabled;
   const publicEmbedMode = isPublicEmbed
-    ? (isOpen ? (isPristinePublicEmbed ? "open-compact" : "open") : showLauncherNotification ? "peek" : "launcher")
+    ? (isOpen ? (isPristinePublicEmbed ? "open-compact" : "open") : shouldShowNotificationCard ? "peek" : "launcher")
     : null;
   const shouldRenderShell = embedded ? (!isPublicEmbed || isOpen) : isOpen;
   const teaserReplies = useMemo(() => {
+    const configuredNotifChips = appearance.notifChips.filter(Boolean).slice(0, 4);
+    if (configuredNotifChips.length > 0) {
+      return configuredNotifChips;
+    }
+
     const fromAssistant = quickReplies.filter(Boolean).slice(0, 4);
     if (fromAssistant.length > 0) {
       return fromAssistant;
@@ -804,7 +966,7 @@ export function ChatWidget({
       callCta?.label || "Talk to support"
     ];
     return Array.from(new Set(defaults)).slice(0, 4);
-  }, [quickReplies, callCta]);
+  }, [appearance.notifChips, quickReplies, callCta]);
 
   function flushStreamedAssistantText() {
     const assistantMessageId = streamedAssistantIdRef.current;
@@ -848,6 +1010,12 @@ export function ChatWidget({
   useEffect(() => {
     if (embedded && portalToken) setIsOpen(true);
   }, [embedded, portalToken]);
+
+  useEffect(() => {
+    if (!appearance.notifEnabled) {
+      setShowLauncherNotification(false);
+    }
+  }, [appearance.notifEnabled]);
 
   useEffect(() => () => resetStreamBuffer(), []);
 
@@ -915,6 +1083,25 @@ export function ChatWidget({
       setIsMobileThreadsOpen(false);
     }
   }, [isCompactLayout, isMobileThreadsOpen]);
+
+  useEffect(() => {
+    if (!isPublicEmbed || window.parent === window) return;
+    window.parent.postMessage({
+      type: "aeroconcierge:widget-layout",
+      layout: {
+        widgetPosition: appearance.widgetPosition,
+        windowWidth: appearance.windowWidth,
+        windowHeight: appearance.windowHeight,
+        borderRadius: appearance.borderRadius
+      }
+    }, "*");
+  }, [
+    appearance.borderRadius,
+    appearance.widgetPosition,
+    appearance.windowHeight,
+    appearance.windowWidth,
+    isPublicEmbed
+  ]);
 
   useEffect(() => {
     if (!isPublicEmbed || window.parent === window) return;
@@ -1102,7 +1289,7 @@ export function ChatWidget({
           aria-label={isOpen ? "Close chat" : `Open ${appearance.botName}`}
         >
           <span className="chat-launcher-icon">
-            {isOpen ? <IconClose /> : <IconChat />}
+            {isOpen ? <IconClose /> : <LauncherIconGlyph icon={appearance.launcherIcon} />}
           </span>
           <span className="chat-launcher-label">{isOpen ? "Close" : appearance.botName}</span>
         </button>
@@ -1110,14 +1297,18 @@ export function ChatWidget({
 
       {isPublicEmbed && !isOpen ? (
         <div
-          className={`chat-peek-stack chat-peek-stack-${appearance.widgetPosition}${showLauncherNotification ? "" : " launcher-only"}`}
+          className={`chat-peek-stack chat-peek-stack-${appearance.widgetPosition}${shouldShowNotificationCard ? "" : " launcher-only"}`}
           aria-label={`${appearance.botName} launcher`}
         >
-          {showLauncherNotification ? (
+          {shouldShowNotificationCard ? (
             <>
-              <button type="button" className="chat-peek-card" onClick={() => openPublicEmbedChat()}>
+              <button
+                type="button"
+                className={`chat-peek-card chat-peek-card-${appearance.notifAnimation}`}
+                onClick={() => openPublicEmbedChat()}
+              >
                 <span className="chat-peek-pill">{headerCtaConfig.label}</span>
-                <p>{headerCtaConfig.notice}</p>
+                <p>{appearance.notifText || headerCtaConfig.notice}</p>
               </button>
 
               <div className="chat-peek-actions">
@@ -1131,7 +1322,7 @@ export function ChatWidget({
                     {reply}
                   </button>
                 ))}
-              </div>\
+              </div>
             </>
           ) : null}
 
@@ -1141,8 +1332,8 @@ export function ChatWidget({
             onClick={() => openPublicEmbedChat()}
             aria-label={`Open ${appearance.botName}`}
           >
-            <span className="chat-peek-launcher-badge">1</span>
-            <IconChat />
+            {appearance.notifEnabled ? <span className="chat-peek-launcher-badge">1</span> : null}
+            <LauncherIconGlyph icon={appearance.launcherIcon} />
           </button>
         </div>
       ) : null}
@@ -1150,7 +1341,7 @@ export function ChatWidget({
       {shouldRenderShell ? (
         <section
           ref={shellRef}
-          className={`chat-shell chat-shell-${appearance.widgetPosition}${embedded ? " embedded" : ""}${isPublicEmbed ? " public-embed-shell" : ""}${isCompactLayout ? " compact" : ""}${isPristinePublicEmbed ? " pristine-mobile-embed" : ""}${layoutVariant === "platform" ? " chat-shell-platform" : ""}`}
+          className={`chat-shell chat-shell-${appearance.widgetPosition} theme-${appearance.themeStyle} bg-pattern-${appearance.bgPattern}${embedded ? " embedded" : ""}${isPublicEmbed ? " public-embed-shell" : ""}${isCompactLayout ? " compact" : ""}${isPristinePublicEmbed ? " pristine-mobile-embed" : ""}${layoutVariant === "platform" ? " chat-shell-platform" : ""}`}
           style={shellStyle}
           aria-label={`${appearance.botName} chat widget`}
         >
@@ -1163,7 +1354,10 @@ export function ChatWidget({
                 <div className="chat-avatar chat-avatar-fallback">{appearance.botName.slice(0, 2).toUpperCase()}</div>
               )}
               <div className="chat-brand-info">
-                <strong>{appearance.botName}</strong>
+                <strong>
+                  {appearance.botName}
+                  {headerCtaConfig.label ? <span className="chat-header-badge">{headerCtaConfig.label}</span> : null}
+                </strong>
                 <p>
                   <span className="chat-online-dot" />
                   Online
@@ -1224,9 +1418,9 @@ export function ChatWidget({
                 ))}
                 {isSending ? <TypingIndicator /> : null}
                 {/* Quick replies inline – appear right after the last bot message */}
-                {!isSending && quickReplies.length > 0 ? (
+                {!isSending && visibleQuickReplies.length > 0 ? (
                   <div className="inline-quick-replies">
-                    {quickReplies.map((reply) => (
+                    {visibleQuickReplies.map((reply) => (
                       <button
                         key={reply}
                         type="button"
