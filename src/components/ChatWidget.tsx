@@ -470,6 +470,7 @@ function GuidedFlightInput({
   const [cabinValue, setCabinValue] = useState("Economy");
   const [selectedAirportCode, setSelectedAirportCode] = useState("");
   const [liveAirportSuggestions, setLiveAirportSuggestions] = useState<Array<{ code: string; label: string }>>([]);
+  const [isAirportMenuOpen, setIsAirportMenuOpen] = useState(false);
 
   useEffect(() => {
     setAirportText(""); setDateText("");
@@ -478,7 +479,7 @@ function GuidedFlightInput({
     setInfants(flightUi.state?.passengers?.infants ?? 0);
     setTripTypeValue(flightUi.state?.trip_type ?? "one-way");
     setCabinValue(flightUi.state?.cabin_class ? formatCabin(flightUi.state.cabin_class) : "Economy");
-    setSelectedAirportCode(""); setLiveAirportSuggestions([]);
+    setSelectedAirportCode(""); setLiveAirportSuggestions([]); setIsAirportMenuOpen(false);
   }, [flightUi.next_slot, flightUi.state?.passengers?.adults, flightUi.state?.passengers?.children, flightUi.state?.passengers?.infants]);
 
   useEffect(() => {
@@ -512,6 +513,69 @@ function GuidedFlightInput({
       return airportOptions[0]?.code ?? "";
     });
   }, [airportOptions, flightUi.next_slot]);
+
+  const selectedAirportSuggestion = useMemo(
+    () => airportOptions.find((option) => option.code === selectedAirportCode) ?? null,
+    [airportOptions, selectedAirportCode]
+  );
+
+  function submitAirportValue(value?: string) {
+    const nextValue = value?.trim();
+    if (!nextValue) return;
+    setIsAirportMenuOpen(false);
+    onSubmit(nextValue);
+  }
+
+  function resolveTypedAirportValue() {
+    const typedValue = airportText.trim();
+    if (!typedValue) return "";
+    if (!selectedAirportSuggestion) return typedValue;
+    const normalizedTypedValue = typedValue.toLowerCase();
+    if (
+      normalizedTypedValue === selectedAirportSuggestion.code.toLowerCase() ||
+      normalizedTypedValue === selectedAirportSuggestion.label.toLowerCase()
+    ) {
+      return selectedAirportSuggestion.code;
+    }
+    return typedValue;
+  }
+
+  function handleAirportInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (!airportOptions.length) {
+      if (event.key === "Enter" && airportText.trim()) {
+        event.preventDefault();
+        submitAirportValue(airportText);
+      }
+      return;
+    }
+
+    const currentIndex = airportOptions.findIndex((option) => option.code === selectedAirportCode);
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setIsAirportMenuOpen(true);
+      const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % airportOptions.length : 0;
+      setSelectedAirportCode(airportOptions[nextIndex]?.code ?? "");
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setIsAirportMenuOpen(true);
+      const nextIndex = currentIndex >= 0 ? (currentIndex - 1 + airportOptions.length) % airportOptions.length : airportOptions.length - 1;
+      setSelectedAirportCode(airportOptions[nextIndex]?.code ?? "");
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setIsAirportMenuOpen(false);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      submitAirportValue(resolveTypedAirportValue());
+    }
+  }
 
   if (flightUi.phase !== "collecting" || !flightUi.next_slot) return null;
 
@@ -562,9 +626,9 @@ function GuidedFlightInput({
 
   if (flightUi.next_slot === "passengers") {
     return (
-      <div className="guided-input">
+      <div className="guided-input guided-input-compact">
         <p>Passengers</p>
-        <div className="passenger-grid">
+        <div className="passenger-inline-grid">
           <label>Adults
             <select value={adults} onChange={(e) => setAdults(Number(e.target.value))}>
               {Array.from({ length: 9 }, (_, i) => i + 1).map((v) => <option key={`a-${v}`} value={v}>{v}</option>)}
@@ -581,39 +645,56 @@ function GuidedFlightInput({
             </select>
           </label>
         </div>
-        <small className="guided-help">Adjust adults, children, and infants, then apply the passenger mix.</small>
-        <button type="button" className="guided-submit" disabled={disabled}
+        <button type="button" className="guided-submit guided-submit-compact" disabled={disabled}
           onClick={() => onSubmit(`${adults} adults, ${children} children, ${infants} infants`)}>
-          Use passengers
+          Apply passengers
         </button>
       </div>
     );
   }
 
   if (flightUi.next_slot === "origin" || flightUi.next_slot === "destination") {
-    const dataListId = `${flightUi.next_slot}-airport-options`;
     return (
-      <div className="guided-input">
+      <div className="guided-input guided-input-compact">
         <p>{flightUi.next_slot === "origin" ? "Departure airport" : "Destination airport"}</p>
-        <small className="guided-help">Search by city or airport, then choose from the suggestion dropdown.</small>
-        <div className="guided-inline">
-          <input list={dataListId} value={airportText}
-            onChange={(e) => { setAirportText(e.target.value); setSelectedAirportCode(""); }}
-            placeholder="Type city or airport code" />
-          <datalist id={dataListId}>
-            {airportOptions.map((a) => <option key={`${dataListId}-${a.code}`} value={a.code} label={a.label} />)}
-          </datalist>
-          <button type="button" disabled={disabled || !airportText.trim()} onClick={() => onSubmit(airportText.trim())}>
-            Use typed value
-          </button>
-        </div>
-        <div className="guided-inline">
-          <select value={selectedAirportCode} onChange={(e) => setSelectedAirportCode(e.target.value)} disabled={airportOptions.length === 0}>
-            <option value="">{airportOptions.length === 0 ? "No suggestions yet" : "Choose a suggested airport"}</option>
-            {airportOptions.map((a) => <option key={`${flightUi.next_slot}-sel-${a.code}`} value={a.code}>{a.label}</option>)}
-          </select>
-          <button type="button" disabled={disabled || !selectedAirportCode} onClick={() => onSubmit(selectedAirportCode)}>
-            Use selected
+        <div className="guided-inline guided-inline-top">
+          <div className="guided-combobox">
+            <input
+              value={airportText}
+              onFocus={() => setIsAirportMenuOpen(true)}
+              onBlur={() => window.setTimeout(() => setIsAirportMenuOpen(false), 120)}
+              onChange={(event) => {
+                setAirportText(event.target.value);
+                setSelectedAirportCode("");
+                setIsAirportMenuOpen(true);
+              }}
+              onKeyDown={handleAirportInputKeyDown}
+              placeholder="Search city or airport"
+            />
+            {isAirportMenuOpen && airportOptions.length > 0 ? (
+              <div className="guided-suggestion-list" role="listbox" aria-label="Airport suggestions">
+                {airportOptions.map((airport) => (
+                  <button
+                    key={`${flightUi.next_slot}-${airport.code}`}
+                    type="button"
+                    className={`guided-suggestion-item${selectedAirportCode === airport.code ? " active" : ""}`}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => submitAirportValue(airport.code)}
+                  >
+                    <strong>{airport.code}</strong>
+                    <span>{airport.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="guided-submit guided-submit-compact"
+            disabled={disabled || !airportText.trim()}
+            onClick={() => submitAirportValue(resolveTypedAirportValue())}
+          >
+            Apply
           </button>
         </div>
       </div>

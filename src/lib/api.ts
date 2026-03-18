@@ -96,9 +96,10 @@ export async function getWidgetConfig(input: {
 }): Promise<WidgetConfig> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(
-    `${base}/api/widget-config?tenant_id=${encodeURIComponent(input.tenantId)}`,
+    `${base}/api/widget-config?tenant_id=${encodeURIComponent(input.tenantId)}&_ts=${Date.now()}`,
     {
-      headers: buildHeaders(input)
+      headers: buildHeaders(input),
+      cache: "no-store"
     }
   );
 

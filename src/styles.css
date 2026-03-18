@@ -337,8 +337,8 @@ body.chat-widget-embedded {
 }
 
 /* ─── Guided Input ───────────────────────────────────────── */
-.guided-input           { margin: 0 12px 12px; padding: 14px; border-radius: 16px; border: 1px solid rgba(10,10,15,0.08); background: #fff; box-shadow: 0 2px 8px rgba(10,10,15,0.04); }
-.guided-input p         { margin-top: 0; margin-bottom: 9px; color: var(--ink); font-weight: 700; font-size: 13px; }
+.guided-input           { margin: 0 12px 10px; padding: 11px 12px; border-radius: 14px; border: 1px solid rgba(10,10,15,0.08); background: #fff; box-shadow: 0 2px 8px rgba(10,10,15,0.04); }
+.guided-input p         { margin-top: 0; margin-bottom: 6px; color: var(--ink); font-weight: 700; font-size: 12px; }
 .guided-inline, .passenger-grid { gap: 8px; }
 .guided-inline input, .guided-inline select, .passenger-grid select { border-radius: 10px; border: 1px solid rgba(10,10,15,0.1); background: #f8fafa; font-family: inherit; }
 .guided-inline button, .guided-submit { border-radius: 10px; border: 0; background: var(--brand, #1a5c5c); color: #fff; font-family: inherit; font-weight: 700; white-space: nowrap; }
@@ -1088,33 +1088,46 @@ body.chat-widget-embedded {
 .guided-input {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .guided-help {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
 }
 
 .guided-inline {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.guided-inline-top {
+  align-items: flex-start;
+}
+
+.guided-combobox {
+  position: relative;
+  flex: 1;
+  min-width: 0;
 }
 
 .guided-inline input,
 .guided-inline select,
-.passenger-grid select {
+.passenger-grid select,
+.passenger-inline-grid select {
   flex: 1;
   min-width: 0;
-  padding: 11px 13px;
+  padding: 9px 11px;
   color: var(--ink);
-  font-size: 14px;
+  font-size: 13px;
   outline: none;
 }
 
 .guided-inline input:focus,
 .guided-inline select:focus,
 .passenger-grid select:focus,
+.passenger-inline-grid select:focus,
 .composer textarea:focus {
   border-color: rgba(26,92,92,0.3);
 }
@@ -1123,14 +1136,21 @@ body.chat-widget-embedded {
 .guided-submit {
   flex: 0 0 auto;
   border: 0;
-  padding: 11px 15px;
-  box-shadow: 0 12px 24px rgba(26,92,92,0.18);
+  padding: 9px 12px;
+  font-size: 12px;
+  box-shadow: 0 10px 20px rgba(26,92,92,0.16);
   cursor: pointer;
 }
 
 .passenger-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.passenger-inline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .passenger-grid label {
@@ -1140,6 +1160,78 @@ body.chat-widget-embedded {
   font-size: 12px;
   font-weight: 700;
   color: rgba(10,10,15,0.72);
+}
+
+.passenger-inline-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(10,10,15,0.68);
+}
+
+.guided-input-compact {
+  gap: 6px;
+}
+
+.guided-input-compact p {
+  margin-bottom: 2px;
+}
+
+.guided-submit-compact {
+  min-width: 84px;
+  border-radius: 12px;
+  align-self: flex-start;
+}
+
+.guided-suggestion-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: grid;
+  gap: 4px;
+  max-height: 168px;
+  overflow-y: auto;
+  padding: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(10,10,15,0.08);
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 16px 32px rgba(10,10,15,0.12);
+  backdrop-filter: blur(10px);
+}
+
+.guided-suggestion-item {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.guided-suggestion-item strong {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.guided-suggestion-item span {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+
+.guided-suggestion-item:hover,
+.guided-suggestion-item.active {
+  background: rgba(26,92,92,0.08);
+  transform: translateY(-1px);
 }
 
 .composer {

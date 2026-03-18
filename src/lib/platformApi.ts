@@ -91,6 +91,7 @@ async function authedJson<T>(input: {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(`${base}${input.path}`, {
     method: input.method ?? "GET",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${input.token}`
