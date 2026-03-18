@@ -119,9 +119,10 @@ export async function listChats(input: {
 }): Promise<ChatThread[]> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(
-    `${base}/api/chats?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`,
+    `${base}/api/chats?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}&_ts=${Date.now()}`,
     {
-      headers: buildHeaders(input)
+      headers: buildHeaders(input),
+      cache: "no-store"
     }
   );
 
@@ -218,9 +219,10 @@ export async function listMessages(input: {
 }): Promise<ChatMessage[]> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(
-    `${base}/api/chats/${input.chatId}/messages?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`,
+    `${base}/api/chats/${input.chatId}/messages?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}&_ts=${Date.now()}`,
     {
-      headers: buildHeaders(input)
+      headers: buildHeaders(input),
+      cache: "no-store"
     }
   );
 

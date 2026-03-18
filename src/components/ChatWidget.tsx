@@ -167,6 +167,53 @@ function darkenHex(input: string) {
   return `#${channels.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
 
+function normalizeMessageText(input: string) {
+  return input.trim().replace(/\s+/g, " ");
+}
+
+function parseMessageTs(input: string) {
+  const ts = Date.parse(input);
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+function messagesAreEquivalent(localMessage: ChatMessage, syncedMessage: ChatMessage) {
+  if (localMessage.chat_id !== syncedMessage.chat_id || localMessage.role !== syncedMessage.role) {
+    return false;
+  }
+
+  const localContent = normalizeMessageText(localMessage.content);
+  const syncedContent = normalizeMessageText(syncedMessage.content);
+  if (!localContent || !syncedContent || localContent !== syncedContent) {
+    return false;
+  }
+
+  return Math.abs(parseMessageTs(localMessage.created_at) - parseMessageTs(syncedMessage.created_at)) < 5 * 60 * 1000;
+}
+
+function mergeSyncedMessages(chatId: string, syncedMessages: ChatMessage[], localMessages: ChatMessage[]) {
+  const merged = [...syncedMessages];
+  const pendingLocalMessages = localMessages.filter(
+    (message) => message.chat_id === chatId && normalizeMessageText(message.content)
+  );
+
+  for (const localMessage of pendingLocalMessages) {
+    if (!merged.some((syncedMessage) => messagesAreEquivalent(localMessage, syncedMessage))) {
+      merged.push(localMessage);
+    }
+  }
+
+  return merged.sort((a, b) => parseMessageTs(a.created_at) - parseMessageTs(b.created_at));
+}
+
+function syncedMessagesAreComplete(chatId: string, syncedMessages: ChatMessage[], localMessages: ChatMessage[]) {
+  const pendingLocalMessages = localMessages.filter(
+    (message) => message.chat_id === chatId && normalizeMessageText(message.content)
+  );
+  return pendingLocalMessages.every((localMessage) =>
+    syncedMessages.some((syncedMessage) => messagesAreEquivalent(localMessage, syncedMessage))
+  );
+}
+
 function parseWidgetConfigFromQuery(): {
   appearance: Partial<ChatWidgetAppearance>;
   supportPhone?: string;
@@ -908,6 +955,7 @@ export function ChatWidget({
 
   const shellRef = useRef<HTMLElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
   const streamedAssistantIdRef = useRef<string | null>(null);
   const streamedAssistantTextRef = useRef("");
   const streamFlushTimerRef = useRef<number | null>(null);
@@ -1044,6 +1092,10 @@ export function ChatWidget({
     ];
     return Array.from(new Set(defaults)).slice(0, 4);
   }, [appearance.notifChips, quickReplies, callCta]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
   function flushStreamedAssistantText() {
     const assistantMessageId = streamedAssistantIdRef.current;
@@ -1233,7 +1285,7 @@ export function ChatWidget({
     setIsLoadingMessages(true);
     try {
       const next = await listMessages({ chatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
-      setMessages(next);
+      setMessages(mergeSyncedMessages(chatId, next, messagesRef.current));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load messages");
     } finally {
@@ -1275,6 +1327,38 @@ export function ChatWidget({
     setActiveChatId(chatId);
     setIsMobileThreadsOpen(false);
     await loadMessages(chatId);
+  }
+
+  async function synchronizeChatState(chatId: string) {
+    const retryDelays = [0, 180, 420];
+    let fallbackMessages: ChatMessage[] | null = null;
+    let fallbackThreads: ChatThread[] | null = null;
+
+    for (const delay of retryDelays) {
+      if (delay > 0) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, delay));
+      }
+
+      const [syncedMessages, syncedThreads] = await Promise.all([
+        listMessages({ chatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost }),
+        listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost })
+      ]);
+
+      const mergedMessages = mergeSyncedMessages(chatId, syncedMessages, messagesRef.current);
+      fallbackMessages = mergedMessages;
+      fallbackThreads = syncedThreads;
+
+      if (syncedMessagesAreComplete(chatId, syncedMessages, messagesRef.current)) {
+        setMessages(mergedMessages);
+        setThreads(syncedThreads);
+        return;
+      }
+    }
+
+    if (fallbackMessages && fallbackThreads) {
+      setMessages(fallbackMessages);
+      setThreads(fallbackThreads);
+    }
   }
 
   async function sendMessage(rawText: string) {
@@ -1332,12 +1416,7 @@ export function ChatWidget({
       setIsSending(false);
 
       try {
-        const [syncedMessages, syncedThreads] = await Promise.all([
-          listMessages({ chatId: finalChatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost }),
-          listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost })
-        ]);
-        setMessages(syncedMessages);
-        setThreads(syncedThreads);
+        await synchronizeChatState(finalChatId);
       } catch (syncError) {
         setError(syncError instanceof Error ? syncError.message : "Reply received, but chat sync failed");
       }
