@@ -156,9 +156,8 @@ function LivePreview({
   // Pill-style launcher (desktop/mobile chat view)
   const launcherBtn = (scale: number) => (
     <div className="cust-launcher-wrap">
-      <div style={{ display: "inline-flex", alignItems: "center", gap: 5 * scale, padding: `${6 * scale}px ${11 * scale}px`, background: primaryColor, borderRadius: launcherBR, color: "#fff", fontSize: `${0.64 * scale}rem`, fontWeight: 700, boxShadow: `0 ${6 * scale}px ${18 * scale}px rgba(0,0,0,0.18)`, position: "relative" }}>
-        <span style={{ display: "flex", alignItems: "center", width: 17 * scale, height: 17 * scale }}>{iconNode}</span>
-        <span>{botName}</span>
+      <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 44 * scale, height: 44 * scale, background: surfaceTokens.headerBg, borderRadius: launcherBR, color: surfaceTokens.headerInk, fontSize: `${0.64 * scale}rem`, fontWeight: 700, boxShadow: `0 ${6 * scale}px ${18 * scale}px rgba(0,0,0,0.18)`, position: "relative" }}>
+        <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 18 * scale, height: 18 * scale }}>{iconNode}</span>
       </div>
     </div>
   );

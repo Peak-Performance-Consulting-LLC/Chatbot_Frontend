@@ -973,6 +973,10 @@ export function ChatWidget({
         "--widget-header-action-hover-border": surfaceTokens.headerActionHoverBorder,
         "--widget-header-avatar-bg": surfaceTokens.headerAvatarBg,
         "--widget-header-avatar-color": surfaceTokens.headerAvatarColor,
+        "--widget-launcher-bg": surfaceTokens.headerBg,
+        "--widget-launcher-color": surfaceTokens.headerInk,
+        "--widget-launcher-icon-bg": surfaceTokens.headerActionBg,
+        "--widget-launcher-icon-border": surfaceTokens.headerActionBorder,
         "--widget-composer-bg": surfaceTokens.composerBg,
         "--widget-input-bg": surfaceTokens.inputBg,
         "--widget-peek-bg": surfaceTokens.peekBg,
@@ -1417,7 +1421,7 @@ export function ChatWidget({
 
           <button
             type="button"
-            className={`chat-peek-launcher chat-peek-launcher-${appearance.launcherStyle}`}
+            className={`chat-peek-launcher chat-peek-launcher-${appearance.launcherStyle} chat-peek-launcher-icon-only`}
             onClick={() => openPublicEmbedChat()}
             aria-label={`Open ${appearance.botName}`}
           >
@@ -1425,7 +1429,6 @@ export function ChatWidget({
             <span className="chat-peek-launcher-icon">
               <LauncherIconGlyph icon={appearance.launcherIcon} />
             </span>
-            <span className="chat-peek-launcher-label">{appearance.botName}</span>
           </button>
         </div>
       ) : null}
