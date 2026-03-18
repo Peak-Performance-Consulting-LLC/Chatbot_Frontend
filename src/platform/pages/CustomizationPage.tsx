@@ -365,6 +365,9 @@ export default function CustomizationPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setSuccess(""); setError("");
     try {
+      // Reset the sync guard BEFORE the await so the useEffect re-syncs from
+      // the freshly updated profile that auth.tsx sets after a successful save.
+      lastSyncedTenantIdRef.current = null;
       await updateTenantProfile({
         tenant_id: selectedTenant!.tenant_id,
         primary_color: primaryColor, user_bubble_color: userBubbleColor,
@@ -386,6 +389,8 @@ export default function CustomizationPage() {
       setSuccess("✅ Customization saved! Changes are live.");
       setTimeout(() => setSuccess(""), 4000);
     } catch (err) {
+      // Restore sync guard so stale state doesn't persist on error
+      lastSyncedTenantIdRef.current = selectedTenant?.tenant_id ?? null;
       const msg = err instanceof Error ? err.message : String(err);
       setError(`Save failed: ${msg}`);
     }
