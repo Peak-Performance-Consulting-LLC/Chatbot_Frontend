@@ -82,7 +82,16 @@ export default function SiteSetupPage() {
     if (sitemapUrl.trim()) next.push({ source_type: "sitemap", source_value: sitemapUrl.trim() });
     for (const url of parseLinks(docUrls)) next.push({ source_type: "url", source_value: url });
     if (faqText.trim()) next.push({ source_type: "faq", source_value: faqText.trim() });
-    try { const rows = await saveTenantSources(tenantId, next); setSources(rows); setStatus("Knowledge sources saved. Run indexing to refresh the chatbot."); } catch {}
+    try {
+      const result = await saveTenantSources(tenantId, next);
+      setSources(result.sources);
+      setStatus(
+        result.knowledge_base.message ||
+          (result.ingestion.errors.length > 0
+            ? `Knowledge sources saved with indexing warnings. Chunks: ${result.ingestion.inserted_chunks}.`
+            : `Knowledge sources saved and indexed. Chunks: ${result.ingestion.inserted_chunks}.`)
+      );
+    } catch {}
   }
   async function handleReindex() {
     setStatus(""); setError("");

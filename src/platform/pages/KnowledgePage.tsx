@@ -69,9 +69,14 @@ export default function KnowledgePage() {
     for (const url of parseLinks(docUrls)) nextSources.push({ source_type: "url", source_value: url });
     if (faqText.trim()) nextSources.push({ source_type: "faq", source_value: faqText.trim() });
     try {
-      const rows = await saveTenantSources(tenantId, nextSources);
-      setSources(rows);
-      setStatus("Sources saved. Run re-index to refresh knowledge chunks.");
+      const result = await saveTenantSources(tenantId, nextSources);
+      setSources(result.sources);
+      setStatus(
+        result.knowledge_base.message ||
+          (result.ingestion.errors.length > 0
+            ? `Sources saved with indexing warnings. Chunks inserted: ${result.ingestion.inserted_chunks}.`
+            : `Sources saved and indexed. Chunks inserted: ${result.ingestion.inserted_chunks}.`)
+      );
     } catch { /* handled by context */ }
   }
 
@@ -95,7 +100,8 @@ export default function KnowledgePage() {
           <p className="app-kicker">Knowledge Ops</p>
           <h2 className="app-h1">Knowledge Base</h2>
           <p className="app-lead">
-            Manage sitemap, support URLs, and FAQ text for tenant-scoped RAG answers.
+            Save sitemap URLs, child sitemaps, docs, support pages, and FAQ text. The backend will read them and
+            rebuild tenant-scoped knowledge chunks automatically.
           </p>
         </div>
         <button className="app-btn-primary" type="button" onClick={handleReindex} disabled={loading}>
@@ -194,7 +200,7 @@ export default function KnowledgePage() {
 
             <div className="app-action-row" style={{ marginTop: "4px" }}>
               <button className="app-btn-primary" type="submit" disabled={loading}>
-                {loading ? "Saving…" : "Save sources"}
+                {loading ? "Saving and indexing…" : "Save sources"}
               </button>
               <button className="app-btn-secondary" type="button" onClick={handleReindex} disabled={loading}>
                 Re-index knowledge

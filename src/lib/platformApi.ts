@@ -68,6 +68,13 @@ export type PlatformSignupResponse = {
   };
 };
 
+export type PlatformIngestionSummary = {
+  inserted_chunks: number;
+  fetched_documents: number;
+  skipped_documents: number;
+  errors: string[];
+};
+
 function resolveBaseUrl(override?: string) {
   return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:4000").replace(/\/$/, "");
 }
@@ -128,12 +135,7 @@ export async function platformCreateWorkspace(
 ) {
   return authedJson<{
     tenant: PlatformTenant;
-    ingest: {
-      inserted_chunks: number;
-      fetched_documents: number;
-      skipped_documents: number;
-      errors: string[];
-    };
+    ingest: PlatformIngestionSummary;
   }>({
     path: "/api/platform/workspaces",
     token,
@@ -187,12 +189,7 @@ export async function platformVerifyDomain(token: string, tenantId: string, back
 export async function platformRunIngest(token: string, tenantId: string, replace = true, backendUrl?: string) {
   return authedJson<{
     tenant_id: string;
-    ingestion: {
-      inserted_chunks: number;
-      fetched_documents: number;
-      skipped_documents: number;
-      errors: string[];
-    };
+    ingestion: PlatformIngestionSummary;
     knowledge_base: PlatformTenant["knowledge_base"];
   }>({
     path: "/api/platform/ingest",
@@ -301,6 +298,7 @@ export async function platformReplaceTenantSources(
     tenant_id: string;
     sources: PlatformSource[];
     knowledge_base: PlatformTenant["knowledge_base"];
+    ingestion: PlatformIngestionSummary;
   }>({
     path: "/api/platform/sources",
     token,

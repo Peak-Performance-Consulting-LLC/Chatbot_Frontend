@@ -9,6 +9,7 @@ import {
 import {
   platformCreateWorkspace,
   platformGetTenantSources,
+  type PlatformIngestionSummary,
   platformLogin,
   platformMe,
   platformReplaceTenantSources,
@@ -109,7 +110,14 @@ type PlatformAuthContextValue = {
     website_url: string;
   }) => Promise<void>;
   getTenantSources: (tenantId: string) => Promise<PlatformSource[]>;
-  saveTenantSources: (tenantId: string, sources: PlatformSourcePayload[]) => Promise<PlatformSource[]>;
+  saveTenantSources: (
+    tenantId: string,
+    sources: PlatformSourcePayload[]
+  ) => Promise<{
+    sources: PlatformSource[];
+    knowledge_base: PlatformTenant["knowledge_base"];
+    ingestion: PlatformIngestionSummary;
+  }>;
 };
 
 const PlatformAuthContext = createContext<PlatformAuthContextValue | null>(null);
@@ -517,7 +525,11 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
         };
       });
 
-      return response.sources;
+      return {
+        sources: response.sources,
+        knowledge_base: response.knowledge_base,
+        ingestion: response.ingestion
+      };
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to save tenant sources";
       setError(message);
