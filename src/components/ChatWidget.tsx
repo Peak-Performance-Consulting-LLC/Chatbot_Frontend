@@ -855,8 +855,8 @@ export function ChatWidget({
     () => normalizeAppearance({ ...widgetQueryConfig.appearance, ...runtimeAppearance, ...appearanceOverride }, layoutVariant),
     [appearanceOverride, layoutVariant, runtimeAppearance, widgetQueryConfig]
   );
-  const publicEmbedWidth = isPublicEmbed ? Math.max(appearance.windowWidth, 448) : appearance.windowWidth;
-  const publicEmbedHeight = isPublicEmbed ? Math.max(appearance.windowHeight, 720) : appearance.windowHeight;
+  const publicEmbedWidth = isPublicEmbed ? Math.max(appearance.windowWidth, 520) : appearance.windowWidth;
+  const publicEmbedHeight = isPublicEmbed ? Math.max(appearance.windowHeight, 760) : appearance.windowHeight;
   const shellStyle = useMemo(
     () => {
       const darkTheme = appearance.themeStyle === "dark";
@@ -1390,9 +1390,8 @@ export function ChatWidget({
 
             <div className="chat-header-actions">
               {callCta ? (
-                <a href={callCta.tel} className="header-call-btn">
+                <a href={callCta.tel} className="header-call-btn" aria-label={callCta.label} title={callCta.label}>
                   <IconPhone />
-                  <span>{isCompactLayout ? "Call" : callCta.label}</span>
                 </a>
               ) : null}
               {isCompactLayout ? (

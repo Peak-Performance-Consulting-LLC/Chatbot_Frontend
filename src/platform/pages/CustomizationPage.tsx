@@ -153,13 +153,10 @@ function LivePreview({
     </div>
   );
 
-  // Round circle launcher with red badge (notification view)
-  const launcherRound = (
+  const launcherNotif = (
     <div style={{ position: "relative", display: "inline-flex" }}>
-      <div className="cust-launcher-round" style={{ background: primaryColor }}>
-        <span style={{ display: "flex", alignItems: "center", color: "#fff" }}>{iconNode}</span>
-      </div>
-      {notifEnabled && <div className="cust-launcher-badge">1</div>}
+      {launcherBtn(1)}
+      {notifEnabled ? <div className="cust-launcher-badge">1</div> : null}
     </div>
   );
 
@@ -232,20 +229,24 @@ function LivePreview({
           <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: widgetPosition === "left" ? "flex-start" : "flex-end", gap: 10, zIndex: 2 }}>
             {notifEnabled ? (
               <>
-                <div style={{ background: "#fff", borderRadius: 16, padding: "14px 18px", boxShadow: "0 8px 32px rgba(0,0,0,0.2)", fontSize: "0.88rem", color: "#0a0a0f", lineHeight: 1.5, position: "relative", maxWidth: 260, fontFamily, animation: "notif-card-in 0.35s cubic-bezier(0.16,1,0.3,1)" }}>
-                  <div style={{ position: "absolute", top: -9, right: -9, width: 24, height: 24, borderRadius: "50%", background: "#e8e8e8", border: "2px solid #1a2332", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(10,10,15,0.55)", fontSize: "0.6rem", boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>✕</div>
-                  <span style={{ marginRight: 6 }}>👋</span>{notifText || "Hi! How can we help?"}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: widgetPosition === "left" ? "flex-start" : "flex-end", gap: 8 }}>
-                  {(notifChips.length > 0 ? notifChips : ["I have a question", "Tell me more"]).map((chip, i) => (
-                    <div key={i} style={{ padding: "9px 18px", borderRadius: 999, background: "#fff", border: "1.5px solid rgba(255,255,255,0.2)", fontSize: "0.82rem", color: "#1a2332", fontWeight: 500, boxShadow: "0 2px 10px rgba(0,0,0,0.14)", whiteSpace: "nowrap", fontFamily }}>{chip}</div>
-                  ))}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: widgetPosition === "left" ? "flex-start" : "flex-end", gap: 8, maxWidth: 360 }}>
+                  <div style={{ background: "#fff", borderRadius: 18, padding: "13px 16px", boxShadow: "0 8px 24px rgba(0,0,0,0.18)", fontSize: "0.86rem", color: "#0a0a0f", lineHeight: 1.45, maxWidth: 220, fontFamily, animation: "notif-card-in 0.35s cubic-bezier(0.16,1,0.3,1)" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                      <span>👋</span>
+                      <span>{notifText || "Hi! How can we help?"}</span>
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: widgetPosition === "left" ? "flex-start" : "flex-end", maxWidth: 320 }}>
+                    {(notifChips.length > 0 ? notifChips : ["I have a question", "Tell me more"]).slice(0, 3).map((chip, i) => (
+                      <div key={i} style={{ padding: "9px 15px", borderRadius: 999, background: "#fff", border: "1px solid rgba(10,10,15,0.1)", fontSize: "0.8rem", color: "#1a2332", fontWeight: 500, whiteSpace: "nowrap", fontFamily, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>{chip}</div>
+                    ))}
+                  </div>
                 </div>
               </>
             ) : (
               <div style={{ color: "rgba(255,255,255,0.35)", fontSize: "0.78rem", paddingBottom: 14 }}>Notification bubble is disabled</div>
             )}
-            {launcherRound}
+            {launcherNotif}
           </div>
         </div>
       )}
