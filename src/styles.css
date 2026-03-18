@@ -474,7 +474,7 @@ body.chat-widget-embedded {
 .chat-shell.compact .thread-sidebar {
   position: absolute;
   inset: 8px auto 8px 8px;
-  width: min(296px, calc(100% - 16px));
+  width: min(280px, calc(100% - 16px));
   max-width: 100%;
   background: linear-gradient(180deg, rgba(255,255,255,0.99), rgba(247,249,249,0.98));
   border: 1px solid rgba(10,10,15,0.08);
@@ -527,22 +527,31 @@ body.chat-widget-embedded {
   display: flex;
   flex-direction: column;
   list-style: none;
-  padding: 12px;
+  padding: 10px;
   margin: 0;
-  gap: 10px;
+  gap: 8px;
 }
 
 .thread-sidebar li {
   overflow: hidden;
 }
 
+.thread-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+}
+
 .thread-main-btn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 3px;
-  padding: 12px 12px 8px;
+  gap: 2px;
+  padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -552,32 +561,37 @@ body.chat-widget-embedded {
 
 .thread-main-btn span {
   display: block;
-  line-height: 1.3;
+  line-height: 1.2;
 }
 
 .thread-main-btn small {
   display: block;
   font-size: 10px;
+  line-height: 1.2;
 }
 
 .thread-row-actions {
   display: flex;
+  align-items: center;
   gap: 6px;
-  padding: 0 12px 10px;
+  padding: 0;
+  flex: 0 0 auto;
 }
 
 .thread-row-actions button,
 .thread-delete-confirm button {
-  flex: 1;
+  flex: 0 0 auto;
   border: 1px solid rgba(10,10,15,0.08);
   background: rgba(255,255,255,0.96);
   color: rgba(10,10,15,0.72);
-  padding: 7px 10px;
-  font-size: 11px;
+  padding: 6px 10px;
+  min-width: 56px;
+  min-height: 28px;
+  font-size: 10.5px;
   font-weight: 700;
   cursor: pointer;
   transition: var(--transition);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85);
+  box-shadow: none;
 }
 
 .thread-row-actions button:hover,
@@ -597,7 +611,8 @@ body.chat-widget-embedded {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 12px 10px;
+  padding: 0;
+  flex: 0 0 auto;
   font-size: 11px;
   color: var(--muted);
 }
@@ -605,6 +620,7 @@ body.chat-widget-embedded {
 .thread-delete-confirm span {
   flex: 0 0 auto;
   font-weight: 700;
+  font-size: 10.5px;
 }
 
 .thread-delete-confirm .confirm-no {
@@ -612,16 +628,19 @@ body.chat-widget-embedded {
 }
 
 .thread-rename-input {
-  width: calc(100% - 20px);
-  margin: 10px;
-  padding: 9px 11px;
-  border-radius: 10px;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  margin: 0;
+  padding: 7px 10px;
+  min-height: 34px;
+  border-radius: 9px;
   border: 1px solid rgba(26,92,92,0.2);
   background: #fff;
   color: var(--ink);
   font: inherit;
   outline: none;
-  box-shadow: 0 0 0 2px rgba(26,92,92,0.06);
+  box-shadow: 0 0 0 2px rgba(26,92,92,0.05);
 }
 
 .thread-hint,
@@ -702,16 +721,16 @@ body.chat-widget-embedded {
 }
 
 .chat-shell-platform:not(.compact) .thread-sidebar ul {
-  padding: 16px;
-  gap: 12px;
+  padding: 14px;
+  gap: 10px;
 }
 
-.chat-shell-platform:not(.compact) .thread-main-btn {
-  padding: 16px 16px 12px;
+.chat-shell-platform:not(.compact) .thread-item-row {
+  padding: 10px 12px;
 }
 
 .chat-shell-platform:not(.compact) .thread-row-actions {
-  padding: 0 16px 14px;
+  gap: 6px;
 }
 
 .chat-shell-platform:not(.compact) .messages {

@@ -838,39 +838,41 @@ function ThreadItem({
 
   return (
     <li className={isActive ? "active" : ""}>
-      {renaming ? (
-        <input
-          ref={renameInputRef}
-          className="thread-rename-input"
-          value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onBlur={submitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") submitRename();
-            if (e.key === "Escape") setRenaming(false);
-          }}
-        />
-      ) : (
-        <button type="button" className="thread-main-btn" onClick={onOpen}>
-          <span>{thread.title}</span>
-          <small>{formatThreadTime(thread.last_message_at)}</small>
-        </button>
-      )}
+      <div className="thread-item-row">
+        {renaming ? (
+          <input
+            ref={renameInputRef}
+            className="thread-rename-input"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={submitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitRename();
+              if (e.key === "Escape") setRenaming(false);
+            }}
+          />
+        ) : (
+          <button type="button" className="thread-main-btn" onClick={onOpen}>
+            <span>{thread.title}</span>
+            <small>{formatThreadTime(thread.last_message_at)}</small>
+          </button>
+        )}
 
-      {!renaming && !confirmDelete && (
-        <div className="thread-row-actions">
-          <button type="button" onClick={startRename}>Rename</button>
-          <button type="button" className="danger" onClick={() => setConfirmDelete(true)}>Delete</button>
-        </div>
-      )}
+        {!renaming && !confirmDelete ? (
+          <div className="thread-row-actions">
+            <button type="button" onClick={startRename}>Rename</button>
+            <button type="button" className="danger" onClick={() => setConfirmDelete(true)}>Delete</button>
+          </div>
+        ) : null}
 
-      {confirmDelete && (
-        <div className="thread-delete-confirm">
-          <span>Delete?</span>
-          <button type="button" className="confirm-yes" onClick={() => { setConfirmDelete(false); onDelete(); }}>Yes</button>
-          <button type="button" className="confirm-no" onClick={() => setConfirmDelete(false)}>No</button>
-        </div>
-      )}
+        {confirmDelete ? (
+          <div className="thread-delete-confirm">
+            <span>Delete?</span>
+            <button type="button" className="confirm-yes" onClick={() => { setConfirmDelete(false); onDelete(); }}>Yes</button>
+            <button type="button" className="confirm-no" onClick={() => setConfirmDelete(false)}>No</button>
+          </div>
+        ) : null}
+      </div>
     </li>
   );
 }
