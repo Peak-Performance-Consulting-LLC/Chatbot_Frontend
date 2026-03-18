@@ -287,14 +287,14 @@ export default function CustomizationPage() {
   const [widgetPosition, setWidgetPosition] = useState<WidgetPosition>(profile?.widget_position || "right");
   const [launcherStyle, setLauncherStyle] = useState<LauncherStyle>(profile?.launcher_style || "rounded");
   const [windowWidth, setWindowWidth] = useState(profile?.window_width || 380);
-  const [windowHeight, setWindowHeight] = useState(profile?.window_height || 640);
+  const [windowHeight, setWindowHeight] = useState(profile?.window_height || 760);
   const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>(profile?.launcher_icon || "chat");
 
   // Content
   const [botName, setBotName] = useState(profile?.bot_name || "AeroConcierge");
   const [botAvatarUrl, setBotAvatarUrl] = useState(profile?.bot_avatar_url || "");
   const [welcomeMessage, setWelcomeMessage] = useState(profile?.welcome_message || "Welcome. How can I help today?");
-  const [headerCtaLabel, setHeaderCtaLabel] = useState(profile?.header_cta_label || "New");
+  const [headerCtaLabel, setHeaderCtaLabel] = useState(profile?.header_cta_label || "");
   const [headerCtaNotice, setHeaderCtaNotice] = useState(profile?.header_cta_notice || "Hi! I am your AI assistant.");
   const [supportPhone, setSupportPhone] = useState(profile?.support_phone || "");
   const [supportEmail, setSupportEmail] = useState(profile?.support_email || "");
@@ -332,11 +332,11 @@ export default function CustomizationPage() {
     setLauncherStyle(profile.launcher_style || "rounded");
     setLauncherIcon(profile.launcher_icon || "chat");
     setWindowWidth(profile.window_width || 380);
-    setWindowHeight(profile.window_height || 640);
+    setWindowHeight(profile.window_height || 760);
     setBotName(profile.bot_name || "AeroConcierge");
     setBotAvatarUrl(profile.bot_avatar_url || "");
     setWelcomeMessage(profile.welcome_message || "Welcome. How can I help today?");
-    setHeaderCtaLabel(profile.header_cta_label || "New");
+    setHeaderCtaLabel(profile.header_cta_label || "");
     setHeaderCtaNotice(profile.header_cta_notice || "Hi! I am your AI assistant.");
     setSupportPhone(profile.support_phone || "");
     setSupportEmail(profile.support_email || "");
@@ -392,7 +392,7 @@ export default function CustomizationPage() {
         bot_name: botName.trim() || "Assistant",
         bot_avatar_url: botAvatarUrl || undefined,
         welcome_message: welcomeMessage.trim() || "Hello! How can I help you?",
-        header_cta_label: headerCtaLabel.trim() || "New",
+        header_cta_label: headerCtaLabel.trim() || undefined,
         header_cta_notice: headerCtaNotice.trim() || "Hi! I am your AI assistant.",
         support_phone: supportPhone.trim() || undefined,
         support_email: supportEmail.trim() || undefined,
@@ -593,7 +593,7 @@ export default function CustomizationPage() {
                   <input className="cust-input" value={botName} onChange={e => setBotName(e.target.value)} maxLength={60} placeholder="My Assistant" />
                 </label>
                 <label className="cust-label">Header badge text
-                  <input className="cust-input" value={headerCtaLabel} onChange={e => setHeaderCtaLabel(e.target.value)} maxLength={30} placeholder="New" />
+                  <input className="cust-input" value={headerCtaLabel} onChange={e => setHeaderCtaLabel(e.target.value)} maxLength={30} placeholder="Optional badge" />
                 </label>
                 <label className="cust-label full">Avatar URL
                   <input className="cust-input" value={botAvatarUrl} onChange={e => setBotAvatarUrl(e.target.value)} placeholder="https://example.com/avatar.png" />

@@ -71,7 +71,7 @@ const defaultAppearance: ChatWidgetAppearance = {
   bgPattern: "none",
   launcherIcon: "chat",
   windowWidth: 440,
-  windowHeight: 700,
+  windowHeight: 760,
   borderRadius: 18,
   botName: "AeroConcierge",
   welcomeMessage: "Welcome. How can I help today?",
@@ -84,7 +84,7 @@ const defaultAppearance: ChatWidgetAppearance = {
 };
 
 const defaultHeaderCtaConfig: HeaderCtaConfig = {
-  label: "New",
+  label: "",
   notice: "Hi! I am your AI assistant. Ask me anything about your trip."
 };
 const poweredByBrand = "PPConsultings";
@@ -150,8 +150,9 @@ function normalizeAppearance(
 }
 
 function normalizeHeaderCtaConfig(input?: Partial<HeaderCtaConfig> | null): HeaderCtaConfig {
+  const rawLabel = input?.label?.trim();
   return {
-    label: input?.label?.trim() || defaultHeaderCtaConfig.label,
+    label: rawLabel && rawLabel.toLowerCase() !== "new" ? rawLabel : defaultHeaderCtaConfig.label,
     notice: input?.notice?.trim() || defaultHeaderCtaConfig.notice
   };
 }
@@ -856,7 +857,7 @@ export function ChatWidget({
     [appearanceOverride, layoutVariant, runtimeAppearance, widgetQueryConfig]
   );
   const publicEmbedWidth = isPublicEmbed ? Math.max(appearance.windowWidth, 520) : appearance.windowWidth;
-  const publicEmbedHeight = isPublicEmbed ? Math.max(appearance.windowHeight, 760) : appearance.windowHeight;
+  const publicEmbedHeight = isPublicEmbed ? Math.max(appearance.windowHeight, 820) : appearance.windowHeight;
   const shellStyle = useMemo(
     () => {
       const darkTheme = appearance.themeStyle === "dark";
@@ -1327,7 +1328,7 @@ export function ChatWidget({
                 className={`chat-peek-card chat-peek-card-${appearance.notifAnimation}`}
                 onClick={() => openPublicEmbedChat()}
               >
-                <span className="chat-peek-pill">{headerCtaConfig.label}</span>
+                {headerCtaConfig.label ? <span className="chat-peek-pill">{headerCtaConfig.label}</span> : null}
                 <p>{appearance.notifText || headerCtaConfig.notice}</p>
               </button>
 

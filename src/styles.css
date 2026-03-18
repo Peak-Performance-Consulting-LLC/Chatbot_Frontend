@@ -1064,15 +1064,14 @@ body.chat-widget-embedded {
 .inline-quick-replies,
 .quick-replies {
   padding: 0 18px 18px;
-  gap: 10px;
+  gap: 8px;
 }
 
 .inline-quick-replies button,
 .quick-replies button,
-.chip-row button,
-.chat-peek-chip {
-  padding: 10px 14px;
-  font-size: 12px;
+.chip-row button {
+  padding: 8px 12px;
+  font-size: 11px;
   color: var(--ink);
   cursor: pointer;
   transition: var(--transition);
