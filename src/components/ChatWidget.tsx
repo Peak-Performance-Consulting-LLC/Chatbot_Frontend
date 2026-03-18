@@ -855,6 +855,8 @@ export function ChatWidget({
     () => normalizeAppearance({ ...widgetQueryConfig.appearance, ...runtimeAppearance, ...appearanceOverride }, layoutVariant),
     [appearanceOverride, layoutVariant, runtimeAppearance, widgetQueryConfig]
   );
+  const publicEmbedWidth = isPublicEmbed ? Math.max(appearance.windowWidth, 448) : appearance.windowWidth;
+  const publicEmbedHeight = isPublicEmbed ? Math.max(appearance.windowHeight, 720) : appearance.windowHeight;
   const shellStyle = useMemo(
     () => {
       const darkTheme = appearance.themeStyle === "dark";
@@ -911,13 +913,13 @@ export function ChatWidget({
           darkTheme ? "rgba(255,255,255,0.08)" : glassTheme ? "rgba(255,255,255,0.28)" : "rgba(10,10,15,0.08)",
         "--ink": darkTheme ? "#f3f6fb" : "#0a0a0f",
         "--muted": darkTheme ? "rgba(237,242,247,0.72)" : "rgba(10,10,15,0.6)",
-        "--widget-width": `${appearance.windowWidth}px`,
-        "--widget-height": `${appearance.windowHeight}px`,
+        "--widget-width": `${publicEmbedWidth}px`,
+        "--widget-height": `${publicEmbedHeight}px`,
         "--widget-radius": `${appearance.borderRadius}px`,
         fontFamily: appearance.fontFamily
       } as CSSProperties;
     },
-    [appearance]
+    [appearance, publicEmbedHeight, publicEmbedWidth]
   );
 
   const latestAssistantMeta = useMemo(() => {
@@ -933,7 +935,7 @@ export function ChatWidget({
   const flightUi = latestAssistantMeta?.flight_ui ?? null;
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
-  const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, appearance.windowWidth);
+  const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, publicEmbedWidth);
   const isCompactLayout = effectiveShellWidth < 720;
   const isPristinePublicEmbed =
     isPublicEmbed &&
@@ -1086,26 +1088,44 @@ export function ChatWidget({
 
   useEffect(() => {
     if (!isPublicEmbed || window.parent === window) return;
-    window.parent.postMessage({
+    const payload = {
       type: "aeroconcierge:widget-layout",
       layout: {
         widgetPosition: appearance.widgetPosition,
-        windowWidth: appearance.windowWidth,
-        windowHeight: appearance.windowHeight,
+        launcherStyle: appearance.launcherStyle,
+        botName: appearance.botName,
+        windowWidth: publicEmbedWidth,
+        windowHeight: publicEmbedHeight,
         borderRadius: appearance.borderRadius
       }
-    }, "*");
+    };
+    window.parent.postMessage(payload, "*");
+    const retryOne = window.setTimeout(() => window.parent.postMessage(payload, "*"), 160);
+    const retryTwo = window.setTimeout(() => window.parent.postMessage(payload, "*"), 640);
+    return () => {
+      window.clearTimeout(retryOne);
+      window.clearTimeout(retryTwo);
+    };
   }, [
     appearance.borderRadius,
+    appearance.botName,
+    appearance.launcherStyle,
     appearance.widgetPosition,
-    appearance.windowHeight,
-    appearance.windowWidth,
-    isPublicEmbed
+    isPublicEmbed,
+    publicEmbedHeight,
+    publicEmbedWidth
   ]);
 
   useEffect(() => {
     if (!isPublicEmbed || window.parent === window) return;
-    window.parent.postMessage({ type: "aeroconcierge:widget-state", open: isOpen, mode: publicEmbedMode }, "*");
+    const payload = { type: "aeroconcierge:widget-state", open: isOpen, mode: publicEmbedMode };
+    window.parent.postMessage(payload, "*");
+    const retryOne = window.setTimeout(() => window.parent.postMessage(payload, "*"), 180);
+    const retryTwo = window.setTimeout(() => window.parent.postMessage(payload, "*"), 720);
+    return () => {
+      window.clearTimeout(retryOne);
+      window.clearTimeout(retryTwo);
+    };
   }, [isPublicEmbed, isOpen, publicEmbedMode]);
 
   useEffect(() => {
@@ -1328,12 +1348,15 @@ export function ChatWidget({
 
           <button
             type="button"
-            className="chat-peek-launcher"
+            className={`chat-peek-launcher chat-peek-launcher-${appearance.launcherStyle}`}
             onClick={() => openPublicEmbedChat()}
             aria-label={`Open ${appearance.botName}`}
           >
             {appearance.notifEnabled ? <span className="chat-peek-launcher-badge">1</span> : null}
-            <LauncherIconGlyph icon={appearance.launcherIcon} />
+            <span className="chat-peek-launcher-icon">
+              <LauncherIconGlyph icon={appearance.launcherIcon} />
+            </span>
+            <span className="chat-peek-launcher-label">{appearance.botName}</span>
           </button>
         </div>
       ) : null}
@@ -1369,7 +1392,7 @@ export function ChatWidget({
               {callCta ? (
                 <a href={callCta.tel} className="header-call-btn">
                   <IconPhone />
-                  <span>{callCta.label}</span>
+                  <span>{isCompactLayout ? "Call" : callCta.label}</span>
                 </a>
               ) : null}
               {isCompactLayout ? (
