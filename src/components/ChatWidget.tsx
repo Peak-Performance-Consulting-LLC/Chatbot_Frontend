@@ -59,8 +59,8 @@ const defaultAppearance: ChatWidgetAppearance = {
   fontFamily: "Manrope",
   widgetPosition: "right",
   launcherStyle: "rounded",
-  windowWidth: 380,
-  windowHeight: 640,
+  windowWidth: 440,
+  windowHeight: 700,
   borderRadius: 18,
   botName: "AeroConcierge",
   welcomeMessage: "Welcome. How can I help today?",
@@ -79,7 +79,7 @@ function normalizeAppearance(
 ): ChatWidgetAppearance {
   const limits = layoutVariant === "platform"
     ? { minWidth: 760, maxWidth: 1120, minHeight: 620, maxHeight: 860 }
-    : { minWidth: 320, maxWidth: 520, minHeight: 520, maxHeight: 860 };
+    : { minWidth: 360, maxWidth: 560, minHeight: 560, maxHeight: 860 };
 
   return {
     primaryColor: input?.primaryColor?.trim() || defaultAppearance.primaryColor,

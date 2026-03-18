@@ -265,7 +265,9 @@ export default function CustomizationPage() {
   const [success, setSuccess] = useState("");
   const [newChip, setNewChip] = useState("");
   const chipInputRef = useRef<HTMLInputElement>(null);
-  const initializedRef = useRef(false); // tracks whether we already synced from saved profile
+  // Track which tenant_id we last synced profile from, to avoid overwriting active edits
+  // but always re-sync when the tenant changes (e.g., workspace switch or first load)
+  const lastSyncedTenantIdRef = useRef<string | null>(null);
 
   // Core appearance
   const [primaryColor, setPrimaryColor] = useState(profile?.primary_color || "#006d77");
@@ -307,11 +309,13 @@ export default function CustomizationPage() {
   const [notifChips, setNotifChips] = useState<string[]>(["I have a question", "Tell me more"]);
 
 
-  // Sync form state from saved profile, but only ONCE per mount.
-  // This ensures saved values load correctly while user edits are never overwritten.
+  // Sync form state from saved profile whenever the tenant changes.
+  // Using tenant_id as the sync key — re-syncs on workspace switch or first load,
+  // but never overwrites the user's active edits within the same workspace session.
   useEffect(() => {
-    if (!profile || initializedRef.current) return;
-    initializedRef.current = true;
+    if (!profile || !selectedTenant?.tenant_id) return;
+    if (lastSyncedTenantIdRef.current === selectedTenant.tenant_id) return;
+    lastSyncedTenantIdRef.current = selectedTenant.tenant_id;
     setPrimaryColor(profile.primary_color || "#006d77");
     setUserBubbleColor(profile.user_bubble_color || "#006d77");
     setBotBubbleColor(profile.bot_bubble_color || "#edf6f9");
@@ -332,12 +336,8 @@ export default function CustomizationPage() {
     setBusinessType(profile.business_type || "general_travel");
     setSupportedServices(profile.supported_services || ["flights"]);
     setBusinessDesc(profile.business_description || "");
-  }, [profile]);
+  }, [profile, selectedTenant?.tenant_id]);
 
-  // Reset on workspace switch
-  useEffect(() => {
-    initializedRef.current = false;
-  }, [selectedTenant?.tenant_id]);
 
 
   function applyTemplate(t: Template) {
