@@ -1741,6 +1741,19 @@ body.chat-widget-embedded {
   border-bottom-color: var(--widget-line, rgba(10,10,15,0.07));
 }
 
+.chat-header .chat-brand-info strong {
+  color: var(--widget-header-ink, var(--ink));
+}
+
+.chat-header .chat-brand-info p {
+  color: var(--widget-header-muted, var(--muted));
+}
+
+.chat-header .chat-avatar-fallback {
+  background: var(--widget-header-avatar-bg, var(--brand, #1a5c5c));
+  color: var(--widget-header-avatar-color, #ffffff);
+}
+
 .chat-brand-info strong {
   display: inline-flex;
   align-items: center;
@@ -1752,13 +1765,24 @@ body.chat-widget-embedded {
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--brand, #1a5c5c) 12%, transparent);
-  color: var(--brand, #1a5c5c);
+  background: var(--widget-header-badge-bg, color-mix(in srgb, var(--brand, #1a5c5c) 12%, transparent));
+  color: var(--widget-header-badge-color, var(--brand, #1a5c5c));
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.chat-header .thread-toggle {
+  border-color: var(--widget-header-action-border, rgba(10,10,15,0.09));
+  background: var(--widget-header-action-bg, rgba(10,10,15,0.04));
+  color: var(--widget-header-action-color, var(--ink));
+}
+
+.chat-header .thread-toggle:hover {
+  background: var(--widget-header-action-hover-bg, rgba(10,10,15,0.07));
+  border-color: var(--widget-header-action-hover-border, rgba(26,92,92,0.25));
 }
 
 .thread-sidebar {

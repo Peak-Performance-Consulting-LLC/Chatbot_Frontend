@@ -10,6 +10,7 @@ import type {
   ThemeStyle,
   WidgetPosition
 } from "@/platform/types";
+import { getWidgetSurfaceTokens } from "@/lib/widgetTheme";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -101,12 +102,21 @@ function LivePreview({
 }) {
   const [mode, setMode] = useState<"desktop" | "mobile" | "notification">("desktop");
   const launcherBR = launcherStyle === "square" ? "12px" : launcherStyle === "minimal" ? "10px" : launcherStyle === "pill" ? "18px" : "999px";
+  const surfaceTokens = useMemo(
+    () =>
+      getWidgetSurfaceTokens({
+        primaryColor,
+        botBubbleColor,
+        themeStyle
+      }),
+    [botBubbleColor, primaryColor, themeStyle]
+  );
 
-  const bodyBg = themeStyle === "dark" ? "#0d0d1a" : themeStyle === "glass" ? "rgba(255,255,255,0.08)" : "#f8fafa";
-  const botBubbleBg = themeStyle === "dark" ? "#1e2040" : themeStyle === "glass" ? "rgba(255,255,255,0.22)" : botBubbleColor;
-  const botBubbleBorder = themeStyle === "glass" ? "1px solid rgba(255,255,255,0.3)" : themeStyle === "minimal" ? "1px solid #e5e5e5" : "1px solid rgba(0,0,0,0.07)";
-  const botTextColor = themeStyle === "dark" ? "rgba(255,255,255,0.85)" : "#0a0a0f";
-  const clShadow = themeStyle === "clay" ? "3px 3px 0 rgba(0,0,0,0.08), 1px 1px 0 rgba(0,0,0,0.04)" : undefined;
+  const bodyBg = surfaceTokens.panelBg;
+  const botBubbleBg = botBubbleColor;
+  const botBubbleBorder = surfaceTokens.assistantBubbleBorder;
+  const botTextColor = surfaceTokens.ink;
+  const clShadow = surfaceTokens.assistantBubbleShadow;
   const patternClass = bgPattern !== "none" ? `cust-bg-${bgPattern}` : "";
   const iconNode = LAUNCHER_ICONS.find(i => i.id === launcherIcon)?.icon ?? <MessageCircle size={16} strokeWidth={1.8} />;
 
@@ -133,8 +143,8 @@ function LivePreview({
             {[0, 150, 300].map(d => <span key={d} style={{ width: 4 * scale, height: 4 * scale, borderRadius: "50%", background: "rgba(10,10,15,0.28)", display: "inline-block", animation: `dot-bounce 1.2s ${d}ms infinite ease-in-out` }} />)}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 5 * scale, padding: `${5 * scale}px ${7 * scale}px`, borderTop: "1px solid rgba(0,0,0,0.07)", background: themeStyle === "dark" ? "#0a0a14" : "#fff" }}>
-          <span style={{ flex: 1, fontSize: `${0.58 * scale}rem`, color: "rgba(10,10,15,0.3)" }}>Type a message…</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 * scale, padding: `${5 * scale}px ${7 * scale}px`, borderTop: `1px solid ${surfaceTokens.line}`, background: surfaceTokens.composerBg }}>
+          <span style={{ flex: 1, fontSize: `${0.58 * scale}rem`, color: surfaceTokens.muted }}>Type a message…</span>
           <div style={{ width: 20 * scale, height: 20 * scale, display: "flex", alignItems: "center", justifyContent: "center", background: primaryColor, borderRadius: Math.min(borderRadius / 2, 10) * scale, flexShrink: 0, color: "#fff" }}>
             <svg width={12 * scale} height={12 * scale} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>
           </div>
@@ -187,10 +197,13 @@ function LivePreview({
           <div className="cust-browser-viewport" style={{ fontFamily }}>
             <div className="cust-page-bg"><div className="cust-page-lines">{[80, 60, 72, 50, 65].map((w, i) => <div key={i} className="cust-page-line" style={{ width: `${w}%` }} />)}</div></div>
             <div className={`cust-widget-window ${widgetPosition}`}>
-              <div className="cust-w-header" style={{ background: primaryColor }}>
+              <div className="cust-w-header" style={{ background: surfaceTokens.headerBg, color: surfaceTokens.headerInk }}>
                 <div className="cust-w-avatar">{avatar}</div>
-                <div><div className="cust-w-name">{botName}</div><div className="cust-w-status"><span className="cust-w-dot" />Online</div></div>
-                {headerCtaLabel && <span className="cust-w-badge">{headerCtaLabel}</span>}
+                <div>
+                  <div className="cust-w-name" style={{ color: surfaceTokens.headerInk }}>{botName}</div>
+                  <div className="cust-w-status" style={{ color: surfaceTokens.headerMuted }}><span className="cust-w-dot" />Online</div>
+                </div>
+                {headerCtaLabel && <span className="cust-w-badge" style={{ background: surfaceTokens.headerBadgeBg, color: surfaceTokens.headerBadgeColor }}>{headerCtaLabel}</span>}
               </div>
               {chatBody(1)}
             </div>
@@ -208,9 +221,12 @@ function LivePreview({
             <div className="cust-phone-screen" style={{ fontFamily }}>
               <div className="cust-phone-status"><span>9:41</span><span>●●●</span></div>
               <div className="cust-mobile-chat">
-                <div className="cust-m-header" style={{ background: primaryColor }}>
+                <div className="cust-m-header" style={{ background: surfaceTokens.headerBg, color: surfaceTokens.headerInk }}>
                   <div className="cust-m-avatar">{avatar}</div>
-                  <div><div className="cust-m-name">{botName}</div><div className="cust-m-status"><span className="cust-w-dot" style={{ width: 5, height: 5 }} />Online</div></div>
+                  <div>
+                    <div className="cust-m-name" style={{ color: surfaceTokens.headerInk }}>{botName}</div>
+                    <div className="cust-m-status" style={{ color: surfaceTokens.headerMuted }}><span className="cust-w-dot" style={{ width: 5, height: 5 }} />Online</div>
+                  </div>
                 </div>
                 {chatBody(0.9)}
               </div>

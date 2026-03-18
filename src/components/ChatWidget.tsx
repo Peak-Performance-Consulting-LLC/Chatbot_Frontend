@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { getOrCreateDeviceId } from "@/lib/device";
 import { resolveTenantId } from "@/lib/tenant";
+import { getWidgetSurfaceTokens } from "@/lib/widgetTheme";
 import type { ChatMessage, ChatThread, MessageMetadata } from "@/types";
 
 type ChatWidgetProps = {
@@ -939,69 +940,55 @@ export function ChatWidget({
   );
   const publicEmbedWidth = isPublicEmbed ? Math.max(appearance.windowWidth, 520) : appearance.windowWidth;
   const publicEmbedHeight = isPublicEmbed ? Math.max(appearance.windowHeight, 820) : appearance.windowHeight;
+  const surfaceTokens = useMemo(
+    () =>
+      getWidgetSurfaceTokens({
+        primaryColor: appearance.primaryColor,
+        botBubbleColor: appearance.botBubbleColor,
+        themeStyle: appearance.themeStyle
+      }),
+    [appearance.botBubbleColor, appearance.primaryColor, appearance.themeStyle]
+  );
   const shellStyle = useMemo(
     () => {
-      const darkTheme = appearance.themeStyle === "dark";
-      const glassTheme = appearance.themeStyle === "glass";
-      const clayTheme = appearance.themeStyle === "clay";
-      const minimalTheme = appearance.themeStyle === "minimal";
-
       return {
         "--brand": appearance.primaryColor,
         "--brand-strong": darkenHex(appearance.primaryColor),
         "--user-bubble": appearance.userBubbleColor,
         "--assistant-bubble": appearance.botBubbleColor,
-        "--assistant-bubble-border":
-          glassTheme
-            ? "1px solid rgba(255,255,255,0.34)"
-            : minimalTheme
-              ? "1px solid rgba(10,10,15,0.08)"
-              : darkTheme
-                ? "1px solid rgba(255,255,255,0.08)"
-                : "1px solid rgba(10,10,15,0.08)",
-        "--assistant-bubble-shadow":
-          clayTheme
-            ? "3px 3px 0 rgba(10,10,15,0.08), 0 8px 18px rgba(10,10,15,0.08)"
-            : "0 2px 8px rgba(10,10,15,0.06)",
-        "--widget-shell-bg":
-          darkTheme
-            ? "linear-gradient(180deg, rgba(12,18,30,0.98), rgba(8,10,22,0.995))"
-            : glassTheme
-              ? "linear-gradient(180deg, rgba(255,255,255,0.58), rgba(238,244,255,0.44))"
-              : clayTheme
-                ? "linear-gradient(180deg, #fff6ef, #f7efe4)"
-                : minimalTheme
-                  ? "#ffffff"
-                  : "linear-gradient(180deg, rgba(255,255,255,0.99), rgba(248,250,251,0.985))",
-        "--widget-panel-bg":
-          darkTheme ? "#0b1220" : glassTheme ? "rgba(255,255,255,0.26)" : clayTheme ? "#f7efe4" : minimalTheme ? "#fafafa" : "#f8fafa",
-        "--widget-thread-bg":
-          darkTheme ? "#111827" : glassTheme ? "rgba(255,255,255,0.2)" : clayTheme ? "#f4eadf" : minimalTheme ? "#ffffff" : "#f8fafa",
-        "--widget-header-bg":
-          darkTheme ? "rgba(10,16,28,0.92)" : glassTheme ? "rgba(255,255,255,0.34)" : clayTheme ? "rgba(255,247,239,0.92)" : minimalTheme ? "rgba(255,255,255,0.98)" : "rgba(255,255,255,0.97)",
-        "--widget-composer-bg":
-          darkTheme ? "rgba(10,16,28,0.98)" : glassTheme ? "rgba(255,255,255,0.28)" : "#ffffff",
-        "--widget-input-bg":
-          darkTheme ? "rgba(255,255,255,0.06)" : glassTheme ? "rgba(255,255,255,0.55)" : minimalTheme ? "#ffffff" : "#f8fafa",
-        "--widget-peek-bg":
-          darkTheme ? "rgba(12,18,30,0.96)" : glassTheme ? "rgba(255,255,255,0.68)" : "#ffffff",
-        "--widget-peek-border":
-          darkTheme ? "rgba(255,255,255,0.1)" : glassTheme ? "rgba(255,255,255,0.28)" : "rgba(26,92,92,0.12)",
-        "--widget-peek-pill-bg":
-          darkTheme ? "rgba(255,255,255,0.08)" : "rgba(26,92,92,0.1)",
-        "--widget-peek-pill-color":
-          darkTheme ? "rgba(255,255,255,0.88)" : appearance.primaryColor,
-        "--widget-line":
-          darkTheme ? "rgba(255,255,255,0.08)" : glassTheme ? "rgba(255,255,255,0.28)" : "rgba(10,10,15,0.08)",
-        "--ink": darkTheme ? "#f3f6fb" : "#0a0a0f",
-        "--muted": darkTheme ? "rgba(237,242,247,0.72)" : "rgba(10,10,15,0.6)",
+        "--assistant-bubble-border": surfaceTokens.assistantBubbleBorder,
+        "--assistant-bubble-shadow": surfaceTokens.assistantBubbleShadow,
+        "--widget-shell-bg": surfaceTokens.shellBg,
+        "--widget-panel-bg": surfaceTokens.panelBg,
+        "--widget-thread-bg": surfaceTokens.threadBg,
+        "--widget-header-bg": surfaceTokens.headerBg,
+        "--widget-header-ink": surfaceTokens.headerInk,
+        "--widget-header-muted": surfaceTokens.headerMuted,
+        "--widget-header-badge-bg": surfaceTokens.headerBadgeBg,
+        "--widget-header-badge-color": surfaceTokens.headerBadgeColor,
+        "--widget-header-action-bg": surfaceTokens.headerActionBg,
+        "--widget-header-action-border": surfaceTokens.headerActionBorder,
+        "--widget-header-action-color": surfaceTokens.headerActionColor,
+        "--widget-header-action-hover-bg": surfaceTokens.headerActionHoverBg,
+        "--widget-header-action-hover-border": surfaceTokens.headerActionHoverBorder,
+        "--widget-header-avatar-bg": surfaceTokens.headerAvatarBg,
+        "--widget-header-avatar-color": surfaceTokens.headerAvatarColor,
+        "--widget-composer-bg": surfaceTokens.composerBg,
+        "--widget-input-bg": surfaceTokens.inputBg,
+        "--widget-peek-bg": surfaceTokens.peekBg,
+        "--widget-peek-border": surfaceTokens.peekBorder,
+        "--widget-peek-pill-bg": surfaceTokens.peekPillBg,
+        "--widget-peek-pill-color": surfaceTokens.peekPillColor,
+        "--widget-line": surfaceTokens.line,
+        "--ink": surfaceTokens.ink,
+        "--muted": surfaceTokens.muted,
         "--widget-width": `${publicEmbedWidth}px`,
         "--widget-height": `${publicEmbedHeight}px`,
         "--widget-radius": `${appearance.borderRadius}px`,
         fontFamily: appearance.fontFamily
       } as CSSProperties;
     },
-    [appearance, publicEmbedHeight, publicEmbedWidth]
+    [appearance, publicEmbedHeight, publicEmbedWidth, surfaceTokens]
   );
 
   const latestAssistantMeta = useMemo(() => {
