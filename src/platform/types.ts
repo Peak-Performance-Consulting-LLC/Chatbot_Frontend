@@ -109,6 +109,7 @@ export type PlatformSubscription = {
   status: PlatformSubscriptionStatus;
   max_tenants: number;
   max_messages_mo: number;
+  cancel_at_period_end: boolean;
   trial_ends_at: string | null;
   trial_days_remaining: number | null;
   current_period_start: string;

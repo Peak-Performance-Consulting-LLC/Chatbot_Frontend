@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { platformGetSubscription, platformSubscribe } from "@/lib/platformApi";
+import { useEffect, useMemo, useState } from "react";
+import { platformCreateSubscriptionCheckout, platformGetSubscription } from "@/lib/platformApi";
 import { usePlatformAuth } from "@/platform/state/auth";
+import { useTrialCountdown } from "@/platform/subscription";
 import type { PlatformSubscription, PlatformSubscriptionPlan } from "@/platform/types";
 
 type PlanCard = {
@@ -23,13 +24,13 @@ const PLAN_CARDS: PlanCard[] = [
     tagClassName: "neutral",
     price: "$99",
     priceSuffix: "/ month",
-    description: "For a single brand that needs a polished concierge and predictable monthly usage.",
+    description: "Hosted Stripe Checkout for one travel brand with a clean monthly cap.",
     features: [
       "1 tenant workspace",
       "10,000 messages / month",
       "Flight + knowledge base concierge",
       "Standard email support",
-      "DNS domain verification"
+      "Stripe-hosted recurring billing"
     ]
   },
   {
@@ -39,15 +40,14 @@ const PLAN_CARDS: PlanCard[] = [
     tagClassName: "featured",
     price: "$299",
     priceSuffix: "/ month",
-    description: "For operators managing multiple travel brands with higher message volume.",
+    description: "Recurring billing for multi-brand operators that need more volume and faster support.",
     featured: true,
     features: [
       "5 tenant workspaces",
       "100,000 messages / month",
       "Flights + hotels + cars + cruises",
       "Priority support",
-      "Advanced brand customization",
-      "Analytics dashboard (soon)"
+      "Stripe-hosted recurring billing"
     ]
   },
   {
@@ -56,7 +56,7 @@ const PLAN_CARDS: PlanCard[] = [
     tag: "Enterprise",
     tagClassName: "enterprise",
     price: "Custom",
-    description: "For large deployments that need bespoke onboarding, security, and commercial terms.",
+    description: "Manual sales-assisted onboarding for larger deployments and commercial terms.",
     features: [
       "Unlimited tenant workspaces",
       "SLA + SSO integration",
@@ -81,6 +81,32 @@ function formatPlanName(plan: PlatformSubscriptionPlan) {
   }
 }
 
+function formatStatusLabel(status: PlatformSubscription["status"]) {
+  switch (status) {
+    case "past_due":
+      return "Past due";
+    default:
+      return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+}
+
+function formatDate(input: string | null | undefined) {
+  if (!input) {
+    return "N/A";
+  }
+
+  const value = new Date(input);
+  if (!Number.isFinite(value.getTime())) {
+    return "N/A";
+  }
+
+  return value.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+}
+
 export default function PricingPage() {
   const { token, refresh, profile } = usePlatformAuth();
   const [subscription, setSubscription] = useState<PlatformSubscription | null>(profile?.subscription ?? null);
@@ -88,26 +114,76 @@ export default function PricingPage() {
   const [actionPlan, setActionPlan] = useState<"starter" | "growth" | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [info, setInfo] = useState("");
+  const countdown = useTrialCountdown(subscription?.trial_ends_at);
 
-  useEffect(() => {
+  async function loadSubscription() {
     if (!token) {
       setSubscription(null);
       setIsLoading(false);
-      return;
+      return null;
     }
 
+    const response = await platformGetSubscription(token);
+    setSubscription(response.subscription);
+    return response.subscription;
+  }
+
+  useEffect(() => {
     let isMounted = true;
 
-    async function loadSubscription() {
+    async function run() {
       setIsLoading(true);
       setError("");
 
       try {
-        const response = await platformGetSubscription(token);
+        const latest = await loadSubscription();
         if (!isMounted) {
           return;
         }
-        setSubscription(response.subscription);
+
+        const params = new URLSearchParams(window.location.search);
+        const checkoutState = params.get("checkout");
+        const requestedPlan = params.get("plan");
+
+        if (checkoutState === "cancel") {
+          setInfo(
+            requestedPlan
+              ? `${formatPlanName(requestedPlan as PlatformSubscriptionPlan)} Checkout was canceled. Your current plan was not changed.`
+              : "Checkout was canceled. Your current plan was not changed."
+          );
+        }
+
+        if (
+          checkoutState === "success" &&
+          token &&
+          (requestedPlan === "starter" || requestedPlan === "growth")
+        ) {
+          setInfo(`Waiting for Stripe confirmation for ${formatPlanName(requestedPlan)}...`);
+
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            const polled = attempt === 0 && latest ? latest : await platformGetSubscription(token).then((result) => result.subscription);
+
+            if (!isMounted) {
+              return;
+            }
+
+            setSubscription(polled);
+
+            if (polled.plan === requestedPlan && polled.status === "active") {
+              setInfo("");
+              setSuccess(`${formatPlanName(requestedPlan)} is active. Stripe confirmed your payment.`);
+              await refresh();
+              break;
+            }
+
+            if (attempt < 7) {
+              await new Promise((resolve) => window.setTimeout(resolve, 1500));
+            } else {
+              setInfo("Stripe checkout finished. We are still waiting for the billing webhook to confirm the plan.");
+            }
+          }
+        }
       } catch (err) {
         if (!isMounted) {
           return;
@@ -120,14 +196,14 @@ export default function PricingPage() {
       }
     }
 
-    void loadSubscription();
+    void run();
 
     return () => {
       isMounted = false;
     };
-  }, [token]);
+  }, [token, refresh]);
 
-  async function handleSubscribe(plan: "starter" | "growth") {
+  async function handleCheckout(plan: "starter" | "growth") {
     if (!token) {
       return;
     }
@@ -135,38 +211,53 @@ export default function PricingPage() {
     setActionPlan(plan);
     setError("");
     setSuccess("");
+    setInfo("");
 
     try {
-      const response = await platformSubscribe(token, plan);
-      setSubscription(response.subscription);
-      setSuccess(`${formatPlanName(plan)} is now active on your account.`);
-      await refresh();
+      const response = await platformCreateSubscriptionCheckout(token, plan);
+      window.location.assign(response.checkout_url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update subscription");
-    } finally {
+      setError(err instanceof Error ? err.message : "Failed to start Stripe Checkout");
       setActionPlan(null);
     }
   }
 
   const currentPlan = subscription?.plan ?? null;
   const currentPlanName = currentPlan ? formatPlanName(currentPlan) : "Trial";
+  const billingNote = useMemo(() => {
+    if (!subscription) {
+      return "";
+    }
+
+    if (subscription.plan === "trial") {
+      return countdown.expired
+        ? "Trial expired"
+        : `Trial ends ${formatDate(subscription.trial_ends_at)}`;
+    }
+
+    if (subscription.cancel_at_period_end) {
+      return `Cancels at period end on ${formatDate(subscription.current_period_end)}`;
+    }
+
+    return `Current period ends ${formatDate(subscription.current_period_end)}`;
+  }, [countdown.expired, subscription]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
       <div className="app-page-header">
         <div>
           <p className="app-kicker">Plans</p>
-          <h2 className="app-h1">Simple pricing with a 14-day full trial</h2>
+          <h2 className="app-h1">Stripe-backed pricing with a free 14-day trial</h2>
           <p className="app-lead">
-            Every account starts on Trial with full product access. Upgrade when you need a longer
-            billing cycle or tighter control over workspace limits.
+            Trial starts instantly. Starter and Growth open hosted Stripe Checkout and activate only
+            after payment is confirmed.
           </p>
         </div>
         {subscription ? (
           <div className="app-pricing-status">
             <span>Status</span>
             <strong>
-              {currentPlanName} · {subscription.status}
+              {currentPlanName} · {formatStatusLabel(subscription.status)}
             </strong>
           </div>
         ) : null}
@@ -175,17 +266,35 @@ export default function PricingPage() {
       {subscription?.plan === "trial" ? (
         <div className="app-trial-badge">
           <div>
-            <strong>Trial access is active</strong>
+            <strong>{countdown.expired ? "Trial access has expired" : "Trial access is active"}</strong>
             <span>
-              You can use up to {subscription.max_tenants} workspaces and {subscription.max_messages_mo.toLocaleString()}
-              {" "}messages per month during the 14-day evaluation window.
+              {countdown.expired
+                ? "Upgrade with Stripe Checkout to restore paid access and keep building workspaces."
+                : `You can use up to ${subscription.max_tenants} workspaces and ${subscription.max_messages_mo.toLocaleString()} messages per month during the 14-day evaluation window.`}
             </span>
           </div>
           <div className="app-trial-badge-value">
-            {subscription.trial_days_remaining ?? 0}
-            <small style={{ display: "block", fontFamily: "'DM Sans', sans-serif", fontSize: "0.75rem", color: "rgba(10,10,15,0.5)", marginTop: "4px" }}>
+            {countdown.days}
+            <small
+              style={{
+                display: "block",
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "0.75rem",
+                color: "rgba(10,10,15,0.5)",
+                marginTop: "4px"
+              }}
+            >
               days left
             </small>
+          </div>
+        </div>
+      ) : null}
+
+      {billingNote ? (
+        <div className="app-callout info">
+          <div>
+            <div className="callout-title">Billing timeline</div>
+            <div className="callout-body">{billingNote}</div>
           </div>
         </div>
       ) : null}
@@ -193,8 +302,17 @@ export default function PricingPage() {
       {error ? (
         <div className="app-callout danger">
           <div>
-            <div className="callout-title">Subscription update failed</div>
+            <div className="callout-title">Checkout failed</div>
             <div className="callout-body">{error}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {info ? (
+        <div className="app-callout info">
+          <div>
+            <div className="callout-title">Billing update</div>
+            <div className="callout-body">{info}</div>
           </div>
         </div>
       ) : null}
@@ -211,16 +329,12 @@ export default function PricingPage() {
       <div className="app-pricing-grid">
         {PLAN_CARDS.map((card) => {
           const isCurrentPlan = subscription?.status === "active" && currentPlan === card.plan;
-          const isEnterprise = card.plan === "enterprise";
-          const buttonLabel = isEnterprise
-            ? "Contact Sales"
-            : isCurrentPlan
-              ? "Current plan"
-              : currentPlan === "enterprise"
-                ? `Switch to ${card.name}`
-                : subscription?.plan === "trial"
-                  ? `Start with ${card.name}`
-                  : `Choose ${card.name}`;
+          const buttonLabel =
+            card.plan === "enterprise"
+              ? "Contact Sales"
+              : isCurrentPlan
+                ? "Current plan"
+                : "Continue to Checkout";
 
           return (
             <div
@@ -258,10 +372,10 @@ export default function PricingPage() {
                   type="button"
                   className={card.featured ? "app-btn-gold" : "app-btn-secondary"}
                   style={{ width: "100%", justifyContent: "center" }}
-                  onClick={() => handleSubscribe(card.plan === "starter" ? "starter" : "growth")}
+                  onClick={() => handleCheckout(card.plan === "starter" ? "starter" : "growth")}
                   disabled={isLoading || actionPlan !== null || isCurrentPlan}
                 >
-                  {actionPlan === card.plan ? "Updating..." : buttonLabel}
+                  {actionPlan === card.plan ? "Redirecting..." : buttonLabel}
                 </button>
               )}
             </div>
@@ -280,19 +394,19 @@ export default function PricingPage() {
         {[
           {
             title: "Trial",
-            desc: "14 days of full access, including up to 5 workspaces and 100,000 monthly messages."
+            desc: "Starts immediately with full access for 14 days and never touches Stripe."
           },
           {
             title: "Starter",
-            desc: "Best for a single site that needs a branded concierge and a stable monthly cap."
+            desc: "Launches hosted Stripe Checkout and activates after payment confirmation."
           },
           {
             title: "Growth",
-            desc: "Built for agencies or operators running multiple brands with higher traffic."
+            desc: "Uses the same Stripe Checkout flow for higher workspace and message volume."
           },
           {
             title: "Enterprise",
-            desc: "Use custom contracting when you need SSO, security review, or white-label delivery."
+            desc: "Handled manually with sales, onboarding, and custom commercial terms."
           }
         ].map((item) => (
           <div key={item.title}>

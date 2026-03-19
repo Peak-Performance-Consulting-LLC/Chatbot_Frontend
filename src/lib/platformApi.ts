@@ -336,13 +336,14 @@ export async function platformGetSubscription(token: string, backendUrl?: string
   });
 }
 
-export async function platformSubscribe(
+export async function platformCreateSubscriptionCheckout(
   token: string,
   plan: "starter" | "growth",
   backendUrl?: string
 ) {
   return authedJson<{
-    subscription: PlatformSubscription;
+    checkout_url: string;
+    session_id: string;
   }>({
     path: "/api/platform/subscription",
     token,

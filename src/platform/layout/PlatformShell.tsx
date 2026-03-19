@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { appNavItems } from "@/platform/layout/nav";
+import { TrialUpgradeBanner } from "@/platform/components/TrialUpgradeBanner";
 import PlatformLogo from "@/platform/components/PlatformLogo";
 import { IconChevronDown, IconClose, IconLogout, IconMenu, IconSupport } from "@/platform/components/PlatformIcons";
 import { usePlatformAuth } from "@/platform/state/auth";
@@ -41,6 +42,9 @@ export default function PlatformShell() {
   const tenantSelectRef = useRef<HTMLSelectElement | null>(null);
   const activeNavItem = appNavItems.find((item) => location.pathname.startsWith(item.path));
   const activeSectionLabel = activeNavItem?.label || "Dashboard";
+  const shouldShowTrialBanner =
+    profile?.subscription?.plan === "trial" &&
+    (profile.subscription.status === "active" || profile.subscription.status === "expired");
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -223,6 +227,12 @@ export default function PlatformShell() {
             )}
           </div>
         </header>
+
+        {shouldShowTrialBanner && profile?.subscription ? (
+          <div className="px-4 pt-4 sm:px-6">
+            <TrialUpgradeBanner subscription={profile.subscription} />
+          </div>
+        ) : null}
 
         {/* Page Content — inner Suspense keeps sidebar + topbar mounted during transitions */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">

@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import UserAvatar from "@/platform/components/UserAvatar";
+import { useTrialCountdown } from "@/platform/subscription";
 import { usePlatformAuth } from "@/platform/state/auth";
-import type { PlatformAuthProvider } from "@/platform/types";
+import type { PlatformAuthProvider, PlatformSubscriptionPlan } from "@/platform/types";
 
 const providerLabelMap: Record<PlatformAuthProvider, string> = {
   password: "Password",
@@ -38,6 +39,50 @@ export default function AccountPage() {
     () => authProviders.map((provider) => providerLabelMap[provider] ?? provider),
     [authProviders]
   );
+  const subscription = profile?.subscription;
+  const trialCountdown = useTrialCountdown(subscription?.trial_ends_at);
+
+  function formatPlanName(plan: PlatformSubscriptionPlan | undefined) {
+    switch (plan) {
+      case "starter":
+        return "Starter";
+      case "growth":
+        return "Growth";
+      case "enterprise":
+        return "Enterprise";
+      case "trial":
+        return "Trial";
+      default:
+        return "N/A";
+    }
+  }
+
+  function formatStatusLabel(status: string | undefined) {
+    if (!status) {
+      return "N/A";
+    }
+    if (status === "past_due") {
+      return "Past due";
+    }
+    return status.charAt(0).toUpperCase() + status.slice(1);
+  }
+
+  function formatDate(input: string | null | undefined) {
+    if (!input) {
+      return "N/A";
+    }
+
+    const value = new Date(input);
+    if (!Number.isFinite(value.getTime())) {
+      return "N/A";
+    }
+
+    return value.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    });
+  }
 
   function openEdit() {
     setFullName(profile?.user.full_name ?? "");
@@ -177,16 +222,53 @@ export default function AccountPage() {
             <p className="stat-value">{profile?.tenants.length || 0}</p>
           </div>
           <div className="app-stat-card">
-            <p className="stat-label">Status</p>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "8px" }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#2a8080", boxShadow: "0 0 0 3px rgba(26,92,92,0.15)", flexShrink: 0 }} />
-              <span style={{ fontFamily: "'Cormorant Garamond',Georgia,serif", fontSize: "1.1rem", color: "#1a5c5c" }}>Active</span>
-            </div>
+            <p className="stat-label">Current plan</p>
+            <p className="stat-value" style={{ fontSize: "1.15rem" }}>
+              {formatPlanName(subscription?.plan)}
+            </p>
+            <p className="stat-desc">
+              {subscription?.plan === "trial"
+                ? trialCountdown.expired
+                  ? "Trial expired. Upgrade required."
+                  : `${trialCountdown.compact} remaining`
+                : "Managed through Stripe billing."}
+            </p>
+          </div>
+          <div className="app-stat-card">
+            <p className="stat-label">Billing status</p>
+            <p className="stat-value" style={{ fontSize: "1rem" }}>
+              {formatStatusLabel(subscription?.status)}
+            </p>
+            <p className="stat-desc">
+              {subscription?.plan === "trial"
+                ? `Ends ${formatDate(subscription?.trial_ends_at)}`
+                : subscription?.cancel_at_period_end
+                  ? `Cancels ${formatDate(subscription?.current_period_end)}`
+                  : `Period ends ${formatDate(subscription?.current_period_end)}`}
+            </p>
           </div>
         </div>
       </div>
 
       {saveStatus && <p className="app-success">{saveStatus}</p>}
+
+      {subscription?.plan === "trial" ? (
+        <div className="app-callout warning">
+          <div>
+            <div className="callout-title">
+              {trialCountdown.expired ? "Trial expired" : "Upgrade before your trial ends"}
+            </div>
+            <div className="callout-body">
+              {trialCountdown.expired
+                ? "Move to Starter or Growth to restore full paid access."
+                : `You have ${trialCountdown.compact} left on Trial. Upgrade through Stripe Checkout to keep access uninterrupted.`}
+            </div>
+          </div>
+          <Link className="app-btn-secondary" to="/platform/app/pricing">
+            Upgrade plan
+          </Link>
+        </div>
+      ) : null}
 
       {editMode && (
         <div className="app-card">

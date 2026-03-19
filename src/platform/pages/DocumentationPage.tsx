@@ -124,7 +124,7 @@ export function SupportWidget() {
                     <tr>
                       <td>GET / POST</td>
                       <td>/api/platform/subscription</td>
-                      <td>Read the current plan or subscribe to Starter or Growth.</td>
+                      <td>Read the current plan or create a hosted Stripe Checkout session for Starter or Growth.</td>
                     </tr>
                   </tbody>
                 </table>

@@ -600,6 +600,95 @@ border: 1px solid rgba(10,10,15,0.08);
   }
 }
 
+.app-trial-banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(201,169,110,0.28);
+  background:
+    radial-gradient(circle at top left, rgba(201,169,110,0.16), transparent 38%),
+    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(250,248,244,0.98));
+  box-shadow: 0 10px 30px rgba(10,10,15,0.06);
+}
+.app-trial-banner.is-warning {
+  border-color: rgba(194,120,24,0.28);
+  background:
+    radial-gradient(circle at top left, rgba(255,190,92,0.2), transparent 38%),
+    linear-gradient(135deg, rgba(255,251,238,0.98), rgba(255,247,228,0.98));
+}
+.app-trial-banner.is-expired {
+  border-color: rgba(185,28,28,0.18);
+  background:
+    radial-gradient(circle at top left, rgba(248,113,113,0.12), transparent 36%),
+    linear-gradient(135deg, rgba(255,247,247,0.98), rgba(255,252,252,0.98));
+}
+.app-trial-banner-copy {
+  min-width: 0;
+}
+.app-trial-banner-pill {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(10,10,15,0.06);
+  color: rgba(10,10,15,0.56);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.app-trial-banner-copy strong {
+  display: block;
+  color: #0a0a0f;
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+.app-trial-banner-copy p {
+  margin: 0;
+  color: rgba(10,10,15,0.62);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+.app-trial-banner-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(10,10,15,0.92);
+  color: #f7f0de;
+}
+.app-trial-banner-counter-value {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+}
+.app-trial-banner-counter-label {
+  margin-top: 6px;
+  color: rgba(255,255,255,0.58);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+@media (max-width: 960px) {
+  .app-trial-banner {
+    grid-template-columns: 1fr;
+    justify-items: start;
+  }
+  .app-trial-banner-counter {
+    min-width: 0;
+    width: 100%;
+    align-items: flex-start;
+  }
+}
+
 /* ── Documentation page ──────────────────────────────────────────────── */
 .app-docs-layout {
   display: grid;
