@@ -344,6 +344,10 @@ export async function platformUpdateUser(
   });
 }
 
-export function getPlatformOauthUrl(provider: PlatformOauthProvider, backendUrl?: string) {
-  return `${resolvePlatformApiBaseUrl(backendUrl)}/api/platform/oauth/${provider}`;
+export function getPlatformOauthUrl(provider: PlatformOauthProvider, backendUrl?: string, appUrl?: string) {
+  const url = new URL(`/api/platform/oauth/${provider}`, resolvePlatformApiBaseUrl(backendUrl));
+  if (appUrl?.trim()) {
+    url.searchParams.set("app_url", appUrl.trim());
+  }
+  return url.toString();
 }

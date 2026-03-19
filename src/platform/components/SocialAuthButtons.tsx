@@ -73,7 +73,7 @@ export default function SocialAuthButtons({
       return;
     }
 
-    window.location.assign(getPlatformOauthUrl(provider));
+    window.location.assign(getPlatformOauthUrl(provider, undefined, window.location.origin));
   }
 
   return (

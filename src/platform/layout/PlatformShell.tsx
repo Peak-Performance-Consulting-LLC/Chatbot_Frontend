@@ -2,7 +2,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { appNavItems } from "@/platform/layout/nav";
 import PlatformLogo from "@/platform/components/PlatformLogo";
-import { IconChevronDown, IconClose, IconLogout, IconMenu, IconSupport, IconWorkspace } from "@/platform/components/PlatformIcons";
+import { IconChevronDown, IconClose, IconLogout, IconMenu, IconSupport } from "@/platform/components/PlatformIcons";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 /** Shimmer skeleton shown inside the content area while a lazy page chunk loads. */
@@ -36,7 +36,7 @@ function PageSkeleton() {
 export default function PlatformShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, selectedTenant, selectedTenantId, selectTenant, logout, loading } = usePlatformAuth();
+  const { profile, selectedTenantId, selectTenant, logout, loading } = usePlatformAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const tenantSelectRef = useRef<HTMLSelectElement | null>(null);
   const activeNavItem = appNavItems.find((item) => location.pathname.startsWith(item.path));
@@ -181,32 +181,27 @@ export default function PlatformShell() {
           <div className="flex min-w-0 items-center gap-2">
             {profile?.tenants?.length ? (
               <label
-                className={`relative flex w-[154px] min-w-0 items-center gap-2 rounded-xl border bg-[linear-gradient(180deg,#ffffff,rgba(247,249,250,0.96))] pl-2.5 pr-9 py-1.5 shadow-[0_6px_16px_rgba(10,10,15,0.04)] text-sm transition sm:w-auto sm:min-w-[220px] sm:max-w-[290px] sm:gap-3 sm:rounded-2xl sm:pl-2.5 sm:pr-10 sm:py-2 sm:shadow-[0_10px_28px_rgba(10,10,15,0.06)] ${
+                className={`relative flex min-w-0 max-w-[182px] items-center rounded-full border bg-white/92 pl-3 pr-9 py-2 text-sm shadow-sm transition sm:max-w-[260px] sm:pl-3.5 sm:pr-10 ${
                   loading
                     ? "border-[#0a0a0f]/8 opacity-70"
-                    : "border-[#0a0a0f]/10 hover:border-[#1a5c5c]/22 hover:shadow-[0_12px_32px_rgba(10,10,15,0.08)]"
+                    : "border-[#0a0a0f]/10 hover:border-[#0a0a0f]/18"
                 }`}
               >
-                <span className="hidden h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-[#1a5c5c]/10 bg-[#1a5c5c]/6 text-[14px] text-[#1a5c5c] sm:flex sm:h-9 sm:w-9 sm:rounded-xl sm:text-[15px]">
-                  <IconWorkspace />
+                <span className="mr-2 hidden flex-shrink-0 text-[11px] font-medium text-[#0a0a0f]/42 sm:block">
+                  Workspace
                 </span>
-                <span className="min-w-0 flex-1">
-                  <span className="hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/38 sm:block">
-                    Active Workspace
-                  </span>
-                  <select
-                    ref={tenantSelectRef}
-                    value={selectedTenantId || ""}
-                    onChange={(e) => selectTenant(e.target.value)}
-                    disabled={loading}
-                    className="w-full cursor-pointer appearance-none bg-transparent pr-2 text-[12px] font-semibold text-[#0a0a0f] focus:outline-none disabled:cursor-not-allowed sm:pr-4 sm:text-sm"
-                    aria-label="Select workspace"
-                  >
-                    {(profile?.tenants ?? []).map((t) => (
-                      <option key={t.tenant_id} value={t.tenant_id}>{t.name || t.tenant_id}</option>
-                    ))}
-                  </select>
-                </span>
+                <select
+                  ref={tenantSelectRef}
+                  value={selectedTenantId || ""}
+                  onChange={(e) => selectTenant(e.target.value)}
+                  disabled={loading}
+                  className="min-w-0 w-full cursor-pointer appearance-none bg-transparent pr-2 text-[13px] font-medium text-[#0a0a0f] focus:outline-none disabled:cursor-not-allowed sm:pr-4 sm:text-sm"
+                  aria-label="Select workspace"
+                >
+                  {(profile?.tenants ?? []).map((t) => (
+                    <option key={t.tenant_id} value={t.tenant_id}>{t.name || t.tenant_id}</option>
+                  ))}
+                </select>
                 <button
                   type="button"
                   onClick={(e) => {
@@ -216,7 +211,7 @@ export default function PlatformShell() {
                   }}
                   disabled={loading}
                   aria-label="Open workspace selector"
-                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-[#0a0a0f]/4 text-[13px] text-[#0a0a0f]/40 transition hover:bg-[#0a0a0f]/8 hover:text-[#0a0a0f]/60 disabled:cursor-not-allowed sm:right-3 sm:h-7 sm:w-7 sm:text-[14px]"
+                  className="absolute right-2 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-[12px] text-[#0a0a0f]/34 transition hover:text-[#0a0a0f]/60 disabled:cursor-not-allowed sm:right-3 sm:h-6 sm:w-6 sm:text-[13px]"
                 >
                   <IconChevronDown />
                 </button>
