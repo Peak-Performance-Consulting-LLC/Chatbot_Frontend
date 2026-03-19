@@ -4,6 +4,7 @@ import {
   IconChatbot,
   IconCustomization,
   IconDns,
+  IconDocs,
   IconKnowledge,
   IconOverview,
   IconPricing,
@@ -28,6 +29,7 @@ export const appNavItems: PlatformNavItem[] = [
   { key: "knowledge", label: "Knowledge Base", path: "/platform/app/knowledge", icon: createElement(IconKnowledge) },
   { key: "dns", label: "DNS Verification", path: "/platform/app/dns", icon: createElement(IconDns) },
   { key: "widget", label: "Widget Code", path: "/platform/app/widget", icon: createElement(IconWidgetCode) },
+  { key: "docs", label: "Documentation", path: "/platform/app/docs", icon: createElement(IconDocs) },
   { key: "account", label: "Account", path: "/platform/app/account", icon: createElement(IconAccount) },
   { key: "pricing", label: "Pricing", path: "/platform/app/pricing", icon: createElement(IconPricing) }
 ];

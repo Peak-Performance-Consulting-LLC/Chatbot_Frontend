@@ -7,6 +7,7 @@ import type {
   PlatformProfile,
   PlatformService,
   PlatformSource,
+  PlatformSubscription,
   PlatformTenant,
   ThemeStyle,
   PlatformUser,
@@ -320,6 +321,33 @@ export async function platformDeleteWorkspace(
     path: `/api/platform/workspaces/${encodeURIComponent(tenantId)}`,
     token,
     method: "DELETE",
+    backendUrl
+  });
+}
+
+export async function platformGetSubscription(token: string, backendUrl?: string) {
+  return authedJson<{
+    subscription: PlatformSubscription;
+  }>({
+    path: "/api/platform/subscription",
+    token,
+    method: "GET",
+    backendUrl
+  });
+}
+
+export async function platformSubscribe(
+  token: string,
+  plan: "starter" | "growth",
+  backendUrl?: string
+) {
+  return authedJson<{
+    subscription: PlatformSubscription;
+  }>({
+    path: "/api/platform/subscription",
+    token,
+    method: "POST",
+    body: { plan },
     backendUrl
   });
 }

@@ -112,6 +112,18 @@ export function IconPricing(props: IconProps) {
   );
 }
 
+export function IconDocs(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="M6 4.5h9.5a2.5 2.5 0 0 1 2.5 2.5v12.5H8.5A2.5 2.5 0 0 0 6 22" />
+      <path d="M6 4.5v17.5" />
+      <path d="M8.5 7.5h6" />
+      <path d="M8.5 11h6" />
+      <path d="M8.5 14.5h4" />
+    </BaseIcon>
+  );
+}
+
 export function IconMenu(props: IconProps) {
   return (
     <BaseIcon {...props}>

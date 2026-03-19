@@ -13,6 +13,7 @@ const AccountPage = lazy(() => import("@/platform/pages/AccountPage"));
 const ChatbotPage = lazy(() => import("@/platform/pages/ChatbotPage"));
 const CustomizationPage = lazy(() => import("@/platform/pages/CustomizationPage"));
 const DnsPage = lazy(() => import("@/platform/pages/DnsPage"));
+const DocumentationPage = lazy(() => import("@/platform/pages/DocumentationPage"));
 const KnowledgePage = lazy(() => import("@/platform/pages/KnowledgePage"));
 const LandingPage = lazy(() => import("@/platform/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/platform/pages/LoginPage"));
@@ -29,6 +30,7 @@ function prefetchPlatformRoutes() {
   void import("@/platform/pages/ChatbotPage");
   void import("@/platform/pages/CustomizationPage");
   void import("@/platform/pages/DnsPage");
+  void import("@/platform/pages/DocumentationPage");
   void import("@/platform/pages/KnowledgePage");
   void import("@/platform/pages/OverviewPage");
   void import("@/platform/pages/PricingPage");
@@ -146,6 +148,7 @@ export default function App() {
           <Route path="knowledge" element={<KnowledgePage />} />
           <Route path="dns" element={<DnsPage />} />
           <Route path="widget" element={<WidgetCodePage />} />
+          <Route path="docs" element={<DocumentationPage />} />
           <Route path="account" element={<AccountPage />} />
           <Route path="pricing" element={<PricingPage />} />
         </Route>

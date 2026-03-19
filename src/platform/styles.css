@@ -513,6 +513,225 @@ border: 1px solid rgba(10,10,15,0.08);
   content: '✓'; color: #1a5c5c; font-weight: 600; font-size: 0.75rem; margin-top: 1px; flex-shrink: 0;
 }
 .app-pricing-card.featured .app-pricing-features li::before { color: #c9a96e; }
+.app-plan-active {
+  border-color: rgba(26,92,92,0.32);
+  box-shadow: 0 12px 32px rgba(26,92,92,0.14);
+}
+.app-plan-active::after {
+  content: "Current plan";
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(26,92,92,0.1);
+  color: #1a5c5c;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.app-pricing-card.featured.app-plan-active::after {
+  background: rgba(201,169,110,0.18);
+  color: #f4e7c5;
+}
+.app-pricing-subhead {
+  min-height: 38px;
+  margin: 0 0 16px;
+  color: rgba(10,10,15,0.55);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.app-pricing-card.featured .app-pricing-subhead {
+  color: rgba(255,255,255,0.66);
+}
+.app-pricing-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(10,10,15,0.05);
+  color: rgba(10,10,15,0.58);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.app-pricing-status strong {
+  color: #0a0a0f;
+  font-size: 0.76rem;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.app-trial-badge {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(201,169,110,0.34);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgba(201,169,110,0.12), rgba(255,255,255,0.94)),
+    #fff;
+}
+.app-trial-badge strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #0a0a0f;
+  font-size: 0.88rem;
+}
+.app-trial-badge span {
+  color: rgba(10,10,15,0.62);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.app-trial-badge-value {
+  flex-shrink: 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 2rem;
+  color: #a07840;
+  line-height: 1;
+}
+@media (max-width: 720px) {
+  .app-trial-badge {
+    flex-direction: column;
+  }
+}
+
+/* ── Documentation page ──────────────────────────────────────────────── */
+.app-docs-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 360px);
+  gap: 20px;
+  align-items: start;
+}
+.app-docs-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.app-docs-section {
+  border: 1px solid rgba(10,10,15,0.08);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  overflow: hidden;
+}
+.app-docs-section summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+  padding: 20px 22px;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: 1.25rem;
+  color: #0a0a0f;
+}
+.app-docs-section summary::-webkit-details-marker {
+  display: none;
+}
+.app-docs-summary-note {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(10,10,15,0.42);
+}
+.app-docs-content {
+  border-top: 1px solid rgba(10,10,15,0.06);
+  padding: 0 22px 22px;
+}
+.app-docs-copy {
+  margin: 18px 0 8px;
+  color: rgba(10,10,15,0.62);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.app-docs-code {
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
+  overflow-x: auto;
+  background: #0f1418;
+  color: #f3f0e9;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+.app-docs-list {
+  margin: 18px 0 0;
+  padding-left: 20px;
+  color: rgba(10,10,15,0.68);
+  font-size: 0.83rem;
+  line-height: 1.7;
+}
+.app-docs-list li + li {
+  margin-top: 8px;
+}
+.app-docs-table-wrap {
+  margin-top: 18px;
+  overflow-x: auto;
+}
+.app-docs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.app-docs-table th,
+.app-docs-table td {
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid rgba(10,10,15,0.08);
+}
+.app-docs-table th {
+  color: rgba(10,10,15,0.52);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.app-docs-table td {
+  color: rgba(10,10,15,0.72);
+}
+.app-docs-plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 18px 0 20px;
+}
+.app-docs-plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(10,10,15,0.03);
+  border: 1px solid rgba(10,10,15,0.06);
+}
+.app-docs-plan-card strong {
+  color: #0a0a0f;
+  font-size: 0.9rem;
+}
+.app-docs-plan-card span {
+  color: rgba(10,10,15,0.62);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+.app-docs-sidebar {
+  position: sticky;
+  top: 92px;
+}
+@media (max-width: 1000px) {
+  .app-docs-layout {
+    grid-template-columns: 1fr;
+  }
+  .app-docs-sidebar {
+    position: static;
+  }
+}
 
 /* ── Template grid (customization) ──────────────────────────────────── */
 .app-template-grid {

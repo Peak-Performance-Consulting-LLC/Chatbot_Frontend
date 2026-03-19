@@ -10,6 +10,8 @@ export type NotifAnimation = "bounce" | "pulse" | "slide";
 export type AiTone = "friendly" | "professional" | "concise" | "enthusiastic";
 export type PlatformAvatarSource = "initials" | "manual" | "google" | "facebook";
 export type PlatformAuthProvider = "password" | "google" | "facebook";
+export type PlatformSubscriptionPlan = "trial" | "starter" | "growth" | "enterprise";
+export type PlatformSubscriptionStatus = "active" | "canceled" | "expired" | "past_due";
 
 export type TenantBusinessProfile = {
   business_type: string;
@@ -100,7 +102,22 @@ export type PlatformUser = {
   created_at: string;
 };
 
+export type PlatformSubscription = {
+  id: string;
+  user_id: string;
+  plan: PlatformSubscriptionPlan;
+  status: PlatformSubscriptionStatus;
+  max_tenants: number;
+  max_messages_mo: number;
+  trial_ends_at: string | null;
+  trial_days_remaining: number | null;
+  current_period_start: string;
+  current_period_end: string;
+  created_at: string;
+};
+
 export type PlatformProfile = {
   user: PlatformUser;
   tenants: PlatformTenant[];
+  subscription?: PlatformSubscription;
 };

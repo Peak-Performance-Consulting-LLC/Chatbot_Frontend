@@ -604,6 +604,257 @@ const styles = `
   .service-card.ink-card p { color: rgba(255,255,255,0.6); }
   .service-card.sand-card p { color: var(--ink-60); }
 
+  /* ─── PRICING ─────────────────────────────────────────── */
+  .pricing-section { background: white; }
+  .pricing-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 2rem;
+    align-items: end;
+    margin-bottom: 3rem;
+  }
+  .pricing-h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.9rem, 4vw, 3rem);
+    font-weight: 300;
+    line-height: 1.15;
+    max-width: 560px;
+  }
+  .pricing-h2 em { font-style: italic; color: var(--teal); }
+  .pricing-lead,
+  .pricing-side-note {
+    font-size: 0.9rem;
+    line-height: 1.75;
+    color: var(--ink-60);
+  }
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+  .pricing-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 32px 28px;
+    border-radius: 18px;
+    border: 1px solid var(--ink-10);
+    background: #fff;
+    box-shadow: 0 10px 30px rgba(10,10,15,0.05);
+    transition: transform 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+  }
+  .pricing-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 22px 44px rgba(10,10,15,0.09);
+  }
+  .pricing-card.featured {
+    background: linear-gradient(180deg, #11161b, #0a0a0f);
+    color: white;
+    border-color: rgba(10,10,15,0.9);
+  }
+  .pricing-tag {
+    display: inline-flex;
+    width: fit-content;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: rgba(10,10,15,0.06);
+    color: rgba(10,10,15,0.55);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .pricing-card.featured .pricing-tag {
+    background: rgba(201,169,110,0.18);
+    color: var(--gold-light);
+  }
+  .pricing-name {
+    font-family: var(--font-display);
+    font-size: 1.55rem;
+    font-weight: 400;
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
+  .pricing-price {
+    font-family: var(--font-display);
+    font-size: 2.7rem;
+    font-weight: 300;
+    line-height: 1;
+    margin-bottom: 12px;
+  }
+  .pricing-price small {
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    color: inherit;
+    opacity: 0.55;
+  }
+  .pricing-copy {
+    min-height: 72px;
+    font-size: 0.84rem;
+    line-height: 1.65;
+    color: rgba(10,10,15,0.6);
+    margin-bottom: 18px;
+  }
+  .pricing-card.featured .pricing-copy,
+  .pricing-card.featured .pricing-list li {
+    color: rgba(255,255,255,0.68);
+  }
+  .pricing-list {
+    list-style: none;
+    margin: 0 0 24px;
+    padding: 20px 0 0;
+    border-top: 1px solid rgba(10,10,15,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+  }
+  .pricing-card.featured .pricing-list {
+    border-top-color: rgba(255,255,255,0.12);
+  }
+  .pricing-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: rgba(10,10,15,0.62);
+  }
+  .pricing-list li::before {
+    content: '✓';
+    color: var(--teal);
+    margin-top: 1px;
+    font-size: 0.72rem;
+  }
+  .pricing-card.featured .pricing-list li::before { color: var(--gold); }
+  .pricing-footer-note {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--ink-60);
+    font-size: 0.82rem;
+  }
+  .pricing-footer-note strong { color: var(--ink); font-weight: 600; }
+
+  /* ─── DOCS ────────────────────────────────────────────── */
+  .docs-section {
+    background:
+      radial-gradient(circle at top right, rgba(26,92,92,0.08), transparent 34%),
+      linear-gradient(180deg, #f7f4ee 0%, #faf8f4 100%);
+  }
+  .docs-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+    gap: 24px;
+    align-items: start;
+  }
+  .docs-copy {
+    max-width: 560px;
+  }
+  .docs-h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.9rem, 4vw, 2.9rem);
+    font-weight: 300;
+    line-height: 1.15;
+    margin-bottom: 1rem;
+  }
+  .docs-copy p {
+    font-size: 0.92rem;
+    line-height: 1.75;
+    color: var(--ink-60);
+    margin-bottom: 1.5rem;
+  }
+  .docs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 1.75rem;
+  }
+  .docs-card {
+    padding: 18px 18px 20px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.82);
+    border: 1px solid rgba(10,10,15,0.08);
+    box-shadow: 0 12px 30px rgba(10,10,15,0.04);
+  }
+  .docs-card span {
+    display: inline-flex;
+    margin-bottom: 10px;
+    color: var(--gold-deep);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .docs-card h3 {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 500;
+    line-height: 1.2;
+    margin-bottom: 8px;
+  }
+  .docs-card p {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.6;
+    color: var(--ink-60);
+  }
+  .docs-panel {
+    padding: 24px;
+    border-radius: 20px;
+    background: #0f1418;
+    color: white;
+    box-shadow: 0 24px 50px rgba(10,10,15,0.14);
+  }
+  .docs-panel-label {
+    display: inline-flex;
+    margin-bottom: 12px;
+    color: rgba(201,169,110,0.82);
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .docs-panel h3 {
+    font-family: var(--font-display);
+    font-size: 1.7rem;
+    font-weight: 400;
+    line-height: 1.15;
+    margin-bottom: 16px;
+  }
+  .docs-panel ul {
+    list-style: none;
+    margin: 0 0 20px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .docs-panel li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: rgba(255,255,255,0.72);
+    font-size: 0.84rem;
+    line-height: 1.6;
+  }
+  .docs-panel li::before {
+    content: '•';
+    color: var(--gold);
+  }
+  .docs-panel-snippet {
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 0.77rem;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.78);
+    overflow-x: auto;
+    margin-bottom: 18px;
+  }
+
   /* ─── BOTTOM CTA ──────────────────────────────────────── */
   .cta-section {
     background: var(--ink);
@@ -745,6 +996,10 @@ const styles = `
 
     .services-grid { grid-template-columns: 1fr; }
     .metric-cards { grid-template-columns: 1fr; }
+    .pricing-header,
+    .docs-shell { grid-template-columns: 1fr; }
+    .pricing-grid,
+    .docs-grid { grid-template-columns: 1fr; }
 
     .hero-actions { flex-direction: column; align-items: flex-start; }
   }
@@ -818,6 +1073,8 @@ export default function LandingPage() {
             <li><a href="#platform-features">Features</a></li>
             <li><a href="#platform-flow">How It Works</a></li>
             <li><a href="#platform-services">Services</a></li>
+            <li><a href="#pricing">Pricing</a></li>
+            <li><a href="#docs">Docs</a></li>
           </ul>
         </nav>
 
@@ -837,6 +1094,8 @@ export default function LandingPage() {
           <li><a href="#platform-features" onClick={() => setMobileOpen(false)}>Features</a></li>
           <li><a href="#platform-flow" onClick={() => setMobileOpen(false)}>How It Works</a></li>
           <li><a href="#platform-services" onClick={() => setMobileOpen(false)}>Services</a></li>
+          <li><a href="#pricing" onClick={() => setMobileOpen(false)}>Pricing</a></li>
+          <li><a href="#docs" onClick={() => setMobileOpen(false)}>Docs</a></li>
         </ul>
         <div className="mobile-nav-footer">
           <Link className="btn-ghost" to="/platform/login" onClick={() => setMobileOpen(false)}>Login</Link>
@@ -999,6 +1258,154 @@ export default function LandingPage() {
               </div>
             </FadeUp>
           ))}
+        </div>
+      </section>
+
+      <section className="section pricing-section" id="pricing">
+        <FadeUp>
+          <div className="pricing-header">
+            <div>
+              <p className="section-kicker">Pricing</p>
+              <h2 className="pricing-h2">Start with a <em>14-day full trial</em>, then choose the plan that matches your workspace volume.</h2>
+            </div>
+            <p className="pricing-side-note">
+              Trial includes the complete platform experience. Upgrade only when you need a longer
+              billing cycle or want your production usage aligned to a paid plan.
+            </p>
+          </div>
+        </FadeUp>
+
+        <FadeUp delay="1">
+          <div className="pricing-grid">
+            {[
+              {
+                tag: "Starter",
+                name: "Starter",
+                price: "$99",
+                suffix: "/ month",
+                copy: "For a single travel brand that wants a polished concierge with clear monthly limits.",
+                features: [
+                  "1 workspace",
+                  "10,000 messages / month",
+                  "Domain verification + widget deployment",
+                  "Email support"
+                ],
+                cta: "Start 14-day trial",
+                to: token ? "/platform/app/pricing" : "/platform/signup"
+              },
+              {
+                tag: "Most Popular",
+                name: "Growth",
+                price: "$299",
+                suffix: "/ month",
+                copy: "For multi-brand operators that need more workspaces, more messages, and priority handling.",
+                featured: true,
+                features: [
+                  "5 workspaces",
+                  "100,000 messages / month",
+                  "Flights, hotels, cars, and cruises",
+                  "Priority support"
+                ],
+                cta: token ? "Manage plans" : "Start 14-day trial",
+                to: token ? "/platform/app/pricing" : "/platform/signup"
+              },
+              {
+                tag: "Enterprise",
+                name: "Enterprise",
+                price: "Custom",
+                copy: "For larger programs that need security review, onboarding help, or white-label delivery.",
+                features: [
+                  "Unlimited workspaces",
+                  "SSO and SLA options",
+                  "Dedicated onboarding",
+                  "Custom commercial terms"
+                ],
+                cta: "Contact sales",
+                href: "mailto:sales@aeroconcierge.com?subject=Enterprise%20Plan%20Inquiry"
+              }
+            ].map((plan) => (
+              <div key={plan.name} className={`pricing-card${plan.featured ? " featured" : ""}`}>
+                <span className="pricing-tag">{plan.tag}</span>
+                <h3 className="pricing-name">{plan.name}</h3>
+                <div className="pricing-price">
+                  {plan.price}
+                  {plan.suffix ? <small> {plan.suffix}</small> : null}
+                </div>
+                <p className="pricing-copy">{plan.copy}</p>
+                <ul className="pricing-list">
+                  {plan.features.map((feature) => (
+                    <li key={`${plan.name}-${feature}`}>{feature}</li>
+                  ))}
+                </ul>
+                {"href" in plan ? (
+                  <a className={plan.featured ? "btn-gold" : "btn-primary"} href={plan.href}>
+                    {plan.cta}
+                  </a>
+                ) : (
+                  <Link className={plan.featured ? "btn-gold" : "btn-primary"} to={plan.to}>
+                    {plan.cta}
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        </FadeUp>
+
+        <div className="pricing-footer-note">
+          <strong>Trial includes full access:</strong> 5 workspaces and 100,000 monthly messages for 14 days.
+        </div>
+      </section>
+
+      <section className="section docs-section" id="docs">
+        <div className="docs-shell">
+          <FadeUp>
+            <div className="docs-copy">
+              <p className="section-kicker">Documentation</p>
+              <h2 className="docs-h2">The operator manual covers onboarding, embedding, API usage, customization, and pricing in one place.</h2>
+              <p>
+                Keep setup friction low for internal teams: the docs walk through workspace creation,
+                DNS verification, source indexing, widget deployment, and plan management with the
+                same flow used inside the dashboard.
+              </p>
+
+              <div className="docs-grid">
+                {[
+                  ["Getting Started", "Signup, workspace creation, and the initial launch checklist."],
+                  ["Widget Embed", "Script snippet, React example, and embed URL guidance."],
+                  ["API Reference", "Core platform endpoints for profile, workspaces, sources, and subscription."],
+                  ["Knowledge Base", "How to add sources and re-index when website content changes."]
+                ].map(([title, body]) => (
+                  <div key={title} className="docs-card">
+                    <span>Guide</span>
+                    <h3>{title}</h3>
+                    <p>{body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </FadeUp>
+
+          <FadeUp delay="1">
+            <aside className="docs-panel">
+              <span className="docs-panel-label">Read full docs</span>
+              <h3>Go from account signup to production widget without guesswork.</h3>
+              <ul>
+                <li>Signup, create workspace, and verify the site domain.</li>
+                <li>Connect sitemap URLs, docs, FAQs, and re-index the knowledge base.</li>
+                <li>Deploy the widget snippet or React component using the generated configuration.</li>
+              </ul>
+              <div className="docs-panel-snippet">
+                GET /api/platform/subscription
+                <br />
+                POST /api/platform/workspaces
+                <br />
+                PUT /api/platform/sources
+              </div>
+              <Link className="btn-gold" to="/platform/app/docs">
+                Read full docs
+              </Link>
+            </aside>
+          </FadeUp>
         </div>
       </section>
 
