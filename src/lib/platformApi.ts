@@ -3,6 +3,8 @@ import type {
   BgPattern,
   LauncherIcon,
   NotifAnimation,
+  PlatformAnalyticsRange,
+  PlatformAnalyticsResponse,
   PlatformAuthProvider,
   PlatformProfile,
   PlatformService,
@@ -349,6 +351,32 @@ export async function platformCreateSubscriptionCheckout(
     token,
     method: "POST",
     body: { plan },
+    backendUrl
+  });
+}
+
+export async function platformGetAnalytics(
+  token: string,
+  input: {
+    range: PlatformAnalyticsRange;
+    tenantId?: string;
+    timezone?: string;
+  },
+  backendUrl?: string
+) {
+  const params = new URLSearchParams();
+  params.set("range", input.range);
+  if (input.tenantId?.trim()) {
+    params.set("tenant_id", input.tenantId.trim());
+  }
+  if (input.timezone?.trim()) {
+    params.set("timezone", input.timezone.trim());
+  }
+
+  return authedJson<PlatformAnalyticsResponse>({
+    path: `/api/platform/analytics?${params.toString()}`,
+    token,
+    method: "GET",
     backendUrl
   });
 }

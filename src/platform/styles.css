@@ -604,88 +604,194 @@ border: 1px solid rgba(10,10,15,0.08);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 18px;
-  padding: 18px 20px;
-  border-radius: 18px;
-  border: 1px solid rgba(201,169,110,0.28);
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(201,169,110,0.22);
   background:
-    radial-gradient(circle at top left, rgba(201,169,110,0.16), transparent 38%),
-    linear-gradient(135deg, rgba(255,255,255,0.96), rgba(250,248,244,0.98));
-  box-shadow: 0 10px 30px rgba(10,10,15,0.06);
+    linear-gradient(135deg, rgba(255,255,255,0.98), rgba(251,248,242,0.98));
+  box-shadow: 0 6px 18px rgba(10,10,15,0.04);
 }
 .app-trial-banner.is-warning {
-  border-color: rgba(194,120,24,0.28);
+  border-color: rgba(176,86,66,0.24);
   background:
-    radial-gradient(circle at top left, rgba(255,190,92,0.2), transparent 38%),
-    linear-gradient(135deg, rgba(255,251,238,0.98), rgba(255,247,228,0.98));
+    linear-gradient(135deg, rgba(255,252,248,0.98), rgba(255,245,239,0.98));
 }
 .app-trial-banner.is-expired {
-  border-color: rgba(185,28,28,0.18);
+  border-color: rgba(185,28,28,0.26);
   background:
-    radial-gradient(circle at top left, rgba(248,113,113,0.12), transparent 36%),
-    linear-gradient(135deg, rgba(255,247,247,0.98), rgba(255,252,252,0.98));
+    linear-gradient(135deg, rgba(255,246,246,0.98), rgba(255,250,250,0.98));
 }
 .app-trial-banner-copy {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
-.app-trial-banner-pill {
+.app-trial-banner-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-trial-banner-status {
   display: inline-flex;
-  margin-bottom: 8px;
-  padding: 4px 10px;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  padding: 3px 8px;
   border-radius: 999px;
-  background: rgba(10,10,15,0.06);
-  color: rgba(10,10,15,0.56);
-  font-size: 0.68rem;
+  background: rgba(201,169,110,0.16);
+  color: #9d7440;
+  font-size: 0.62rem;
   font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.app-trial-banner-status-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.8;
+}
+.app-trial-banner-date {
+  color: rgba(10,10,15,0.46);
+  font-size: 0.66rem;
+  font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+.app-trial-banner-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 .app-trial-banner-copy strong {
   display: block;
   color: #0a0a0f;
-  font-size: 1rem;
-  margin-bottom: 4px;
+  font-size: 0.96rem;
+  margin-bottom: 0;
 }
 .app-trial-banner-copy p {
   margin: 0;
-  color: rgba(10,10,15,0.62);
-  font-size: 0.82rem;
-  line-height: 1.55;
+  color: rgba(10,10,15,0.6);
+  font-size: 0.76rem;
+  line-height: 1.4;
 }
 .app-trial-banner-counter {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-width: 150px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: rgba(10,10,15,0.92);
-  color: #f7f0de;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-shrink: 0;
+  min-width: 0;
+  color: #7f1d1d;
+}
+.app-trial-banner-counter.is-warning {
+  color: #b42318;
+}
+.app-trial-banner-counter.is-expired {
+  color: #9f1239;
+}
+.app-trial-banner-counter-cell {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  position: relative;
+}
+.app-trial-banner-counter-cell:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 1px;
+  height: 12px;
+  transform: translateY(-50%);
+  background: rgba(127,29,29,0.12);
 }
 .app-trial-banner-counter-value {
-  font-family: 'Cormorant Garamond', Georgia, serif;
-  font-size: 1.5rem;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 1.02rem;
+  font-weight: 800;
   line-height: 1;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.02em;
+  color: #b91c1c;
 }
-.app-trial-banner-counter-label {
-  margin-top: 6px;
-  color: rgba(255,255,255,0.58);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.app-trial-banner-counter.is-expired .app-trial-banner-counter-value {
+  color: #9f1239;
+}
+.app-trial-banner-counter-cell-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  color: rgba(127,29,29,0.64);
+}
+.app-trial-banner.is-warning .app-trial-banner-status {
+  background: rgba(180,83,9,0.12);
+  color: #b45309;
+}
+.app-trial-banner.is-expired .app-trial-banner-status {
+  background: rgba(185,28,28,0.1);
+  color: #b91c1c;
+}
+.app-trial-banner.is-expired .app-trial-banner-date {
+  color: rgba(185,28,28,0.68);
+}
+.app-trial-banner.is-expired .app-trial-banner-copy strong {
+  color: #7f1d1d;
+}
+.app-trial-banner.is-expired .app-trial-banner-copy p {
+  color: rgba(127,29,29,0.74);
+}
+.app-trial-banner.is-expired .app-trial-banner-counter-value {
+  color: #b91c1c;
+}
+.app-trial-banner.is-expired .app-trial-banner-counter-cell-label {
+  color: rgba(127,29,29,0.68);
+}
+.app-trial-banner-cta {
+  min-width: 0;
+  padding: 0.72rem 0.95rem;
+  white-space: nowrap;
 }
 @media (max-width: 960px) {
   .app-trial-banner {
     grid-template-columns: 1fr;
     justify-items: start;
   }
-  .app-trial-banner-counter {
-    min-width: 0;
+  .app-trial-banner-title-row {
     width: 100%;
+    flex-direction: column;
     align-items: flex-start;
+    gap: 8px;
+  }
+  .app-trial-banner-counter {
+    width: 100%;
+    gap: 12px;
+  }
+  .app-trial-banner-cta {
+    width: 100%;
+  }
+}
+@media (max-width: 560px) {
+  .app-trial-banner {
+    padding: 12px;
+  }
+  .app-trial-banner-counter {
+    gap: 8px;
+  }
+  .app-trial-banner-counter-cell:not(:last-child)::after {
+    right: -4px;
+    height: 10px;
+  }
+  .app-trial-banner-counter-value {
+    font-size: 0.94rem;
+  }
+  .app-trial-banner-counter-cell-label {
+    font-size: 0.62rem;
   }
 }
 

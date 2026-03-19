@@ -261,7 +261,7 @@ export default function AccountPage() {
             <div className="callout-body">
               {trialCountdown.expired
                 ? "Move to Starter or Growth to restore full paid access."
-                : `You have ${trialCountdown.compact} left on Trial. Upgrade through Stripe Checkout to keep access uninterrupted.`}
+                : `You have ${trialCountdown.compact} left on Trial, including ${subscription.max_messages_mo.toLocaleString()} visitor messages this month. Upgrade through Stripe Checkout to keep access uninterrupted.`}
             </div>
           </div>
           <Link className="app-btn-secondary" to="/platform/app/pricing">

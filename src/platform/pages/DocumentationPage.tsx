@@ -169,7 +169,7 @@ export function SupportWidget() {
               <div className="app-docs-plan-grid">
                 <div className="app-docs-plan-card">
                   <strong>Trial</strong>
-                  <span>14 days, 5 workspaces, 100,000 messages/month</span>
+                  <span>14 days, 5 workspaces, 100 visitor messages/month</span>
                 </div>
                 <div className="app-docs-plan-card">
                   <strong>Starter</strong>

@@ -117,6 +117,87 @@ export type PlatformSubscription = {
   created_at: string;
 };
 
+export type PlatformAnalyticsRange = "7d" | "30d" | "billing_cycle";
+
+export type PlatformAnalyticsSummary = {
+  conversations: number;
+  messages_total: number;
+  user_messages: number;
+  assistant_messages: number;
+  unique_visitors: number;
+  tokens_total: number;
+  tokens_exact: number;
+  tokens_estimated: number;
+  avg_response_ms: number | null;
+  message_quota_used: number;
+  message_quota_limit: number;
+};
+
+export type PlatformAnalyticsPoint = {
+  bucket_start: string;
+  conversations: number;
+  messages_total: number;
+  unique_visitors: number;
+  tokens_total: number;
+};
+
+export type PlatformAnalyticsWorkspaceRow = {
+  tenant_id: string;
+  name: string;
+  messages_total: number;
+  tokens_total: number;
+  conversations: number;
+  unique_visitors: number;
+};
+
+export type PlatformAnalyticsBreakdownRow = {
+  key: string;
+  label: string;
+  value: number;
+  share: number;
+};
+
+export type PlatformAnalyticsTokenSourceRow = {
+  key: "provider" | "counted" | "estimated" | "none";
+  label: string;
+  value: number;
+  share: number;
+};
+
+export type PlatformAnalyticsHealth = {
+  workspaces_total: number;
+  dns_verified_count: number;
+  knowledge_ready_count: number;
+  widget_ready_count: number;
+};
+
+export type PlatformAnalyticsScope = {
+  summary: PlatformAnalyticsSummary;
+  trend: PlatformAnalyticsPoint[];
+  services: PlatformAnalyticsBreakdownRow[];
+  intents: PlatformAnalyticsBreakdownRow[];
+  token_sources: PlatformAnalyticsTokenSourceRow[];
+  knowledge_hit_rate: number | null;
+  avg_response_ms: number | null;
+};
+
+export type PlatformAnalyticsResponse = {
+  range: PlatformAnalyticsRange;
+  timezone: string;
+  generated_at: string;
+  token_tracking_started_at: string | null;
+  account: PlatformAnalyticsScope & {
+    workspaces: PlatformAnalyticsWorkspaceRow[];
+    health: PlatformAnalyticsHealth;
+  };
+  workspace:
+    | (PlatformAnalyticsScope & {
+        tenant_id: string;
+        name: string;
+      })
+    | null;
+};
+
 export type PlatformProfile = {
   user: PlatformUser;
   tenants: PlatformTenant[];

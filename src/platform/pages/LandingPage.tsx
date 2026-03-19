@@ -1352,7 +1352,7 @@ export default function LandingPage() {
         </FadeUp>
 
         <div className="pricing-footer-note">
-          <strong>Trial includes full access:</strong> 5 workspaces and 100,000 monthly messages for 14 days.
+          <strong>Trial includes full access:</strong> 5 workspaces and 100 visitor messages per month for 14 days.
         </div>
       </section>
 

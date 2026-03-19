@@ -270,7 +270,7 @@ export default function PricingPage() {
             <span>
               {countdown.expired
                 ? "Upgrade with Stripe Checkout to restore paid access and keep building workspaces."
-                : `You can use up to ${subscription.max_tenants} workspaces and ${subscription.max_messages_mo.toLocaleString()} messages per month during the 14-day evaluation window.`}
+                : `You can use up to ${subscription.max_tenants} workspaces and ${subscription.max_messages_mo.toLocaleString()} visitor messages per month during the 14-day evaluation window.`}
             </span>
           </div>
           <div className="app-trial-badge-value">
@@ -394,7 +394,7 @@ export default function PricingPage() {
         {[
           {
             title: "Trial",
-            desc: "Starts immediately with full access for 14 days and never touches Stripe."
+            desc: "Starts immediately with 14 days of access, 5 workspaces, and 100 visitor messages per month without touching Stripe."
           },
           {
             title: "Starter",
