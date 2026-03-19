@@ -20,6 +20,7 @@ const OverviewPage = lazy(() => import("@/platform/pages/OverviewPage"));
 const PricingPage = lazy(() => import("@/platform/pages/PricingPage"));
 const SiteSetupPage = lazy(() => import("@/platform/pages/SiteSetupPage"));
 const SignupPage = lazy(() => import("@/platform/pages/SignupPage"));
+const TenantManagementPage = lazy(() => import("@/platform/pages/TenantManagementPage"));
 const WidgetCodePage = lazy(() => import("@/platform/pages/WidgetCodePage"));
 
 /** Kick off chunk downloads as soon as the authenticated shell is first shown. */
@@ -32,6 +33,7 @@ function prefetchPlatformRoutes() {
   void import("@/platform/pages/OverviewPage");
   void import("@/platform/pages/PricingPage");
   void import("@/platform/pages/SiteSetupPage");
+  void import("@/platform/pages/TenantManagementPage");
   void import("@/platform/pages/WidgetCodePage");
 }
 
@@ -138,6 +140,7 @@ export default function App() {
           <Route index element={<Navigate to="overview" replace />} />
           <Route path="overview" element={<OverviewPage />} />
           <Route path="site-setup" element={<SiteSetupPage />} />
+          <Route path="tenants" element={<TenantManagementPage />} />
           <Route path="chatbot" element={<ChatbotPage />} />
           <Route path="customization" element={<CustomizationPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />

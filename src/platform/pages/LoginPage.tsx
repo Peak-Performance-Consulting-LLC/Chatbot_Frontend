@@ -1,14 +1,58 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import PlatformLogo from "@/platform/components/PlatformLogo";
+import SocialAuthButtons from "@/platform/components/SocialAuthButtons";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, loading, error, setError } = usePlatformAuth();
+  const location = useLocation();
+  const { login, acceptSessionToken, loading, error, setError } = usePlatformAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [oauthStatus, setOauthStatus] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const oauthToken = params.get("oauth_token");
+    const oauthError = params.get("oauth_error");
+
+    if (oauthError) {
+      setOauthStatus("");
+      setError(oauthError);
+      navigate("/platform/login", { replace: true });
+      return;
+    }
+
+    if (!oauthToken) {
+      return;
+    }
+
+    let cancelled = false;
+    setOauthStatus("Completing your sign-in...");
+    acceptSessionToken(oauthToken)
+      .then(() => {
+        if (!cancelled) {
+          navigate("/platform/app/overview", { replace: true });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          navigate("/platform/login", { replace: true });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setOauthStatus("");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -90,7 +134,11 @@ export default function LoginPage() {
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-light text-[#0a0a0f]">Login</h2>
           <p className="mt-1 text-sm text-[#0a0a0f]/50">Log in to your workspace to continue.</p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+          <div className="mt-8">
+            <SocialAuthButtons disabled={loading} dividerLabel="Sign in fast with" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-5">
             <label className="block">
               <span className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-[#0a0a0f]/50">Email</span>
               <input
@@ -126,6 +174,11 @@ export default function LoginPage() {
 
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+            )}
+            {oauthStatus && (
+              <div className="rounded-xl border border-[#1a5c5c]/20 bg-[#1a5c5c]/5 px-4 py-3 text-sm text-[#1a5c5c]">
+                {oauthStatus}
+              </div>
             )}
 
             <button

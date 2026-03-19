@@ -3,6 +3,7 @@ import type {
   BgPattern,
   LauncherIcon,
   NotifAnimation,
+  PlatformAuthProvider,
   PlatformProfile,
   PlatformService,
   PlatformSource,
@@ -48,6 +49,8 @@ type LoginPayload = {
   password: string;
 };
 
+export type PlatformOauthProvider = Exclude<PlatformAuthProvider, "password">;
+
 export type PlatformLoginResponse = {
   user: PlatformUser;
   token: string;
@@ -75,8 +78,8 @@ export type PlatformIngestionSummary = {
   errors: string[];
 };
 
-function resolveBaseUrl(override?: string) {
-  return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:4000").replace(/\/$/, "");
+export function resolvePlatformApiBaseUrl(override?: string) {
+  return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
 async function parseError(response: Response): Promise<string> {
@@ -91,11 +94,11 @@ async function parseError(response: Response): Promise<string> {
 async function authedJson<T>(input: {
   path: string;
   token: string;
-  method?: "GET" | "POST" | "PATCH" | "PUT";
+  method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
   backendUrl?: string;
 }): Promise<T> {
-  const base = resolveBaseUrl(input.backendUrl);
+  const base = resolvePlatformApiBaseUrl(input.backendUrl);
   const response = await fetch(`${base}${input.path}`, {
     method: input.method ?? "GET",
     cache: "no-store",
@@ -114,7 +117,7 @@ async function authedJson<T>(input: {
 }
 
 export async function platformSignup(payload: SignupPayload, backendUrl?: string) {
-  const base = resolveBaseUrl(backendUrl);
+  const base = resolvePlatformApiBaseUrl(backendUrl);
   const response = await fetch(`${base}/api/platform/signup`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -146,7 +149,7 @@ export async function platformCreateWorkspace(
 }
 
 export async function platformLogin(payload: LoginPayload, backendUrl?: string) {
-  const base = resolveBaseUrl(backendUrl);
+  const base = resolvePlatformApiBaseUrl(backendUrl);
   const response = await fetch(`${base}/api/platform/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -306,4 +309,41 @@ export async function platformReplaceTenantSources(
     body: payload,
     backendUrl
   });
+}
+
+export async function platformDeleteWorkspace(
+  token: string,
+  tenantId: string,
+  backendUrl?: string
+) {
+  return authedJson<{ tenant_id: string; deleted: boolean }>({
+    path: `/api/platform/workspaces/${encodeURIComponent(tenantId)}`,
+    token,
+    method: "DELETE",
+    backendUrl
+  });
+}
+
+export async function platformUpdateUser(
+  token: string,
+  payload: {
+    full_name?: string;
+    email?: string;
+    current_password?: string;
+    new_password?: string;
+    avatar_url?: string | null;
+  },
+  backendUrl?: string
+) {
+  return authedJson<{ user: PlatformUser }>({
+    path: "/api/platform/me",
+    token,
+    method: "PATCH",
+    body: payload,
+    backendUrl
+  });
+}
+
+export function getPlatformOauthUrl(provider: PlatformOauthProvider, backendUrl?: string) {
+  return `${resolvePlatformApiBaseUrl(backendUrl)}/api/platform/oauth/${provider}`;
 }

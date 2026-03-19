@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   platformCreateWorkspace,
+  platformDeleteWorkspace,
   platformGetTenantSources,
   type PlatformIngestionSummary,
   platformLogin,
@@ -17,6 +18,7 @@ import {
   platformSignup,
   platformUpdateTenantDomain,
   platformUpdateTenantProfile,
+  platformUpdateUser,
   platformVerifyDomain
 } from "@/lib/platformApi";
 import type {
@@ -60,6 +62,7 @@ type PlatformAuthContextValue = {
   selectedTenant: PlatformTenant | null;
   setError: (value: string) => void;
   selectTenant: (tenantId: string) => void;
+  acceptSessionToken: (token: string) => Promise<void>;
   login: (input: { email: string; password: string }) => Promise<void>;
   signup: (input: SignupInput) => Promise<void>;
   createWorkspace: (input: {
@@ -118,12 +121,20 @@ type PlatformAuthContextValue = {
     knowledge_base: PlatformTenant["knowledge_base"];
     ingestion: PlatformIngestionSummary;
   }>;
+  deleteTenant: (tenantId: string) => Promise<void>;
+  updateUserProfile: (input: {
+    full_name?: string;
+    email?: string;
+    current_password?: string;
+    new_password?: string;
+    avatar_url?: string | null;
+  }) => Promise<void>;
 };
 
 const PlatformAuthContext = createContext<PlatformAuthContextValue | null>(null);
 
 function resolveBackendUrl() {
-  return import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:4000";
+  return import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
 }
 
 function upsertTenantInProfile(profile: PlatformProfile | null, tenant: PlatformTenant): PlatformProfile | null {
@@ -167,6 +178,27 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
     return preferred ?? profile.tenants[0] ?? null;
   }, [profile, selectedTenantId]);
+
+  function syncProfileState(nextProfile: PlatformProfile) {
+    setProfile(nextProfile);
+
+    if (nextProfile.tenants.length === 0) {
+      setSelectedTenantId(null);
+      localStorage.removeItem(SELECTED_TENANT_KEY);
+      return;
+    }
+
+    const fallback = nextProfile.tenants.find((tenant) => tenant.tenant_id === selectedTenantId)?.tenant_id
+      ?? nextProfile.tenants[0]?.tenant_id
+      ?? null;
+
+    setSelectedTenantId(fallback);
+    if (fallback) {
+      localStorage.setItem(SELECTED_TENANT_KEY, fallback);
+    } else {
+      localStorage.removeItem(SELECTED_TENANT_KEY);
+    }
+  }
 
   useEffect(() => {
     if (!selectedTenant?.tenant_id) {
@@ -220,17 +252,7 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
     try {
       const nextProfile = await platformMe(token, backendUrl);
-      setProfile(nextProfile);
-      if (nextProfile.tenants.length === 0) {
-        setSelectedTenantId(null);
-        localStorage.removeItem(SELECTED_TENANT_KEY);
-      } else if (!nextProfile.tenants.find((tenant) => tenant.tenant_id === selectedTenantId)) {
-        const fallback = nextProfile.tenants[0]?.tenant_id ?? null;
-        setSelectedTenantId(fallback);
-        if (fallback) {
-          localStorage.setItem(SELECTED_TENANT_KEY, fallback);
-        }
-      }
+      syncProfileState(nextProfile);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load account profile";
       setError(message);
@@ -239,6 +261,34 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
       localStorage.removeItem(SELECTED_TENANT_KEY);
       setSelectedTenantId(null);
       setToken("");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function acceptSessionToken(nextToken: string) {
+    const normalizedToken = nextToken.trim();
+    if (!normalizedToken) {
+      throw new Error("Missing session token");
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const nextProfile = await platformMe(normalizedToken, backendUrl);
+      localStorage.setItem(TOKEN_KEY, normalizedToken);
+      setToken(normalizedToken);
+      syncProfileState(nextProfile);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to complete sign-in";
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(SELECTED_TENANT_KEY);
+      setToken("");
+      setProfile(null);
+      setSelectedTenantId(null);
+      setError(message);
+      throw new Error(message);
     } finally {
       setLoading(false);
     }
@@ -257,15 +307,10 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
       const response = await platformLogin(input, backendUrl);
       localStorage.setItem(TOKEN_KEY, response.token);
       setToken(response.token);
-      setProfile({
+      syncProfileState({
         user: response.user,
         tenants: response.tenants
       });
-      const preferred = response.tenants[0]?.tenant_id ?? null;
-      setSelectedTenantId(preferred);
-      if (preferred) {
-        localStorage.setItem(SELECTED_TENANT_KEY, preferred);
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Login failed";
       setError(message);
@@ -283,12 +328,10 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
       const response = await platformSignup(input, backendUrl);
       localStorage.setItem(TOKEN_KEY, response.token);
       setToken(response.token);
-      setProfile({
+      syncProfileState({
         user: response.user,
         tenants: [response.tenant]
       });
-      setSelectedTenantId(response.tenant.tenant_id);
-      localStorage.setItem(SELECTED_TENANT_KEY, response.tenant.tenant_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Signup failed";
       setError(message);
@@ -539,6 +582,62 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     }
   }
 
+  async function deleteTenant(tenantId: string) {
+    if (!token) throw new Error("Not authenticated");
+    setLoading(true);
+    setError("");
+    try {
+      await platformDeleteWorkspace(token, tenantId, backendUrl);
+      setProfile((previous) => {
+        if (!previous) return previous;
+        const remaining = previous.tenants.filter((t) => t.tenant_id !== tenantId);
+        const nextSelectedId = selectedTenantId === tenantId
+          ? (remaining[0]?.tenant_id ?? null)
+          : selectedTenantId;
+        if (nextSelectedId !== selectedTenantId) {
+          setSelectedTenantId(nextSelectedId);
+          if (nextSelectedId) {
+            localStorage.setItem(SELECTED_TENANT_KEY, nextSelectedId);
+          } else {
+            localStorage.removeItem(SELECTED_TENANT_KEY);
+          }
+        }
+        return { ...previous, tenants: remaining };
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to delete workspace";
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function updateUserProfile(input: {
+    full_name?: string;
+    email?: string;
+    current_password?: string;
+    new_password?: string;
+    avatar_url?: string | null;
+  }) {
+    if (!token) throw new Error("Not authenticated");
+    setLoading(true);
+    setError("");
+    try {
+      const response = await platformUpdateUser(token, input, backendUrl);
+      setProfile((previous) => {
+        if (!previous) return previous;
+        return { ...previous, user: { ...previous.user, ...response.user } };
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update profile";
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   const value: PlatformAuthContextValue = {
     token,
     profile,
@@ -548,6 +647,7 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     selectedTenant,
     setError,
     selectTenant,
+    acceptSessionToken,
     login,
     signup,
     createWorkspace,
@@ -558,7 +658,9 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     updateTenantProfile,
     updateTenantDomain,
     getTenantSources,
-    saveTenantSources
+    saveTenantSources,
+    deleteTenant,
+    updateUserProfile
   };
 
   return <PlatformAuthContext.Provider value={value}>{children}</PlatformAuthContext.Provider>;

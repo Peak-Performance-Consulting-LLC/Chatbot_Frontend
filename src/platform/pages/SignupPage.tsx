@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import PlatformLogo from "@/platform/components/PlatformLogo";
+import SocialAuthButtons from "@/platform/components/SocialAuthButtons";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 function splitDocUrls(input: string): string[] {
@@ -99,7 +100,15 @@ export default function SignupPage() {
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-light text-[#0a0a0f]">Create Account</h2>
           <p className="mt-1 text-sm text-[#0a0a0f]/50">Create your account and connect the first workspace.</p>
 
-          <form onSubmit={handleSubmit} className="mt-8 space-y-6">
+          <div className="mt-8">
+            <SocialAuthButtons
+              disabled={loading}
+              dividerLabel="Start with social login"
+              helperText="Google and Facebook sign-in create your account first. You can set up the first workspace right after login."
+            />
+          </div>
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-6">
 
             {/* Account section */}
             <div>

@@ -8,6 +8,7 @@ import {
   IconOverview,
   IconPricing,
   IconSiteSetup,
+  IconTenants,
   IconWidgetCode
 } from "@/platform/components/PlatformIcons";
 
@@ -20,6 +21,7 @@ export type PlatformNavItem = {
 
 export const appNavItems: PlatformNavItem[] = [
   { key: "overview", label: "Overview", path: "/platform/app/overview", icon: createElement(IconOverview) },
+  { key: "tenants", label: "Tenant Management", path: "/platform/app/tenants", icon: createElement(IconTenants) },
   { key: "site-setup", label: "Site Setup", path: "/platform/app/site-setup", icon: createElement(IconSiteSetup) },
   { key: "chatbot", label: "My Chatbot", path: "/platform/app/chatbot", icon: createElement(IconChatbot) },
   { key: "customization", label: "Customization", path: "/platform/app/customization", icon: createElement(IconCustomization) },

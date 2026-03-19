@@ -170,3 +170,14 @@ export function IconWorkspace(props: IconProps) {
     </BaseIcon>
   );
 }
+
+export function IconTenants(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <rect x="2.5" y="10" width="8" height="11" rx="1.5" />
+      <rect x="13.5" y="10" width="8" height="11" rx="1.5" />
+      <path d="M6 10V6.5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 6.5V10" />
+      <path d="M9 21v-5a3 3 0 0 1 6 0v5" />
+    </BaseIcon>
+  );
+}

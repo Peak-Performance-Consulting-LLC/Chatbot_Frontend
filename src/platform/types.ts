@@ -8,6 +8,8 @@ export type BgPattern = "none" | "dots" | "grid" | "waves";
 export type LauncherIcon = "chat" | "sparkle" | "headset" | "zap" | "heart";
 export type NotifAnimation = "bounce" | "pulse" | "slide";
 export type AiTone = "friendly" | "professional" | "concise" | "enthusiastic";
+export type PlatformAvatarSource = "initials" | "manual" | "google" | "facebook";
+export type PlatformAuthProvider = "password" | "google" | "facebook";
 
 export type TenantBusinessProfile = {
   business_type: string;
@@ -91,6 +93,10 @@ export type PlatformUser = {
   id: string;
   full_name: string;
   email: string;
+  avatar_url: string | null;
+  avatar_source: PlatformAvatarSource;
+  has_password: boolean;
+  auth_providers: PlatformAuthProvider[];
   created_at: string;
 };
 
