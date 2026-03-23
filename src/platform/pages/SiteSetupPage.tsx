@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import WorkspaceCreateForm from "@/platform/components/WorkspaceCreateForm";
-import { getDnsReminderMessage, getDnsStatusLabel, getDnsStatusTone, getKnowledgeStatusLabel, getKnowledgeStatusTone } from "@/platform/status";
+import {
+  getDnsRelativeHost,
+  getDnsReminderMessage,
+  getDnsStatusLabel,
+  getDnsStatusTone,
+  getDnsZoneDomain,
+  getKnowledgeStatusLabel,
+  getKnowledgeStatusTone
+} from "@/platform/status";
 import type { PlatformSource } from "@/platform/types";
 import { usePlatformAuth } from "@/platform/state/auth";
 
@@ -60,6 +68,8 @@ export default function SiteSetupPage() {
   const knowledgeBase = selectedTenant.knowledge_base;
   const widget = selectedTenant.widget;
   const widgetBlocked = widget?.enabled === false;
+  const zoneDomain = getDnsZoneDomain(selectedTenant.allowed_domains);
+  const relativeHost = getDnsRelativeHost(verification?.txt_name, selectedTenant.allowed_domains);
 
   const progressSteps = [
     { label: "Connect domain",  state: selectedTenant.allowed_domains?.[0] ? "done" : "active" },
@@ -194,8 +204,13 @@ export default function SiteSetupPage() {
           </dl>
           <div className="rounded-xl border border-[#0a0a0f]/08 bg-[#0a0a0f]/[0.02] p-3 font-mono text-xs text-[#0a0a0f]/70 space-y-2">
             <div><span className="font-semibold text-[#0a0a0f]/50">TXT host:</span> {verification?.txt_name || "Not generated"}</div>
+            <div><span className="font-semibold text-[#0a0a0f]/50">Vercel / Cloudflare host:</span> {relativeHost || "Not generated"}</div>
             <div><span className="font-semibold text-[#0a0a0f]/50">TXT value:</span> <span className="break-all">{verification?.txt_value || "Not generated"}</span></div>
           </div>
+          <p className="text-xs text-[#0a0a0f]/55">
+            If your DNS provider manages <span className="font-semibold">{zoneDomain || "the root zone"}</span> directly,
+            enter only <span className="font-mono">{relativeHost || verification?.txt_name || "the TXT host label"}</span> in the Name field.
+          </p>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={handleVerifyDomain} disabled={loading} className={primaryBtn}>{loading ? "Checking…" : "Verify DNS"}</button>
             <button type="button" onClick={() => copy(verification?.txt_value)} className={secondaryBtn}>Copy TXT value</button>

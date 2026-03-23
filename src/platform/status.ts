@@ -43,6 +43,41 @@ export function getDnsReminderMessage(verification: PlatformDomainVerification) 
   return "Please add the TXT verification record to your DNS settings to connect the chatbot widget to your website.";
 }
 
+export function getDnsZoneDomain(allowedDomains: string[] | undefined) {
+  const domains = (allowedDomains ?? [])
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  const bareDomain = domains.find(
+    (value) =>
+      !value.startsWith("www.") &&
+      value !== "localhost" &&
+      value !== "127.0.0.1" &&
+      value.includes(".")
+  );
+
+  return bareDomain ?? domains[0] ?? "";
+}
+
+export function getDnsRelativeHost(txtName: string | undefined, allowedDomains: string[] | undefined) {
+  const host = txtName?.trim().toLowerCase();
+  if (!host) {
+    return "";
+  }
+
+  const zoneDomain = getDnsZoneDomain(allowedDomains);
+  if (!zoneDomain) {
+    return host;
+  }
+
+  const suffix = `.${zoneDomain}`;
+  if (!host.endsWith(suffix)) {
+    return host;
+  }
+
+  return host.slice(0, -suffix.length) || host;
+}
+
 export function getKnowledgeStatusLabel(status: PlatformKnowledgeBase["status"] | undefined) {
   switch (status) {
     case "processing":

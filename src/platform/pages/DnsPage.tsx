@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { getDnsReminderMessage, getDnsStatusLabel, getDnsStatusTone } from "@/platform/status";
+import {
+  getDnsRelativeHost,
+  getDnsReminderMessage,
+  getDnsStatusLabel,
+  getDnsStatusTone,
+  getDnsZoneDomain
+} from "@/platform/status";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 function formatTimestamp(value?: string | null) {
@@ -27,6 +33,8 @@ export default function DnsPage() {
   const tenantId = selectedTenant.tenant_id;
   const verification = selectedTenant.domain_verification;
   const tone = getDnsStatusTone(verification?.status);
+  const zoneDomain = getDnsZoneDomain(selectedTenant.allowed_domains);
+  const relativeHost = getDnsRelativeHost(verification?.txt_name, selectedTenant.allowed_domains);
 
   async function handleVerify() {
     setStatus(""); setError("");
@@ -110,6 +118,20 @@ export default function DnsPage() {
             <code>{verification?.txt_name || "Not generated yet"}</code>
           </div>
 
+          <div className="app-snippet" style={{ marginBottom: "14px" }}>
+            <div className="app-snippet-label">
+              <span>TXT Host For Vercel / Cloudflare</span>
+              <button
+                type="button"
+                onClick={() => copy(relativeHost, "relative-host")}
+                style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "6px", padding: "3px 10px", color: copiedKey === "relative-host" ? "#c9a96e" : "rgba(255,255,255,0.5)", fontSize: "0.72rem", cursor: "pointer", fontFamily: "inherit" }}
+              >
+                {copiedKey === "relative-host" ? "✓ Copied" : "Copy"}
+              </button>
+            </div>
+            <code>{relativeHost || "Not generated yet"}</code>
+          </div>
+
           {/* TXT Value */}
           <div className="app-snippet">
             <div className="app-snippet-label">
@@ -161,6 +183,14 @@ export default function DnsPage() {
             <div className="app-note">
               <strong>Remove conflicting TXT records</strong>
               <p>If the host already has multiple TXT values, ensure the workspace verification record is present exactly as shown.</p>
+            </div>
+            <div className="app-note">
+              <strong>Vercel / Cloudflare host field</strong>
+              <p>
+                If your DNS provider manages the <em>{zoneDomain || "root domain"}</em> zone directly, enter only{" "}
+                <code>{relativeHost || verification?.txt_name || "the TXT host label"}</code> in the Name or Host field.
+                Do not paste the full hostname there.
+              </p>
             </div>
             <div className="app-note">
               <strong>Retry after saving</strong>
