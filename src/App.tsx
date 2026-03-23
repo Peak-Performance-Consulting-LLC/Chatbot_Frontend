@@ -19,6 +19,7 @@ const LandingPage = lazy(() => import("@/platform/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/platform/pages/LoginPage"));
 const OverviewPage = lazy(() => import("@/platform/pages/OverviewPage"));
 const PricingPage = lazy(() => import("@/platform/pages/PricingPage"));
+const ResetPasswordPage = lazy(() => import("@/platform/pages/ResetPasswordPage"));
 const SiteSetupPage = lazy(() => import("@/platform/pages/SiteSetupPage"));
 const SignupPage = lazy(() => import("@/platform/pages/SignupPage"));
 const TenantManagementPage = lazy(() => import("@/platform/pages/TenantManagementPage"));
@@ -131,6 +132,7 @@ export default function App() {
         <Route path="/" element={<HomeEntryPage />} />
         <Route path="/demo" element={<WidgetDemoPage />} />
         <Route path="/platform" element={<PlatformIndex />} />
+        <Route path="/platform/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<RequirePlatformGuest />}>
           <Route path="/platform/login" element={<LoginPage />} />

@@ -170,6 +170,11 @@ export default function LoginPage() {
                   {showPassword ? "Hide" : "Show"}
                 </button>
               </div>
+              <div className="mt-2 text-right">
+                <Link to="/platform/reset-password" className="text-xs font-medium text-[#1a5c5c] hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
             </label>
 
             {error && (

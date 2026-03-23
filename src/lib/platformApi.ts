@@ -52,6 +52,15 @@ type LoginPayload = {
   password: string;
 };
 
+type ForgotPasswordPayload = {
+  email: string;
+};
+
+type ResetPasswordPayload = {
+  token: string;
+  password: string;
+};
+
 export type PlatformOauthProvider = Exclude<PlatformAuthProvider, "password">;
 
 export type PlatformLoginResponse = {
@@ -164,6 +173,36 @@ export async function platformLogin(payload: LoginPayload, backendUrl?: string) 
   }
 
   return (await response.json()) as PlatformLoginResponse;
+}
+
+export async function platformRequestPasswordReset(payload: ForgotPasswordPayload, backendUrl?: string) {
+  const base = resolvePlatformApiBaseUrl(backendUrl);
+  const response = await fetch(`${base}/api/platform/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as { ok: boolean; message: string };
+}
+
+export async function platformResetPassword(payload: ResetPasswordPayload, backendUrl?: string) {
+  const base = resolvePlatformApiBaseUrl(backendUrl);
+  const response = await fetch(`${base}/api/platform/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as { ok: boolean; message: string };
 }
 
 export async function platformMe(token: string, backendUrl?: string) {
