@@ -94,6 +94,16 @@ export function resolvePlatformApiBaseUrl(override?: string) {
   return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
+function toNetworkError(path: string, error: unknown): Error {
+  if (error instanceof Error && error.name === "AbortError") {
+    return new Error(`Request to ${path} was interrupted before the backend responded.`);
+  }
+
+  return new Error(
+    `Network request failed for ${path}. Refresh the page and retry. If it persists, the browser or network blocked the request before the backend responded.`
+  );
+}
+
 async function parseError(response: Response): Promise<string> {
   try {
     const json = (await response.json()) as { error?: string };
@@ -111,15 +121,21 @@ async function authedJson<T>(input: {
   backendUrl?: string;
 }): Promise<T> {
   const base = resolvePlatformApiBaseUrl(input.backendUrl);
-  const response = await fetch(`${base}${input.path}`, {
-    method: input.method ?? "GET",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${input.token}`
-    },
-    ...(input.body ? { body: JSON.stringify(input.body) } : {})
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}${input.path}`, {
+      method: input.method ?? "GET",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${input.token}`
+      },
+      ...(input.body ? { body: JSON.stringify(input.body) } : {})
+    });
+  } catch (error) {
+    throw toNetworkError(input.path, error);
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));
@@ -130,11 +146,17 @@ async function authedJson<T>(input: {
 
 export async function platformSignup(payload: SignupPayload, backendUrl?: string) {
   const base = resolvePlatformApiBaseUrl(backendUrl);
-  const response = await fetch(`${base}/api/platform/signup`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}/api/platform/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    throw toNetworkError("/api/platform/signup", error);
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));
@@ -162,11 +184,17 @@ export async function platformCreateWorkspace(
 
 export async function platformLogin(payload: LoginPayload, backendUrl?: string) {
   const base = resolvePlatformApiBaseUrl(backendUrl);
-  const response = await fetch(`${base}/api/platform/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}/api/platform/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    throw toNetworkError("/api/platform/login", error);
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));
@@ -177,11 +205,17 @@ export async function platformLogin(payload: LoginPayload, backendUrl?: string) 
 
 export async function platformRequestPasswordReset(payload: ForgotPasswordPayload, backendUrl?: string) {
   const base = resolvePlatformApiBaseUrl(backendUrl);
-  const response = await fetch(`${base}/api/platform/forgot-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}/api/platform/forgot-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    throw toNetworkError("/api/platform/forgot-password", error);
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));
@@ -192,11 +226,17 @@ export async function platformRequestPasswordReset(payload: ForgotPasswordPayloa
 
 export async function platformResetPassword(payload: ResetPasswordPayload, backendUrl?: string) {
   const base = resolvePlatformApiBaseUrl(backendUrl);
-  const response = await fetch(`${base}/api/platform/reset-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(`${base}/api/platform/reset-password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    throw toNetworkError("/api/platform/reset-password", error);
+  }
 
   if (!response.ok) {
     throw new Error(await parseError(response));

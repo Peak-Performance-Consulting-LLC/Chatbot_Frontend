@@ -10,7 +10,7 @@ function parseLinks(value: string): string[] {
 }
 
 export default function KnowledgePage() {
-  const { selectedTenant, getTenantSources, saveTenantSources, runIngest, loading, error, setError } = usePlatformAuth();
+  const { selectedTenant, getTenantSources, saveTenantSources, runIngest, refresh, loading, error, setError } = usePlatformAuth();
 
   const [sources, setSources] = useState<PlatformSource[]>([]);
   const [sitemapUrl, setSitemapUrl] = useState("");
@@ -21,7 +21,9 @@ export default function KnowledgePage() {
   useEffect(() => {
     if (!selectedTenant) return;
     setError("");
-    getTenantSources(selectedTenant.tenant_id)
+    refresh()
+      .catch(() => undefined)
+      .then(() => getTenantSources(selectedTenant.tenant_id))
       .then((rows) => setSources(rows))
       .catch((err) => setError(err instanceof Error ? err.message : "Failed to load sources"));
   }, [selectedTenant?.tenant_id]);
@@ -71,6 +73,7 @@ export default function KnowledgePage() {
     try {
       const result = await saveTenantSources(tenantId, nextSources);
       setSources(result.sources);
+      await refresh().catch(() => undefined);
       setStatus(
         result.knowledge_base.message ||
           (result.ingestion.errors.length > 0
@@ -85,6 +88,7 @@ export default function KnowledgePage() {
     setStatus(""); setError("");
     try {
       const result = await runIngest(tenantId, true);
+      await refresh().catch(() => undefined);
       setStatus(result.errors.length > 0
         ? `Indexed with warnings. Chunks inserted: ${result.inserted}.`
         : `Knowledge indexed successfully. Chunks inserted: ${result.inserted}.`);
