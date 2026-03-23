@@ -1,5 +1,5 @@
 /* Platform styles — shared design tokens + app page styles               */
-@import "tailwindcss";
+/* NOTE: Tailwind v4 is imported once in src/styles.css — do NOT duplicate */
 
 /* ─── Native input sizing ───────────────────────────────────────────── */
 input[type="color"] {
