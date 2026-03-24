@@ -1644,7 +1644,7 @@ export function ChatWidget({
       ) : null}
 
       {isPublicEmbed && isOpen ? (
-        <div className={`chat-embed-dock chat-embed-dock-${appearance.widgetPosition}`}>
+        <div className={`chat-embed-dock chat-embed-dock-${appearance.widgetPosition}`} style={shellStyle}>
           <div className="chat-embed-powered">Powered by {poweredByBrand}</div>
           <button
             type="button"
