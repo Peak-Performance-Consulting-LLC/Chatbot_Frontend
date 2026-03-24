@@ -411,7 +411,7 @@ export default function CustomizationPage() {
         bot_name: botName.trim() || "Assistant",
         bot_avatar_url: botAvatarUrl || undefined,
         welcome_message: welcomeMessage.trim() || "Hello! How can I help you?",
-        header_cta_label: headerCtaLabel.trim() || undefined,
+        header_cta_label: headerCtaLabel.trim(),
         header_cta_notice: headerCtaNotice.trim() || "Hi! I am your AI assistant.",
         support_phone: supportPhone.trim() || undefined,
         support_email: supportEmail.trim() || undefined,

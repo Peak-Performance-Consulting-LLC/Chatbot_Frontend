@@ -1473,6 +1473,7 @@ export function ChatWidget({
         <div
           className={`chat-peek-stack chat-peek-stack-${appearance.widgetPosition}${shouldShowNotificationCard ? "" : " launcher-only"}`}
           aria-label={`${appearance.botName} launcher`}
+          style={shellStyle}
         >
           {shouldShowNotificationCard ? (
             <>
