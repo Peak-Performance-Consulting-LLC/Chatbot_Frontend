@@ -9,6 +9,7 @@ import {
   listMessages,
   renameChat,
   searchPlaceSuggestions,
+  submitVisitorContact,
   streamChat,
   type WidgetConfig
 } from "@/lib/api";
@@ -32,6 +33,7 @@ type ChatWidgetProps = {
 
 type FlightUi = NonNullable<MessageMetadata["flight_ui"]>;
 type ServiceUi = NonNullable<MessageMetadata["service_ui"]>;
+type ContactCapture = NonNullable<MessageMetadata["contact_capture"]>;
 type CallCta = NonNullable<MessageMetadata["call_cta"]>;
 type HeaderCtaConfig = {
   label: string;
@@ -89,6 +91,7 @@ const defaultHeaderCtaConfig: HeaderCtaConfig = {
   notice: "Hi! I am your AI assistant. Ask me anything about your trip."
 };
 const poweredByBrand = "PPConsultings";
+const CONTACT_CAPTURE_STORAGE_PREFIX = "aeroconcierge_contact_captured";
 
 function normalizeAppearance(
   input?: Partial<ChatWidgetAppearance> | null,
@@ -174,6 +177,10 @@ function normalizeMessageText(input: string) {
 function parseMessageTs(input: string) {
   const ts = Date.parse(input);
   return Number.isFinite(ts) ? ts : 0;
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 function messagesAreEquivalent(localMessage: ChatMessage, syncedMessage: ChatMessage) {
@@ -287,6 +294,57 @@ function resolveEmbeddedSiteHost() {
 
 function sanitizePhoneNumber(value: string) {
   return value.replace(/[^+\d]/g, "");
+}
+
+function buildContactCaptureStorageKey(tenantId: string, deviceId: string) {
+  return `${CONTACT_CAPTURE_STORAGE_PREFIX}:${tenantId}:${deviceId}`;
+}
+
+function normalizeVisitorPhoneInput(value: string) {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  return trimmed.startsWith("+") ? `+${digits}` : digits;
+}
+
+function validateVisitorContactInput(input: {
+  fullName: string;
+  email: string;
+  phone: string;
+}) {
+  const errors: { fullName?: string; email?: string; phone?: string } = {};
+
+  const name = input.fullName.trim();
+  if (!name) {
+    errors.fullName = "Name is required";
+  } else if (name.length < 2 || name.length > 80) {
+    errors.fullName = "Name must be between 2 and 80 characters";
+  } else if (!/^(?=.{2,80}$)[\p{L}][\p{L}\p{M}\s'.-]*$/u.test(name)) {
+    errors.fullName = "Enter a valid name";
+  }
+
+  const email = input.email.trim();
+  if (!email) {
+    errors.email = "Email is required";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errors.email = "Enter a valid email";
+  }
+
+  const phone = input.phone.trim();
+  if (!phone) {
+    errors.phone = "Phone is required";
+  } else if (!/^[+\d\s().-]+$/.test(phone)) {
+    errors.phone = "Enter a valid phone number";
+  } else {
+    const digits = phone.replace(/\D/g, "").length;
+    if (digits < 7 || digits > 15) {
+      errors.phone = "Phone must include 7 to 15 digits";
+    }
+  }
+
+  return errors;
 }
 
 function buildCallCtaOverride(number?: string | null, label?: string | null): CallCta | null {
@@ -814,6 +872,64 @@ function GuidedServiceInput({ serviceUi, disabled, onSubmit }: { serviceUi: Serv
   );
 }
 
+function ContactCaptureForm(input: {
+  capture: ContactCapture;
+  values: { fullName: string; email: string; phone: string };
+  errors: { fullName?: string; email?: string; phone?: string };
+  disabled: boolean;
+  submitting: boolean;
+  successMessage: string | null;
+  onChange: (field: "fullName" | "email" | "phone", value: string) => void;
+  onSubmit: (event: React.FormEvent) => void;
+}) {
+  const { capture, values, errors, disabled, submitting, successMessage, onChange, onSubmit } = input;
+
+  return (
+    <form
+      className="guided-input"
+      onSubmit={onSubmit}
+      style={{ border: "1px solid rgba(10,10,15,0.12)", borderRadius: 12, padding: 14, background: "#fff" }}
+    >
+      <p style={{ marginBottom: 6 }}>{capture.prompt}</p>
+      <div className="guided-inline" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
+        <div>
+          <input
+            value={values.fullName}
+            onChange={(event) => onChange("fullName", event.target.value)}
+            placeholder="Full name"
+            disabled={disabled || submitting}
+          />
+          {errors.fullName ? <small className="error-text">{errors.fullName}</small> : null}
+        </div>
+        <div>
+          <input
+            value={values.email}
+            onChange={(event) => onChange("email", event.target.value)}
+            placeholder="Email"
+            type="email"
+            disabled={disabled || submitting}
+          />
+          {errors.email ? <small className="error-text">{errors.email}</small> : null}
+        </div>
+        <div>
+          <input
+            value={values.phone}
+            onChange={(event) => onChange("phone", event.target.value)}
+            placeholder="Phone"
+            type="tel"
+            disabled={disabled || submitting}
+          />
+          {errors.phone ? <small className="error-text">{errors.phone}</small> : null}
+        </div>
+        <button type="submit" disabled={disabled || submitting}>
+          {submitting ? "Saving..." : "Continue chat"}
+        </button>
+        {successMessage ? <small style={{ color: "#1a5c5c", fontWeight: 600 }}>{successMessage}</small> : null}
+      </div>
+    </form>
+  );
+}
+
 // ── Message Bubble ──────────────────────────────────────────────────────────────
 function MessageBubble({ message, callCtaOverride, appearance }: {
   message: ChatMessage; callCtaOverride?: CallCta | null;
@@ -952,6 +1068,11 @@ export function ChatWidget({
   const [shellWidth, setShellWidth] = useState<number | null>(null);
   const [pendingLauncherReply, setPendingLauncherReply] = useState<string | null>(null);
   const [runtimeWidgetConfig, setRuntimeWidgetConfig] = useState<WidgetConfig | null>(null);
+  const [contactValues, setContactValues] = useState({ fullName: "", email: "", phone: "" });
+  const [contactErrors, setContactErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
+  const [contactSuccessMessage, setContactSuccessMessage] = useState<string | null>(null);
+  const [hasCapturedContact, setHasCapturedContact] = useState(false);
 
   const shellRef = useRef<HTMLElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -1057,6 +1178,9 @@ export function ChatWidget({
   const visibleQuickReplies = messages.length === 0 ? appearance.quickReplies : quickReplies;
   const flightUi = latestAssistantMeta?.flight_ui ?? null;
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
+  const contactCapture = latestAssistantMeta?.contact_capture ?? null;
+  const isContactCaptureRequired = Boolean(contactCapture?.required && !hasCapturedContact);
+  const isInteractionLocked = isSending || isSubmittingContact || isContactCaptureRequired;
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
   const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, publicEmbedWidth);
   const isCompactLayout = effectiveShellWidth < 720;
@@ -1067,6 +1191,7 @@ export function ChatWidget({
     messages.length === 0 &&
     !isLoadingMessages &&
     !isSending &&
+    !isContactCaptureRequired &&
     !flightUi &&
     !serviceUi;
   const shouldShowNotificationCard = showLauncherNotification && appearance.notifEnabled;
@@ -1096,6 +1221,12 @@ export function ChatWidget({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    const key = buildContactCaptureStorageKey(tenantId, deviceId);
+    const captured = window.localStorage.getItem(key) === "1";
+    setHasCapturedContact(captured);
+  }, [tenantId, deviceId]);
 
   function flushStreamedAssistantText() {
     const assistantMessageId = streamedAssistantIdRef.current;
@@ -1361,9 +1492,57 @@ export function ChatWidget({
     }
   }
 
+  function handleContactFieldChange(field: "fullName" | "email" | "phone", value: string) {
+    setContactValues((prev) => ({ ...prev, [field]: value }));
+    setContactErrors((prev) => ({ ...prev, [field]: undefined }));
+    setContactSuccessMessage(null);
+    setError(null);
+  }
+
+  async function handleSubmitContactCapture(event: React.FormEvent) {
+    event.preventDefault();
+    setError(null);
+    setContactSuccessMessage(null);
+    const validation = validateVisitorContactInput(contactValues);
+    if (Object.keys(validation).length > 0) {
+      setContactErrors(validation);
+      return;
+    }
+
+    setIsSubmittingContact(true);
+    try {
+      const chatIdForCapture = activeChatId && isUuid(activeChatId) ? activeChatId : undefined;
+      await submitVisitorContact({
+        tenantId,
+        deviceId,
+        chatId: chatIdForCapture,
+        fullName: contactValues.fullName.trim(),
+        email: contactValues.email.trim().toLowerCase(),
+        phone: normalizeVisitorPhoneInput(contactValues.phone),
+        backendUrl,
+        authToken: portalToken,
+        siteHost
+      });
+
+      const key = buildContactCaptureStorageKey(tenantId, deviceId);
+      window.localStorage.setItem(key, "1");
+      setHasCapturedContact(true);
+      setContactErrors({});
+      setContactSuccessMessage("Details saved. You can continue chatting.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save contact details");
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  }
+
   async function sendMessage(rawText: string) {
     const text = rawText.trim();
-    if (!text || isSending) return;
+    if (!text || isSending || isSubmittingContact) return;
+    if (isContactCaptureRequired) {
+      setError("Please share your contact details first to continue chatting.");
+      return;
+    }
 
     setInput(""); setError(null);
     const existingChatId = activeChatId;
@@ -1594,13 +1773,13 @@ export function ChatWidget({
                 ))}
                 {isSending ? <TypingIndicator /> : null}
                 {/* Quick replies inline – appear right after the last bot message */}
-                {!isSending && visibleQuickReplies.length > 0 ? (
+                {!isInteractionLocked && visibleQuickReplies.length > 0 ? (
                   <div className="inline-quick-replies">
                     {visibleQuickReplies.map((reply) => (
                       <button
                         key={reply}
                         type="button"
-                        disabled={isSending}
+                        disabled={isInteractionLocked}
                         onClick={() => sendMessage(reply)}
                       >{reply}</button>
                     ))}
@@ -1610,28 +1789,41 @@ export function ChatWidget({
 
               {flightUi ? (
                 <GuidedFlightInput
-                  flightUi={flightUi} disabled={isSending} onSubmit={sendMessage}
+                  flightUi={flightUi} disabled={isInteractionLocked} onSubmit={sendMessage}
                   tenantId={tenantId} backendUrl={backendUrl} authToken={portalToken} siteHost={siteHost}
                 />
               ) : null}
 
               {serviceUi ? (
-                <GuidedServiceInput serviceUi={serviceUi} disabled={isSending} onSubmit={sendMessage} />
+                <GuidedServiceInput serviceUi={serviceUi} disabled={isInteractionLocked} onSubmit={sendMessage} />
+              ) : null}
+
+              {contactCapture && isContactCaptureRequired ? (
+                <ContactCaptureForm
+                  capture={contactCapture}
+                  values={contactValues}
+                  errors={contactErrors}
+                  disabled={isSending}
+                  submitting={isSubmittingContact}
+                  successMessage={contactSuccessMessage}
+                  onChange={handleContactFieldChange}
+                  onSubmit={handleSubmitContactCapture}
+                />
               ) : null}
 
               <form className="composer" onSubmit={handleSend}>
                 <div className="composer-textarea-wrap">
                   <textarea
                     value={input}
-                    placeholder="Type a message… (Enter to send)"
+                    placeholder={isContactCaptureRequired ? "Share your contact details to continue..." : "Type a message… (Enter to send)"}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     rows={1}
-                    disabled={isSending}
+                    disabled={isInteractionLocked}
                   />
                   {/* <span className="composer-hint">Shift+Enter for newline</span> */}
                 </div>
-                <button type="submit" className="composer-send-btn" disabled={isSending || !input.trim()} aria-label="Send message">
+                <button type="submit" className="composer-send-btn" disabled={isInteractionLocked || !input.trim()} aria-label="Send message">
                   <IconSend />
                 </button>
               </form>

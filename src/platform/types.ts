@@ -203,3 +203,22 @@ export type PlatformProfile = {
   tenants: PlatformTenant[];
   subscription?: PlatformSubscription;
 };
+
+export type PlatformVisitorContact = {
+  id: string;
+  tenant_id: string;
+  device_id: string;
+  chat_id: string | null;
+  full_name: string;
+  email: string;
+  phone: string;
+  captured_at: string;
+};
+
+export type PlatformVisitorContactsResponse = {
+  tenant_id: string;
+  total: number;
+  limit: number;
+  offset: number;
+  contacts: PlatformVisitorContact[];
+};

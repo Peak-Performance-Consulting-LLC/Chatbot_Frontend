@@ -11,6 +11,7 @@ import type {
   PlatformSource,
   PlatformSubscription,
   PlatformTenant,
+  PlatformVisitorContactsResponse,
   ThemeStyle,
   PlatformUser,
   TenantBusinessProfile
@@ -454,6 +455,36 @@ export async function platformGetAnalytics(
 
   return authedJson<PlatformAnalyticsResponse>({
     path: `/api/platform/analytics?${params.toString()}`,
+    token,
+    method: "GET",
+    backendUrl
+  });
+}
+
+export async function platformGetVisitorContacts(
+  token: string,
+  input: {
+    tenantId: string;
+    query?: string;
+    limit?: number;
+    offset?: number;
+  },
+  backendUrl?: string
+) {
+  const params = new URLSearchParams();
+  params.set("tenant_id", input.tenantId);
+  if (input.query?.trim()) {
+    params.set("query", input.query.trim());
+  }
+  if (typeof input.limit === "number") {
+    params.set("limit", String(input.limit));
+  }
+  if (typeof input.offset === "number") {
+    params.set("offset", String(input.offset));
+  }
+
+  return authedJson<PlatformVisitorContactsResponse>({
+    path: `/api/platform/visitor-contacts?${params.toString()}`,
     token,
     method: "GET",
     backendUrl

@@ -18,6 +18,20 @@ type StreamPayload = {
   };
 };
 
+export type VisitorContact = {
+  id: string;
+  tenant_id: string;
+  device_id: string;
+  chat_id: string | null;
+  full_name: string;
+  email: string;
+  phone_raw: string;
+  phone_normalized: string;
+  captured_at: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type PlaceSuggestionOption = {
   code: string;
   label: string;
@@ -308,6 +322,39 @@ export async function streamChat(input: {
   }
 
   return donePayload;
+}
+
+export async function submitVisitorContact(input: {
+  tenantId: string;
+  deviceId: string;
+  chatId?: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<VisitorContact> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(`${base}/api/chat/visitor-contact`, {
+    method: "POST",
+    headers: buildHeaders(input, true),
+    body: JSON.stringify({
+      tenant_id: input.tenantId,
+      device_id: input.deviceId,
+      chat_id: input.chatId,
+      full_name: input.fullName,
+      email: input.email,
+      phone: input.phone
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  const json = (await response.json()) as { ok: boolean; contact: VisitorContact };
+  return json.contact;
 }
 
 export async function searchPlaceSuggestions(input: {

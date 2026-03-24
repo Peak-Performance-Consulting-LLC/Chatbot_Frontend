@@ -14,6 +14,11 @@ export type ChatThread = {
 export type MessageMetadata = {
   intent?: "flight_search" | "knowledge" | "payment_support" | "support" | "greeting" | "service_request";
   tenant_id?: string;
+  contact_capture?: {
+    required: boolean;
+    prompt: string;
+    fields: Array<"name" | "email" | "phone">;
+  };
   quick_replies?: string[];
   service_request?: {
     service: "hotels" | "cars" | "cruises";

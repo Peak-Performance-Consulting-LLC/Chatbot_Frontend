@@ -73,6 +73,17 @@ export function IconChatbot(props: IconProps) {
   );
 }
 
+export function IconLeads(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <circle cx="8" cy="8" r="2.5" />
+      <circle cx="16.5" cy="9.5" r="2" />
+      <path d="M3.5 18.5c1.1-2.6 2.9-4 5.5-4 2.6 0 4.4 1.4 5.5 4" />
+      <path d="M14.5 18.5c.7-1.8 2-2.8 3.8-2.8 1.2 0 2.2.4 3.2 1.4" />
+    </BaseIcon>
+  );
+}
+
 export function IconCustomization(props: IconProps) {
   return (
     <BaseIcon {...props}>

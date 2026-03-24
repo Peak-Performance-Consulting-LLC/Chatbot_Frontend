@@ -15,6 +15,7 @@ const CustomizationPage = lazy(() => import("@/platform/pages/CustomizationPage"
 const DnsPage = lazy(() => import("@/platform/pages/DnsPage"));
 const DocumentationPage = lazy(() => import("@/platform/pages/DocumentationPage"));
 const KnowledgePage = lazy(() => import("@/platform/pages/KnowledgePage"));
+const LeadsPage = lazy(() => import("@/platform/pages/LeadsPage"));
 const LandingPage = lazy(() => import("@/platform/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/platform/pages/LoginPage"));
 const OverviewPage = lazy(() => import("@/platform/pages/OverviewPage"));
@@ -33,6 +34,7 @@ function prefetchPlatformRoutes() {
   void import("@/platform/pages/DnsPage");
   void import("@/platform/pages/DocumentationPage");
   void import("@/platform/pages/KnowledgePage");
+  void import("@/platform/pages/LeadsPage");
   void import("@/platform/pages/OverviewPage");
   void import("@/platform/pages/PricingPage");
   void import("@/platform/pages/SiteSetupPage");
@@ -146,6 +148,7 @@ export default function App() {
           <Route path="site-setup" element={<SiteSetupPage />} />
           <Route path="tenants" element={<TenantManagementPage />} />
           <Route path="chatbot" element={<ChatbotPage />} />
+          <Route path="leads" element={<LeadsPage />} />
           <Route path="customization" element={<CustomizationPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />
           <Route path="dns" element={<DnsPage />} />
