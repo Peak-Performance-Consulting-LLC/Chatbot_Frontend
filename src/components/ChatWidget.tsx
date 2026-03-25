@@ -1193,7 +1193,7 @@ export function ChatWidget({
     !isContactCaptureRequired &&
     !flightUi &&
     !serviceUi;
-  const shouldShowNotificationCard = isPublicEmbed && !isOpen && appearance.notifEnabled;
+  const shouldShowNotificationCard = false;
   const publicEmbedMode = isPublicEmbed
     ? (isOpen ? (isPristinePublicEmbed ? "open-compact" : "open") : shouldShowNotificationCard ? "peek" : "launcher")
     : null;
