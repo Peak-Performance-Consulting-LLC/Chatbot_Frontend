@@ -1328,6 +1328,11 @@ body.chat-widget-embedded {
   flex-direction: column;
   gap: 12px;
   width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.chat-peek-stack > * {
+  pointer-events: auto;
 }
 
 .chat-peek-stack-right {
