@@ -242,6 +242,36 @@ export default function OverviewPage() {
     };
   }, [range, selectedTenant?.tenant_id, timezone, token]);
 
+  if (!selectedTenant) {
+    return <WorkspaceCreateForm />;
+  }
+
+  const profile = selectedTenant.business_profile;
+  const domainVerification = selectedTenant.domain_verification;
+  const knowledgeBase = selectedTenant.knowledge_base;
+  const widgetReady = selectedTenant.widget?.enabled === true;
+
+  const checklist = [
+    { done: Boolean(selectedTenant.allowed_domains?.[0]), label: "Tenant domain configured" },
+    { done: domainVerification?.status === "verified", label: "DNS ownership verified" },
+    {
+      done: knowledgeBase.status === "ready" || knowledgeBase.status === "warning",
+      label: "Knowledge base indexed"
+    },
+    { done: widgetReady, label: "Widget ready for website install" }
+  ];
+  const completedSteps = checklist.filter((item) => item.done).length;
+  const progress = Math.round((completedSteps / checklist.length) * 100);
+
+  const kpis = [
+    { label: "Primary domain", value: selectedTenant.allowed_domains?.[0] || "Not configured" },
+    { label: "DNS status", value: getDnsStatusLabel(domainVerification?.status) },
+    { label: "Knowledge base", value: getKnowledgeStatusLabel(knowledgeBase.status) },
+    { label: "Website widget", value: widgetReady ? "Ready to install" : "Blocked until DNS" },
+    { label: "Services enabled", value: profile.supported_services.join(", ") || "flights" },
+    { label: "Specialist number", value: profile.support_phone || "Not configured" }
+  ];
+
   const trendData = useMemo(
     () =>
       analytics?.account.trend.map((point) => ({
@@ -278,36 +308,6 @@ export default function OverviewPage() {
   const quotaRatio = analytics ? buildQuotaRatio(analytics.account.summary) : 0;
   const quotaAccent = quotaRatio >= 0.8 ? "warning" : "default";
   const tokenTrackingStartedAt = formatDateTime(analytics?.token_tracking_started_at ?? null);
-
-  if (!selectedTenant) {
-    return <WorkspaceCreateForm />;
-  }
-
-  const profile = selectedTenant.business_profile;
-  const domainVerification = selectedTenant.domain_verification;
-  const knowledgeBase = selectedTenant.knowledge_base;
-  const widgetReady = selectedTenant.widget?.enabled === true;
-
-  const checklist = [
-    { done: Boolean(selectedTenant.allowed_domains?.[0]), label: "Tenant domain configured" },
-    { done: domainVerification?.status === "verified", label: "DNS ownership verified" },
-    {
-      done: knowledgeBase.status === "ready" || knowledgeBase.status === "warning",
-      label: "Knowledge base indexed"
-    },
-    { done: widgetReady, label: "Widget ready for website install" }
-  ];
-  const completedSteps = checklist.filter((item) => item.done).length;
-  const progress = Math.round((completedSteps / checklist.length) * 100);
-
-  const kpis = [
-    { label: "Primary domain", value: selectedTenant.allowed_domains?.[0] || "Not configured" },
-    { label: "DNS status", value: getDnsStatusLabel(domainVerification?.status) },
-    { label: "Knowledge base", value: getKnowledgeStatusLabel(knowledgeBase.status) },
-    { label: "Website widget", value: widgetReady ? "Ready to install" : "Blocked until DNS" },
-    { label: "Services enabled", value: profile.supported_services.join(", ") || "flights" },
-    { label: "Specialist number", value: profile.support_phone || "Not configured" }
-  ];
 
   return (
     <div className="space-y-6">

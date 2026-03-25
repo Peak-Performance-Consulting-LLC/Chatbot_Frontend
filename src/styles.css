@@ -1340,6 +1340,18 @@ body.chat-widget-embedded {
   align-items: flex-start;
 }
 
+body.chat-widget-embedded .chat-peek-stack {
+  bottom: 0;
+}
+
+body.chat-widget-embedded .chat-peek-stack-right {
+  right: 0;
+}
+
+body.chat-widget-embedded .chat-peek-stack-left {
+  left: 0;
+}
+
 .chat-peek-stack.launcher-only .chat-peek-card,
 .chat-peek-stack.launcher-only .chat-peek-actions {
   display: none;
@@ -1529,6 +1541,26 @@ body.chat-widget-embedded {
 
 .chat-embed-dock-left {
   left: 16px;
+}
+
+body.chat-widget-embedded .chat-embed-dock {
+  bottom: 0;
+}
+
+body.chat-widget-embedded .chat-embed-dock-right {
+  right: 0;
+}
+
+body.chat-widget-embedded .chat-embed-dock-left {
+  left: 0;
+}
+
+body.chat-widget-embedded .chat-shell.embedded.public-embed-shell.chat-shell-right {
+  right: 0;
+}
+
+body.chat-widget-embedded .chat-shell.embedded.public-embed-shell.chat-shell-left {
+  left: 0;
 }
 
 .chat-embed-powered {

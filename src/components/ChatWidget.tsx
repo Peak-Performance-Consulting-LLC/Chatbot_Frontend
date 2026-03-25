@@ -92,30 +92,6 @@ const defaultHeaderCtaConfig: HeaderCtaConfig = {
 };
 const poweredByBrand = "PPConsultings";
 const CONTACT_CAPTURE_STORAGE_PREFIX = "aeroconcierge_contact_captured";
-const DEFAULT_PHONE_COUNTRY_CODE = "+1";
-const PHONE_COUNTRY_CODE_OPTIONS = [
-  { value: "+1", label: "US / Canada (+1)" },
-  { value: "+27", label: "South Africa (+27)" },
-  { value: "+31", label: "Netherlands (+31)" },
-  { value: "+33", label: "France (+33)" },
-  { value: "+34", label: "Spain (+34)" },
-  { value: "+39", label: "Italy (+39)" },
-  { value: "+44", label: "United Kingdom (+44)" },
-  { value: "+49", label: "Germany (+49)" },
-  { value: "+52", label: "Mexico (+52)" },
-  { value: "+55", label: "Brazil (+55)" },
-  { value: "+61", label: "Australia (+61)" },
-  { value: "+64", label: "New Zealand (+64)" },
-  { value: "+65", label: "Singapore (+65)" },
-  { value: "+81", label: "Japan (+81)" },
-  { value: "+82", label: "South Korea (+82)" },
-  { value: "+86", label: "China (+86)" },
-  { value: "+91", label: "India (+91)" },
-  { value: "+92", label: "Pakistan (+92)" },
-  { value: "+94", label: "Sri Lanka (+94)" },
-  { value: "+966", label: "Saudi Arabia (+966)" },
-  { value: "+971", label: "UAE (+971)" }
-] as const;
 
 function normalizeAppearance(
   input?: Partial<ChatWidgetAppearance> | null,
@@ -336,7 +312,6 @@ function normalizeVisitorPhoneInput(value: string) {
 function validateVisitorContactInput(input: {
   fullName: string;
   email: string;
-  countryCode: string;
   phone: string;
 }) {
   const errors: { fullName?: string; email?: string; phone?: string } = {};
@@ -357,31 +332,19 @@ function validateVisitorContactInput(input: {
     errors.email = "Enter a valid email";
   }
 
-  const countryCode = input.countryCode.trim();
-  if (!/^\+\d{1,4}$/.test(countryCode)) {
-    errors.phone = "Select a valid country code";
-  }
-
   const phone = input.phone.trim();
   if (!phone) {
     errors.phone = "Phone is required";
   } else if (!/^[+\d\s().-]+$/.test(phone)) {
     errors.phone = "Enter a valid phone number";
   } else {
-    const normalized = normalizeVisitorPhoneInput(`${countryCode} ${phone}`);
-    const digits = normalized.replace(/\D/g, "").length;
+    const digits = phone.replace(/\D/g, "").length;
     if (digits < 7 || digits > 15) {
       errors.phone = "Phone must include 7 to 15 digits";
     }
   }
 
   return errors;
-}
-
-function toDisplayName(input: string) {
-  const trimmed = input.trim().replace(/\s+/g, " ");
-  if (!trimmed) return "there";
-  return trimmed.toLowerCase().replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 }
 
 function buildCallCtaOverride(number?: string | null, label?: string | null): CallCta | null {
@@ -911,12 +874,12 @@ function GuidedServiceInput({ serviceUi, disabled, onSubmit }: { serviceUi: Serv
 
 function ContactCaptureForm(input: {
   capture: ContactCapture;
-  values: { fullName: string; email: string; countryCode: string; phone: string };
+  values: { fullName: string; email: string; phone: string };
   errors: { fullName?: string; email?: string; phone?: string };
   disabled: boolean;
   submitting: boolean;
   successMessage: string | null;
-  onChange: (field: "fullName" | "email" | "countryCode" | "phone", value: string) => void;
+  onChange: (field: "fullName" | "email" | "phone", value: string) => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
   const { capture, values, errors, disabled, submitting, successMessage, onChange, onSubmit } = input;
@@ -949,25 +912,13 @@ function ContactCaptureForm(input: {
           {errors.email ? <small className="error-text">{errors.email}</small> : null}
         </div>
         <div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(110px, 34%) minmax(0, 1fr)", gap: 8 }}>
-            <select
-              value={values.countryCode}
-              onChange={(event) => onChange("countryCode", event.target.value)}
-              disabled={disabled || submitting}
-              aria-label="Country code"
-            >
-              {PHONE_COUNTRY_CODE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-            <input
-              value={values.phone}
-              onChange={(event) => onChange("phone", event.target.value)}
-              placeholder="Mobile number"
-              type="tel"
-              disabled={disabled || submitting}
-            />
-          </div>
+          <input
+            value={values.phone}
+            onChange={(event) => onChange("phone", event.target.value)}
+            placeholder="Phone"
+            type="tel"
+            disabled={disabled || submitting}
+          />
           {errors.phone ? <small className="error-text">{errors.phone}</small> : null}
         </div>
         <button type="submit" disabled={disabled || submitting}>
@@ -1104,7 +1055,6 @@ export function ChatWidget({
 }: ChatWidgetProps) {
   const isPublicEmbed = embedded && !portalToken;
   const [isOpen, setIsOpen] = useState(embedded && Boolean(portalToken));
-  const [showLauncherNotification, setShowLauncherNotification] = useState(isPublicEmbed);
   const [threads, setThreads] = useState<ChatThread[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1117,12 +1067,7 @@ export function ChatWidget({
   const [shellWidth, setShellWidth] = useState<number | null>(null);
   const [pendingLauncherReply, setPendingLauncherReply] = useState<string | null>(null);
   const [runtimeWidgetConfig, setRuntimeWidgetConfig] = useState<WidgetConfig | null>(null);
-  const [contactValues, setContactValues] = useState({
-    fullName: "",
-    email: "",
-    countryCode: DEFAULT_PHONE_COUNTRY_CODE,
-    phone: ""
-  });
+  const [contactValues, setContactValues] = useState({ fullName: "", email: "", phone: "" });
   const [contactErrors, setContactErrors] = useState<{ fullName?: string; email?: string; phone?: string }>({});
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccessMessage, setContactSuccessMessage] = useState<string | null>(null);
@@ -1248,7 +1193,7 @@ export function ChatWidget({
     !isContactCaptureRequired &&
     !flightUi &&
     !serviceUi;
-  const shouldShowNotificationCard = showLauncherNotification && appearance.notifEnabled;
+  const shouldShowNotificationCard = false;
   const publicEmbedMode = isPublicEmbed
     ? (isOpen ? (isPristinePublicEmbed ? "open-compact" : "open") : shouldShowNotificationCard ? "peek" : "launcher")
     : null;
@@ -1325,12 +1270,6 @@ export function ChatWidget({
     if (embedded && portalToken) setIsOpen(true);
   }, [embedded, portalToken]);
 
-  useEffect(() => {
-    if (!appearance.notifEnabled) {
-      setShowLauncherNotification(false);
-    }
-  }, [appearance.notifEnabled]);
-
   useEffect(() => () => resetStreamBuffer(), []);
 
   useEffect(() => {
@@ -1402,13 +1341,14 @@ export function ChatWidget({
     if (!isPublicEmbed || window.parent === window) return;
     const payload = {
       type: "aeroconcierge:widget-layout",
-      layout: {
-        widgetPosition: appearance.widgetPosition,
-        launcherStyle: appearance.launcherStyle,
-        botName: appearance.botName,
-        windowWidth: publicEmbedWidth,
-        windowHeight: publicEmbedHeight,
-        borderRadius: appearance.borderRadius
+        layout: {
+          widgetPosition: appearance.widgetPosition,
+          launcherStyle: appearance.launcherStyle,
+          launcherIconOnly: true,
+          botName: appearance.botName,
+          windowWidth: publicEmbedWidth,
+          windowHeight: publicEmbedHeight,
+          borderRadius: appearance.borderRadius
       }
     };
     window.parent.postMessage(payload, "*");
@@ -1546,11 +1486,9 @@ export function ChatWidget({
     }
   }
 
-  function handleContactFieldChange(field: "fullName" | "email" | "countryCode" | "phone", value: string) {
+  function handleContactFieldChange(field: "fullName" | "email" | "phone", value: string) {
     setContactValues((prev) => ({ ...prev, [field]: value }));
-    setContactErrors((prev) =>
-      field === "countryCode" ? { ...prev, phone: undefined } : { ...prev, [field]: undefined }
-    );
+    setContactErrors((prev) => ({ ...prev, [field]: undefined }));
     setContactSuccessMessage(null);
     setError(null);
   }
@@ -1568,13 +1506,13 @@ export function ChatWidget({
     setIsSubmittingContact(true);
     try {
       const chatIdForCapture = activeChatId && isUuid(activeChatId) ? activeChatId : undefined;
-      const submitResult = await submitVisitorContact({
+      await submitVisitorContact({
         tenantId,
         deviceId,
         chatId: chatIdForCapture,
         fullName: contactValues.fullName.trim(),
         email: contactValues.email.trim().toLowerCase(),
-        phone: normalizeVisitorPhoneInput(`${contactValues.countryCode} ${contactValues.phone}`),
+        phone: normalizeVisitorPhoneInput(contactValues.phone),
         backendUrl,
         authToken: portalToken,
         siteHost
@@ -1585,17 +1523,6 @@ export function ChatWidget({
       setHasCapturedContact(true);
       setContactErrors({});
       setContactSuccessMessage("Details saved. You can continue chatting.");
-
-      const displayName = toDisplayName(contactValues.fullName);
-      const greetingMessage: ChatMessage = submitResult.greetingMessage ?? {
-        id: `local-contact-greeting-${Date.now()}`,
-        chat_id: activeChatId ?? messagesRef.current[messagesRef.current.length - 1]?.chat_id ?? `local-chat-${Date.now()}`,
-        role: "assistant",
-        content: `Thanks, ${displayName}. Nice to meet you. How can I help you next?`,
-        metadata: null,
-        created_at: new Date().toISOString()
-      };
-      setMessages((prev) => [...prev, greetingMessage]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save contact details");
     } finally {
@@ -1695,7 +1622,6 @@ export function ChatWidget({
 
   function openPublicEmbedChat(reply?: string) {
     if (reply) setPendingLauncherReply(reply);
-    if (isPublicEmbed) setShowLauncherNotification(false);
     setIsOpen(true);
   }
 
@@ -1753,7 +1679,7 @@ export function ChatWidget({
             onClick={() => openPublicEmbedChat()}
             aria-label={`Open ${appearance.botName}`}
           >
-            {appearance.notifEnabled ? <span className="chat-peek-launcher-badge">1</span> : null}
+            {shouldShowNotificationCard ? <span className="chat-peek-launcher-badge">1</span> : null}
             <span className="chat-peek-launcher-icon">
               <LauncherIconGlyph icon={appearance.launcherIcon} />
             </span>

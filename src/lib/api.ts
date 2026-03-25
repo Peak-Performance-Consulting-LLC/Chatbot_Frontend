@@ -334,7 +334,7 @@ export async function submitVisitorContact(input: {
   backendUrl?: string;
   authToken?: string;
   siteHost?: string;
-}): Promise<{ contact: VisitorContact; greetingMessage: ChatMessage | null }> {
+}): Promise<VisitorContact> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(`${base}/api/chat/visitor-contact`, {
     method: "POST",
@@ -353,11 +353,8 @@ export async function submitVisitorContact(input: {
     throw new Error(await parseError(response));
   }
 
-  const json = (await response.json()) as { ok: boolean; contact: VisitorContact; greeting_message?: ChatMessage | null };
-  return {
-    contact: json.contact,
-    greetingMessage: json.greeting_message ?? null
-  };
+  const json = (await response.json()) as { ok: boolean; contact: VisitorContact };
+  return json.contact;
 }
 
 export async function searchPlaceSuggestions(input: {
