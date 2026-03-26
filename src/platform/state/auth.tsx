@@ -107,6 +107,8 @@ type PlatformAuthContextValue = {
     notif_text?: string;
     notif_animation?: NotifAnimation;
     notif_chips?: string[];
+    csat_enabled?: boolean;
+    csat_prompt?: string;
   }) => Promise<TenantBusinessProfile>;
   updateTenantDomain: (input: {
     tenant_id: string;
@@ -479,6 +481,8 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
     notif_text?: string;
     notif_animation?: NotifAnimation;
     notif_chips?: string[];
+    csat_enabled?: boolean;
+    csat_prompt?: string;
   }) {
     if (!token) {
       throw new Error("Not authenticated");

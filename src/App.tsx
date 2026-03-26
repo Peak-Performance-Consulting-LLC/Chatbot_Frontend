@@ -10,6 +10,7 @@ const PlatformShell = lazy(() => import("@/platform/layout/PlatformShell"));
 
 // Platform pages — eagerly prefetched once shell mounts (see prefetchPlatformRoutes)
 const AccountPage = lazy(() => import("@/platform/pages/AccountPage"));
+const AgentInboxPage = lazy(() => import("@/platform/pages/AgentInboxPage"));
 const ChatbotPage = lazy(() => import("@/platform/pages/ChatbotPage"));
 const CustomizationPage = lazy(() => import("@/platform/pages/CustomizationPage"));
 const DnsPage = lazy(() => import("@/platform/pages/DnsPage"));
@@ -20,15 +21,19 @@ const LandingPage = lazy(() => import("@/platform/pages/LandingPage"));
 const LoginPage = lazy(() => import("@/platform/pages/LoginPage"));
 const OverviewPage = lazy(() => import("@/platform/pages/OverviewPage"));
 const PricingPage = lazy(() => import("@/platform/pages/PricingPage"));
+const QueueManagementPage = lazy(() => import("@/platform/pages/QueueManagementPage"));
 const ResetPasswordPage = lazy(() => import("@/platform/pages/ResetPasswordPage"));
 const SiteSetupPage = lazy(() => import("@/platform/pages/SiteSetupPage"));
 const SignupPage = lazy(() => import("@/platform/pages/SignupPage"));
+const SupervisorDashboardPage = lazy(() => import("@/platform/pages/SupervisorDashboardPage"));
+const TeamManagementPage = lazy(() => import("@/platform/pages/TeamManagementPage"));
 const TenantManagementPage = lazy(() => import("@/platform/pages/TenantManagementPage"));
 const WidgetCodePage = lazy(() => import("@/platform/pages/WidgetCodePage"));
 
 /** Kick off chunk downloads as soon as the authenticated shell is first shown. */
 function prefetchPlatformRoutes() {
   void import("@/platform/pages/AccountPage");
+  void import("@/platform/pages/AgentInboxPage");
   void import("@/platform/pages/ChatbotPage");
   void import("@/platform/pages/CustomizationPage");
   void import("@/platform/pages/DnsPage");
@@ -37,7 +42,10 @@ function prefetchPlatformRoutes() {
   void import("@/platform/pages/LeadsPage");
   void import("@/platform/pages/OverviewPage");
   void import("@/platform/pages/PricingPage");
+  void import("@/platform/pages/QueueManagementPage");
   void import("@/platform/pages/SiteSetupPage");
+  void import("@/platform/pages/SupervisorDashboardPage");
+  void import("@/platform/pages/TeamManagementPage");
   void import("@/platform/pages/TenantManagementPage");
   void import("@/platform/pages/WidgetCodePage");
 }
@@ -148,6 +156,10 @@ export default function App() {
           <Route path="site-setup" element={<SiteSetupPage />} />
           <Route path="tenants" element={<TenantManagementPage />} />
           <Route path="chatbot" element={<ChatbotPage />} />
+          <Route path="inbox" element={<AgentInboxPage />} />
+          <Route path="team" element={<TeamManagementPage />} />
+          <Route path="queues" element={<QueueManagementPage />} />
+          <Route path="supervisor" element={<SupervisorDashboardPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="customization" element={<CustomizationPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />

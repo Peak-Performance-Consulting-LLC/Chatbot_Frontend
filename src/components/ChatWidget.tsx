@@ -5,10 +5,13 @@ import {
   createChat,
   deleteChat,
   getWidgetConfig,
+  getConversationCsat,
   listChats,
   listMessages,
   renameChat,
+  requestHandoff,
   searchPlaceSuggestions,
+  submitConversationCsat,
   submitVisitorContact,
   streamChat,
   type WidgetConfig
@@ -16,7 +19,12 @@ import {
 import { getOrCreateDeviceId } from "@/lib/device";
 import { resolveTenantId } from "@/lib/tenant";
 import { getWidgetSurfaceTokens } from "@/lib/widgetTheme";
-import type { ChatMessage, ChatThread, MessageMetadata } from "@/types";
+import { createClient } from "@supabase/supabase-js";
+import type { ChatMessage, ChatThread, ConversationMode, MessageMetadata } from "@/types";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const supabaseClient = SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 type ChatWidgetProps = {
   tenantId?: string;
@@ -39,6 +47,11 @@ type HeaderCtaConfig = {
   label: string;
   notice: string;
 };
+type ActiveAgent = {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+} | null;
 type ChatWidgetLayoutVariant = "default" | "platform";
 type ChatWidgetAppearance = {
   primaryColor: string;
@@ -61,6 +74,8 @@ type ChatWidgetAppearance = {
   notifText: string;
   notifAnimation: "bounce" | "pulse" | "slide";
   notifChips: string[];
+  csatEnabled: boolean;
+  csatPrompt: string;
 };
 
 const defaultAppearance: ChatWidgetAppearance = {
@@ -83,7 +98,9 @@ const defaultAppearance: ChatWidgetAppearance = {
   notifEnabled: true,
   notifText: "👋 Need help?",
   notifAnimation: "bounce",
-  notifChips: ["I have a question", "Tell me more"]
+  notifChips: ["I have a question", "Tell me more"],
+  csatEnabled: true,
+  csatPrompt: "Rate this conversation"
 };
 
 const defaultHeaderCtaConfig: HeaderCtaConfig = {
@@ -149,7 +166,9 @@ function normalizeAppearance(
     notifChips:
       Array.isArray(input?.notifChips)
         ? Array.from(new Set(input.notifChips.map((chip) => chip.trim()).filter(Boolean))).slice(0, 4)
-        : defaultAppearance.notifChips
+        : defaultAppearance.notifChips,
+    csatEnabled: input?.csatEnabled ?? defaultAppearance.csatEnabled,
+    csatPrompt: input?.csatPrompt?.trim() || defaultAppearance.csatPrompt
   };
 }
 
@@ -172,6 +191,13 @@ function darkenHex(input: string) {
 
 function normalizeMessageText(input: string) {
   return input.trim().replace(/\s+/g, " ");
+}
+
+function generateClientMessageId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function parseMessageTs(input: string) {
@@ -1072,6 +1098,16 @@ export function ChatWidget({
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccessMessage, setContactSuccessMessage] = useState<string | null>(null);
   const [hasCapturedContact, setHasCapturedContact] = useState(false);
+  const [conversationMode, setConversationMode] = useState<ConversationMode>("ai_only");
+  const [isRequestingHandoff, setIsRequestingHandoff] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<ActiveAgent>(null);
+  const [isAgentTyping, setIsAgentTyping] = useState(false);
+  const [csatRating, setCsatRating] = useState(0);
+  const [csatFeedback, setCsatFeedback] = useState("");
+  const [csatSubmitted, setCsatSubmitted] = useState<{ rating: number; feedback: string | null } | null>(null);
+  const [isLoadingCsat, setIsLoadingCsat] = useState(false);
+  const [isSubmittingCsat, setIsSubmittingCsat] = useState(false);
+  const [csatError, setCsatError] = useState<string | null>(null);
 
   const shellRef = useRef<HTMLElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -1179,7 +1215,11 @@ export function ChatWidget({
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
   const contactCapture = latestAssistantMeta?.contact_capture ?? null;
   const isContactCaptureRequired = Boolean(contactCapture?.required && !hasCapturedContact);
-  const isInteractionLocked = isSending || isSubmittingContact || isContactCaptureRequired;
+  const isInteractionLocked =
+    isSending ||
+    isSubmittingContact ||
+    isContactCaptureRequired ||
+    conversationMode === "closed";
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
   const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, publicEmbedWidth);
   const isCompactLayout = effectiveShellWidth < 720;
@@ -1381,6 +1421,18 @@ export function ChatWidget({
   }, [isPublicEmbed, isOpen, publicEmbedMode]);
 
   useEffect(() => {
+    if (!activeChatId) {
+      setConversationMode("ai_only");
+      return;
+    }
+
+    const activeThread = threads.find((thread) => thread.id === activeChatId);
+    if (activeThread?.conversation_mode) {
+      setConversationMode(activeThread.conversation_mode);
+    }
+  }, [activeChatId, threads]);
+
+  useEffect(() => {
     if (!pendingLauncherReply || !isOpen) return;
     const nextReply = pendingLauncherReply;
     setPendingLauncherReply(null);
@@ -1397,8 +1449,22 @@ export function ChatWidget({
       const nextThreads = await listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setThreads(nextThreads);
       const selected = preferredChatId ?? activeChatId ?? nextThreads[0]?.id ?? null;
-      if (selected) { setActiveChatId(selected); await loadMessages(selected); }
-      else setMessages([]);
+      if (selected) {
+        const selectedThread = nextThreads.find((thread) => thread.id === selected);
+        const nextMode = selectedThread?.conversation_mode ?? "ai_only";
+        setConversationMode(nextMode);
+        if (nextMode !== "agent_active") {
+          setActiveAgent(null);
+        }
+        setIsAgentTyping(false);
+        setActiveChatId(selected);
+        await loadMessages(selected);
+      } else {
+        setMessages([]);
+        setConversationMode("ai_only");
+        setActiveAgent(null);
+        setIsAgentTyping(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load threads");
     } finally {
@@ -1410,7 +1476,25 @@ export function ChatWidget({
     setIsLoadingMessages(true);
     try {
       const next = await listMessages({ chatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
-      setMessages(mergeSyncedMessages(chatId, next, messagesRef.current));
+      const merged = mergeSyncedMessages(chatId, next, messagesRef.current);
+      setMessages(merged);
+
+      const lastAgentMessage = [...merged].reverse().find((item) => item.sender_type === "agent");
+      if (lastAgentMessage) {
+        const metadata = (lastAgentMessage.metadata ?? {}) as MessageMetadata;
+        const agentId = lastAgentMessage.sender_id?.trim() ?? "";
+        if (agentId) {
+          setActiveAgent({
+            id: agentId,
+            name:
+              typeof metadata.agent_name === "string" && metadata.agent_name.trim()
+                ? metadata.agent_name.trim()
+                : "Live Agent",
+            avatarUrl:
+              typeof metadata.agent_avatar_url === "string" ? metadata.agent_avatar_url : null
+          });
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load messages");
     } finally {
@@ -1422,6 +1506,9 @@ export function ChatWidget({
     try {
       const chat = await createChat({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost });
       setActiveChatId(chat.id);
+      setConversationMode(chat.conversation_mode ?? "ai_only");
+      setActiveAgent(null);
+      setIsAgentTyping(false);
       await refreshThreads(chat.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create chat");
@@ -1449,6 +1536,13 @@ export function ChatWidget({
   }
 
   async function openChat(chatId: string) {
+    const selectedThread = threads.find((thread) => thread.id === chatId);
+    const nextMode = selectedThread?.conversation_mode ?? "ai_only";
+    setConversationMode(nextMode);
+    if (nextMode !== "agent_active") {
+      setActiveAgent(null);
+    }
+    setIsAgentTyping(false);
     setActiveChatId(chatId);
     setIsMobileThreadsOpen(false);
     await loadMessages(chatId);
@@ -1530,6 +1624,218 @@ export function ChatWidget({
     }
   }
 
+  async function handleRequestHandoff() {
+    if (!activeChatId || isRequestingHandoff) return;
+    setIsRequestingHandoff(true);
+    setError(null);
+    setIsAgentTyping(false);
+    setActiveAgent(null);
+    try {
+      const result = await requestHandoff({
+        chatId: activeChatId,
+        tenantId,
+        deviceId,
+        backendUrl,
+        authToken: portalToken,
+        siteHost
+      });
+      setConversationMode(result.mode as ConversationMode);
+      if (result.mode === "handoff_pending") {
+        const systemMsg: ChatMessage = {
+          id: `system-handoff-${Date.now()}`,
+          chat_id: activeChatId,
+          role: "system",
+          content: "Connecting you with a live agent...",
+          metadata: null,
+          sender_type: "system",
+          created_at: new Date().toISOString()
+        };
+        setMessages((prev) => [...prev, systemMsg]);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to request agent");
+    } finally {
+      setIsRequestingHandoff(false);
+    }
+  }
+
+  async function handleSubmitCsat(event: React.FormEvent) {
+    event.preventDefault();
+    if (
+      !activeChatId ||
+      conversationMode !== "closed" ||
+      !appearance.csatEnabled ||
+      csatRating < 1 ||
+      isSubmittingCsat
+    ) {
+      return;
+    }
+
+    setIsSubmittingCsat(true);
+    setCsatError(null);
+    try {
+      const result = await submitConversationCsat({
+        chatId: activeChatId,
+        tenantId,
+        deviceId,
+        rating: csatRating,
+        feedback: csatFeedback,
+        backendUrl,
+        authToken: portalToken,
+        siteHost
+      });
+      setCsatSubmitted(result.csat);
+    } catch (err) {
+      setCsatError(err instanceof Error ? err.message : "Failed to submit survey");
+    } finally {
+      setIsSubmittingCsat(false);
+    }
+  }
+
+  // Subscribe to Supabase Realtime for live agent messages/mode changes
+  useEffect(() => {
+    if (!supabaseClient || !activeChatId) return;
+    if (
+      conversationMode !== "handoff_pending" &&
+      conversationMode !== "agent_active" &&
+      conversationMode !== "copilot"
+    ) {
+      return;
+    }
+
+    const channel = supabaseClient.channel(`conversation:${activeChatId}`);
+
+    channel.on("broadcast", { event: "new_message" }, (payload) => {
+      const msg = payload.payload as ChatMessage;
+      if (!msg?.id || !msg?.content) return;
+
+      if (msg.sender_type === "agent") {
+        const metadata = (msg.metadata ?? {}) as MessageMetadata;
+        const agentId = typeof msg.sender_id === "string" ? msg.sender_id : "";
+        const agentName =
+          typeof metadata.agent_name === "string" && metadata.agent_name.trim()
+            ? metadata.agent_name.trim()
+            : "Live Agent";
+        const agentAvatar =
+          typeof metadata.agent_avatar_url === "string" ? metadata.agent_avatar_url : null;
+        if (agentId) {
+          setActiveAgent({
+            id: agentId,
+            name: agentName,
+            avatarUrl: agentAvatar
+          });
+        }
+        setIsAgentTyping(false);
+      }
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === msg.id)) return prev;
+        return [...prev, msg];
+      });
+      scrollToBottom();
+    });
+
+    channel.on("broadcast", { event: "mode_change" }, (payload) => {
+      const data = payload.payload as {
+        mode?: ConversationMode;
+        agent_id?: string;
+        agent_name?: string;
+        agent_avatar_url?: string;
+      };
+      if (data.mode) {
+        setConversationMode(data.mode);
+        if (data.mode !== "agent_active") {
+          setIsAgentTyping(false);
+        }
+        if (data.mode === "agent_active" && data.agent_id) {
+          setActiveAgent({
+            id: data.agent_id,
+            name: data.agent_name?.trim() || "Live Agent",
+            avatarUrl: data.agent_avatar_url || null
+          });
+        }
+        if (data.mode === "returned_to_ai" || data.mode === "ai_only" || data.mode === "closed") {
+          setActiveAgent(null);
+        }
+      }
+    });
+
+    channel.on("broadcast", { event: "typing" }, (payload) => {
+      const data = payload.payload as {
+        chat_id?: string;
+        actor?: "agent" | "visitor";
+        user_id?: string;
+        is_typing?: boolean;
+      };
+      if (data.chat_id && data.chat_id !== activeChatId) return;
+      if (data.actor !== "agent") return;
+      setIsAgentTyping(Boolean(data.is_typing));
+    });
+
+    channel.subscribe();
+
+    return () => {
+      supabaseClient.removeChannel(channel);
+      setIsAgentTyping(false);
+    };
+  }, [activeChatId, conversationMode]);
+
+  useEffect(() => {
+    if (!activeChatId || conversationMode !== "closed" || !appearance.csatEnabled) {
+      setCsatSubmitted(null);
+      setCsatRating(0);
+      setCsatFeedback("");
+      setCsatError(null);
+      setIsLoadingCsat(false);
+      return;
+    }
+
+    let disposed = false;
+    setIsLoadingCsat(true);
+    setCsatError(null);
+
+    void getConversationCsat({
+      chatId: activeChatId,
+      tenantId,
+      deviceId,
+      backendUrl,
+      authToken: portalToken,
+      siteHost
+    })
+      .then((result) => {
+        if (disposed) return;
+        if (result.csat) {
+          setCsatSubmitted(result.csat);
+          setCsatRating(result.csat.rating);
+          setCsatFeedback(result.csat.feedback ?? "");
+        } else {
+          setCsatSubmitted(null);
+          setCsatRating(0);
+        }
+      })
+      .catch((err) => {
+        if (disposed) return;
+        setCsatError(err instanceof Error ? err.message : "Failed to load survey");
+      })
+      .finally(() => {
+        if (!disposed) {
+          setIsLoadingCsat(false);
+        }
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [activeChatId, appearance.csatEnabled, backendUrl, conversationMode, deviceId, portalToken, siteHost, tenantId]);
+
+  function scrollToBottom() {
+    if (messageListRef.current) {
+      requestAnimationFrame(() => {
+        messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
+      });
+    }
+  }
+
   async function sendMessage(rawText: string) {
     const text = rawText.trim();
     if (!text || isSending || isSubmittingContact) return;
@@ -1541,9 +1847,46 @@ export function ChatWidget({
     setInput(""); setError(null);
     const existingChatId = activeChatId;
     const localChatId = existingChatId ?? `local-chat-${Date.now()}`;
+    const clientMessageId = generateClientMessageId();
 
     const now = new Date().toISOString();
     const userMessage: ChatMessage = { id: `local-user-${Date.now()}`, chat_id: localChatId, role: "user", content: text, metadata: null, created_at: now };
+
+    // If in agent_active or handoff_pending mode, just send the message (no AI streaming)
+    if (conversationMode === "agent_active" || conversationMode === "handoff_pending") {
+      setMessages((prev) => [...prev, userMessage]);
+      setIsSending(true);
+      try {
+        const base = (backendUrl || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000").replace(/\/$/, "");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (portalToken) headers["Authorization"] = `Bearer ${portalToken}`;
+        if (siteHost) headers["X-Tenant-Site-Host"] = siteHost;
+        const response = await fetch(`${base}/api/chat/stream`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            tenant_id: tenantId,
+            device_id: deviceId,
+            chat_id: existingChatId ?? undefined,
+            client_message_id: clientMessageId,
+            message: text,
+            page_context: { url: window.location.href, title: document.title }
+          })
+        });
+        if (!response.ok) throw new Error("Failed to send message");
+        const json = (await response.json()) as { chat_id?: string; mode?: ConversationMode };
+        if (json.mode) {
+          setConversationMode(json.mode);
+        }
+        setActiveChatId(json.chat_id || existingChatId || localChatId);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Message send failed");
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
     const assistantMessageId = `local-assistant-${Date.now()}`;
     const assistantMessage: ChatMessage = { id: assistantMessageId, chat_id: localChatId, role: "assistant", content: "", metadata: null, created_at: now };
 
@@ -1559,6 +1902,7 @@ export function ChatWidget({
           tenant_id: tenantId,
           device_id: deviceId,
           chat_id: existingChatId ?? undefined,
+          client_message_id: clientMessageId,
           message: text,
           page_context: { url: window.location.href, title: document.title }
         },
@@ -1761,10 +2105,107 @@ export function ChatWidget({
                     <p>{appearance.welcomeMessage}</p>
                   </div>
                 ) : null}
-                {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} callCtaOverride={callCta} appearance={appearance} />
-                ))}
+                {conversationMode === "agent_active" && activeAgent ? (
+                  <div className="message-row system">
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        margin: "6px auto 8px",
+                        padding: "6px 12px",
+                        borderRadius: "999px",
+                        background: "var(--assistant-bubble, #edf6f9)",
+                        border: "1px solid var(--assistant-bubble-border, rgba(0,0,0,0.08))",
+                        fontSize: "0.78rem",
+                        color: "var(--muted, #666)"
+                      }}
+                    >
+                      {activeAgent.avatarUrl ? (
+                        <img
+                          src={activeAgent.avatarUrl}
+                          alt={activeAgent.name}
+                          style={{ width: 18, height: 18, borderRadius: "999px", objectFit: "cover" }}
+                        />
+                      ) : (
+                        <span
+                          style={{
+                            width: 18,
+                            height: 18,
+                            borderRadius: "999px",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "0.65rem",
+                            background: "var(--brand, #006d77)",
+                            color: "#fff"
+                          }}
+                        >
+                          {activeAgent.name.slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                      {activeAgent.name} is now helping you
+                    </div>
+                  </div>
+                ) : null}
+                {messages.map((message) => {
+                  if (message.role === "system") {
+                    return (
+                      <div key={message.id} className="message-row system">
+                        <div style={{
+                          textAlign: "center",
+                          fontSize: "0.78rem",
+                          color: "var(--muted, #888)",
+                          padding: "8px 16px",
+                          fontStyle: "italic"
+                        }}>
+                          {message.content}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return (
+                    <MessageBubble key={message.id} message={message} callCtaOverride={callCta} appearance={appearance} />
+                  );
+                })}
                 {isSending ? <TypingIndicator /> : null}
+                {conversationMode === "agent_active" && isAgentTyping && !isSending ? (
+                  <div className="message-row assistant">
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "10px 16px",
+                        borderRadius: "12px",
+                        background: "var(--assistant-bubble, #edf6f9)",
+                        fontSize: "0.83rem",
+                        color: "var(--muted, #666)"
+                      }}
+                    >
+                      <span>{activeAgent?.name || "Agent"} is typing...</span>
+                    </div>
+                  </div>
+                ) : null}
+                {conversationMode === "handoff_pending" && !isSending ? (
+                  <div className="message-row assistant">
+                    <div style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "10px 16px",
+                      borderRadius: "12px",
+                      background: "var(--assistant-bubble, #edf6f9)",
+                      fontSize: "0.85rem",
+                      color: "var(--muted, #666)"
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: "spin 1s linear infinite" }}>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                      Waiting for an agent to join...
+                    </div>
+                  </div>
+                ) : null}
                 {/* Quick replies inline – appear right after the last bot message */}
                 {!isInteractionLocked && visibleQuickReplies.length > 0 ? (
                   <div className="inline-quick-replies">
@@ -1804,21 +2245,116 @@ export function ChatWidget({
                 />
               ) : null}
 
+              {conversationMode === "closed" && appearance.csatEnabled ? (
+                <form className="guided-input" onSubmit={handleSubmitCsat}>
+                  <p>{appearance.csatPrompt}</p>
+                  {isLoadingCsat ? (
+                    <small className="guided-help">Loading survey...</small>
+                  ) : (
+                    <>
+                      <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+                        {[1, 2, 3, 4, 5].map((value) => (
+                          <button
+                            key={`csat-${value}`}
+                            type="button"
+                            disabled={isSubmittingCsat || Boolean(csatSubmitted)}
+                            onClick={() => setCsatRating(value)}
+                            style={{
+                              width: "34px",
+                              height: "34px",
+                              borderRadius: "10px",
+                              border: `1px solid ${csatRating >= value ? "var(--brand, #006d77)" : "rgba(10,10,15,0.15)"}`,
+                              background: csatRating >= value ? "var(--brand, #006d77)" : "white",
+                              color: csatRating >= value ? "white" : "var(--ink, #111)",
+                              fontWeight: 700
+                            }}
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
+                      <textarea
+                        value={csatFeedback}
+                        onChange={(event) => setCsatFeedback(event.target.value)}
+                        placeholder="Optional feedback"
+                        rows={2}
+                        disabled={isSubmittingCsat || Boolean(csatSubmitted)}
+                        style={{
+                          width: "100%",
+                          borderRadius: "10px",
+                          border: "1px solid rgba(10,10,15,0.12)",
+                          padding: "8px 10px",
+                          resize: "vertical",
+                          fontFamily: "inherit"
+                        }}
+                      />
+                      {!csatSubmitted ? (
+                        <button
+                          type="submit"
+                          className="guided-submit"
+                          disabled={isSubmittingCsat || csatRating < 1}
+                          style={{ marginTop: "8px" }}
+                        >
+                          {isSubmittingCsat ? "Submitting..." : "Submit rating"}
+                        </button>
+                      ) : (
+                        <small className="guided-help">Thanks for the feedback.</small>
+                      )}
+                      {csatError ? <small className="error-text">{csatError}</small> : null}
+                    </>
+                  )}
+                </form>
+              ) : null}
+
               <form className="composer" onSubmit={handleSend}>
                 <div className="composer-textarea-wrap">
                   <textarea
                     value={input}
-                    placeholder={isContactCaptureRequired ? "Share your contact details to continue..." : "Type a message… (Enter to send)"}
+                    placeholder={
+                      isContactCaptureRequired
+                        ? "Share your contact details to continue..."
+                        : conversationMode === "agent_active"
+                          ? "Type a message to the agent…"
+                          : conversationMode === "handoff_pending"
+                            ? "Waiting for an agent…"
+                            : conversationMode === "closed"
+                              ? "Conversation closed"
+                            : "Type a message… (Enter to send)"
+                    }
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     rows={1}
                     disabled={isInteractionLocked}
                   />
-                  {/* <span className="composer-hint">Shift+Enter for newline</span> */}
                 </div>
-                <button type="submit" className="composer-send-btn" disabled={isInteractionLocked || !input.trim()} aria-label="Send message">
-                  <IconSend />
-                </button>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  {activeChatId && conversationMode === "ai_only" && messages.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleRequestHandoff}
+                      disabled={isRequestingHandoff || isSending}
+                      aria-label="Talk to agent"
+                      title="Talk to a live agent"
+                      style={{
+                        background: "none",
+                        border: "1.5px solid var(--brand, #006d77)",
+                        borderRadius: "8px",
+                        padding: "6px 10px",
+                        cursor: "pointer",
+                        color: "var(--brand, #006d77)",
+                        fontSize: "0.78rem",
+                        fontWeight: 600,
+                        whiteSpace: "nowrap",
+                        opacity: isRequestingHandoff ? 0.6 : 1
+                      }}
+                    >
+                      {isRequestingHandoff ? "Connecting…" : "🧑‍💼 Agent"}
+                    </button>
+                  ) : null}
+                  <button type="submit" className="composer-send-btn" disabled={isInteractionLocked || !input.trim()} aria-label="Send message">
+                    <IconSend />
+                  </button>
+                </div>
               </form>
 
 

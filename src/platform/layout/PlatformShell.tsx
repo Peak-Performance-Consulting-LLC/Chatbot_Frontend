@@ -1,6 +1,7 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { appNavItems } from "@/platform/layout/nav";
+import { platformAcceptTeamInvitation } from "@/lib/platformApi";
+import { appNavSections, appPrimaryNavItems, type PlatformNavItem } from "@/platform/layout/nav";
 import { TrialUpgradeBanner } from "@/platform/components/TrialUpgradeBanner";
 import PlatformLogo from "@/platform/components/PlatformLogo";
 import { IconChevronDown, IconClose, IconLogout, IconMenu, IconSupport } from "@/platform/components/PlatformIcons";
@@ -37,10 +38,38 @@ function PageSkeleton() {
 export default function PlatformShell() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile, selectedTenantId, selectTenant, logout, loading } = usePlatformAuth();
+  const { token, profile, selectedTenantId, selectedTenant, selectTenant, logout, loading, refresh } = usePlatformAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState("");
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const inviteHandledRef = useRef<string | null>(null);
   const tenantSelectRef = useRef<HTMLSelectElement | null>(null);
-  const activeNavItem = appNavItems.find((item) => location.pathname.startsWith(item.path));
+  const backendUrl = import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
+  const currentRole = selectedTenant?.workspace_role ?? "viewer";
+  const allNavItems = useMemo(
+    () => [...appPrimaryNavItems, ...appNavSections.flatMap((section) => section.items)],
+    []
+  );
+  const visiblePrimaryNavItems = useMemo(
+    () =>
+      appPrimaryNavItems.filter((item) => !item.allowedRoles || item.allowedRoles.includes(currentRole)),
+    [currentRole]
+  );
+  const visibleNavSections = useMemo(
+    () =>
+      appNavSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => !item.allowedRoles || item.allowedRoles.includes(currentRole))
+        }))
+        .filter((section) => section.items.length > 0),
+    [currentRole]
+  );
+  const visibleNavItems = useMemo(
+    () => [...visiblePrimaryNavItems, ...visibleNavSections.flatMap((section) => section.items)],
+    [visiblePrimaryNavItems, visibleNavSections]
+  );
+  const activeNavItem = visibleNavItems.find((item) => location.pathname.startsWith(item.path));
   const activeSectionLabel = activeNavItem?.label || "Dashboard";
   const shouldShowTrialBanner =
     profile?.subscription?.plan === "trial" &&
@@ -49,6 +78,105 @@ export default function PlatformShell() {
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    setExpandedSections((prev) => {
+      const next: Record<string, boolean> = {};
+      let changed = false;
+
+      visibleNavSections.forEach((section) => {
+        const sectionHasActiveItem = section.items.some((item) => location.pathname.startsWith(item.path));
+        const prevValue = prev[section.key];
+        const shouldExpand =
+          typeof prevValue === "boolean" ? prevValue || sectionHasActiveItem : sectionHasActiveItem;
+        next[section.key] = shouldExpand;
+        if (prevValue !== shouldExpand) {
+          changed = true;
+        }
+      });
+
+      for (const key of Object.keys(prev)) {
+        if (!(key in next)) {
+          changed = true;
+          break;
+        }
+      }
+
+      return changed ? next : prev;
+    });
+  }, [location.pathname, visibleNavSections]);
+
+  useEffect(() => {
+    if (!location.pathname.startsWith("/platform/app/")) {
+      return;
+    }
+    const currentItem = allNavItems.find((item) => location.pathname.startsWith(item.path));
+    if (!currentItem) {
+      return;
+    }
+    if (currentItem.allowedRoles && !currentItem.allowedRoles.includes(currentRole)) {
+      navigate("/platform/app/overview", { replace: true });
+    }
+  }, [location.pathname, currentRole, navigate, allNavItems]);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+    const params = new URLSearchParams(location.search);
+    const inviteToken = params.get("invite")?.trim();
+    if (!inviteToken || inviteHandledRef.current === inviteToken) {
+      return;
+    }
+
+    inviteHandledRef.current = inviteToken;
+    setInviteStatus("Accepting workspace invitation...");
+    platformAcceptTeamInvitation(token, inviteToken, backendUrl)
+      .then(async () => {
+        await refresh();
+        setInviteStatus("Workspace invitation accepted.");
+      })
+      .catch((error) => {
+        setInviteStatus(error instanceof Error ? error.message : "Invitation acceptance failed.");
+      })
+      .finally(() => {
+        params.delete("invite");
+        const nextSearch = params.toString();
+        navigate(
+          { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" },
+          { replace: true }
+        );
+      });
+  }, [token, location.pathname, location.search, navigate, backendUrl, refresh]);
+
+  const renderNavItem = (item: PlatformNavItem, className = "") => {
+    const itemIsActive = location.pathname.startsWith(item.path);
+    return (
+      <NavLink
+        key={item.key}
+        to={item.path}
+        onClick={() => setIsSidebarOpen(false)}
+        className={({ isActive }) =>
+          `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150
+          ${isActive
+            ? "bg-gradient-to-r from-[#c9a96e]/14 to-[#c9a96e]/6 text-[#e8d5a8] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+            : "text-white/55 hover:bg-white/[0.06] hover:text-white/85"
+          } ${className}`.trim()
+        }
+      >
+        <span
+          className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border text-[17px] transition-all duration-150 ${
+            itemIsActive
+              ? "border-[#c9a96e]/20 bg-[#c9a96e]/12 text-[#c9a96e]"
+              : "border-white/[0.06] bg-white/[0.03] text-white/65 group-hover:border-white/[0.1] group-hover:bg-white/[0.05] group-hover:text-white/90"
+          }`}
+        >
+          {item.icon}
+        </span>
+        <span className="truncate">{item.label}</span>
+      </NavLink>
+    );
+  };
 
   return (
     <div className="flex min-h-screen bg-[#faf8f4] font-[family-name:var(--font-body)]">
@@ -96,32 +224,61 @@ export default function PlatformShell() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5">
-          {appNavItems.map((item) => (
-            <NavLink
-              key={item.key}
-              to={item.path}
-              onClick={() => setIsSidebarOpen(false)}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-150
-                ${isActive
-                  ? "bg-gradient-to-r from-[#c9a96e]/14 to-[#c9a96e]/6 text-[#e8d5a8] font-medium shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-                  : "text-white/55 hover:bg-white/[0.06] hover:text-white/85"
-                }`
-              }
-            >
-              <span
-                className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border text-[17px] transition-all duration-150 ${
-                  location.pathname === item.path
-                    ? "border-[#c9a96e]/20 bg-[#c9a96e]/12 text-[#c9a96e]"
-                    : "border-white/[0.06] bg-white/[0.03] text-white/65 group-hover:border-white/[0.1] group-hover:bg-white/[0.05] group-hover:text-white/90"
-                }`}
-              >
-                {item.icon}
-              </span>
-              <span className="truncate">{item.label}</span>
-            </NavLink>
-          ))}
+        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+          <div className="space-y-1.5">
+            {visiblePrimaryNavItems.map((item) => renderNavItem(item))}
+          </div>
+
+          {visibleNavSections.length > 0 ? <div className="mx-2 border-t border-white/[0.06]" /> : null}
+
+          <div className="space-y-1.5">
+            {visibleNavSections.map((section) => {
+              const isExpanded = expandedSections[section.key] ?? false;
+              const sectionHasActiveItem = section.items.some((item) => location.pathname.startsWith(item.path));
+              return (
+                <div key={section.key} className="space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedSections((prev) => ({ ...prev, [section.key]: !(prev[section.key] ?? false) }))
+                    }
+                    aria-expanded={isExpanded}
+                    className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm transition-all duration-150 ${
+                      sectionHasActiveItem
+                        ? "bg-white/[0.06] text-[#e8d5a8]"
+                        : "text-white/55 hover:bg-white/[0.06] hover:text-white/85"
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border text-[13px] ${
+                          sectionHasActiveItem
+                            ? "border-[#c9a96e]/20 bg-[#c9a96e]/12 text-[#c9a96e]"
+                            : "border-white/[0.06] bg-white/[0.03] text-white/60 group-hover:border-white/[0.1] group-hover:text-white/85"
+                        }`}
+                      >
+                        {section.icon}
+                      </span>
+                      <span className="truncate text-xs font-semibold uppercase tracking-[0.13em]">{section.label}</span>
+                    </span>
+                    <span
+                      className={`text-[11px] transition-transform duration-200 ${
+                        isExpanded ? "rotate-180 text-white/65" : "text-white/35"
+                      }`}
+                    >
+                      <IconChevronDown />
+                    </span>
+                  </button>
+
+                  {isExpanded ? (
+                    <div className="space-y-1 pl-3">
+                      {section.items.map((item) => renderNavItem(item))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
         </nav>
 
         {/* Footer */}
@@ -231,6 +388,13 @@ export default function PlatformShell() {
         {shouldShowTrialBanner && profile?.subscription ? (
           <div className="px-4 pt-4 sm:px-6">
             <TrialUpgradeBanner subscription={profile.subscription} />
+          </div>
+        ) : null}
+        {inviteStatus ? (
+          <div className="px-4 pt-4 sm:px-6">
+            <div className="rounded-xl border border-[#0a0a0f]/10 bg-white px-4 py-3 text-sm text-[#0a0a0f]/75">
+              {inviteStatus}
+            </div>
           </div>
         ) : null}
 

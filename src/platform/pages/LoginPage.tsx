@@ -12,6 +12,10 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [oauthStatus, setOauthStatus] = useState("");
+  const inviteToken = new URLSearchParams(location.search).get("invite")?.trim() || "";
+  const postLoginPath = inviteToken
+    ? `/platform/app/overview?invite=${encodeURIComponent(inviteToken)}`
+    : "/platform/app/overview";
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -34,7 +38,7 @@ export default function LoginPage() {
     acceptSessionToken(oauthToken)
       .then(() => {
         if (!cancelled) {
-          navigate("/platform/app/overview", { replace: true });
+          navigate(postLoginPath, { replace: true });
         }
       })
       .catch(() => {
@@ -52,14 +56,14 @@ export default function LoginPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+  }, [location.search, navigate, acceptSessionToken, setError, postLoginPath]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     try {
       await login({ email, password });
-      navigate("/platform/app/overview");
+      navigate(postLoginPath);
     } catch { /* handled in context */ }
   }
 

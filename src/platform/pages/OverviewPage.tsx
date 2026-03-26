@@ -81,6 +81,28 @@ function formatDuration(value: number | null) {
   return `${(value / 1000).toFixed(1)} s`;
 }
 
+function formatSeconds(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "No data";
+  }
+
+  if (value < 60) {
+    return `${value}s`;
+  }
+
+  const minutes = Math.floor(value / 60);
+  const seconds = value % 60;
+  return `${minutes}m ${seconds}s`;
+}
+
+function formatUtilization(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "No data";
+  }
+
+  return `${Math.round(value * 100)}%`;
+}
+
 function formatDateTime(value: string | null) {
   if (!value) {
     return null;
@@ -242,6 +264,33 @@ export default function OverviewPage() {
     };
   }, [range, selectedTenant?.tenant_id, timezone, token]);
 
+  const trendData = useMemo(
+    () =>
+      analytics?.account.trend.map((point) => ({
+        ...point,
+        label: formatBucketLabel(point.bucket_start)
+      })) ?? [],
+    [analytics]
+  );
+
+  const workspaceTrendData = useMemo(
+    () =>
+      analytics?.workspace?.trend.map((point) => ({
+        ...point,
+        label: formatBucketLabel(point.bucket_start)
+      })) ?? [],
+    [analytics]
+  );
+
+  const workspaceBarData = useMemo(
+    () =>
+      analytics?.account.workspaces.slice(0, 5).map((row) => ({
+        ...row,
+        shortName: row.name.length > 18 ? `${row.name.slice(0, 18)}...` : row.name
+      })) ?? [],
+    [analytics]
+  );
+
   if (!selectedTenant) {
     return <WorkspaceCreateForm />;
   }
@@ -271,33 +320,6 @@ export default function OverviewPage() {
     { label: "Services enabled", value: profile.supported_services.join(", ") || "flights" },
     { label: "Specialist number", value: profile.support_phone || "Not configured" }
   ];
-
-  const trendData = useMemo(
-    () =>
-      analytics?.account.trend.map((point) => ({
-        ...point,
-        label: formatBucketLabel(point.bucket_start)
-      })) ?? [],
-    [analytics]
-  );
-
-  const workspaceTrendData = useMemo(
-    () =>
-      analytics?.workspace?.trend.map((point) => ({
-        ...point,
-        label: formatBucketLabel(point.bucket_start)
-      })) ?? [],
-    [analytics]
-  );
-
-  const workspaceBarData = useMemo(
-    () =>
-      analytics?.account.workspaces.slice(0, 5).map((row) => ({
-        ...row,
-        shortName: row.name.length > 18 ? `${row.name.slice(0, 18)}...` : row.name
-      })) ?? [],
-    [analytics]
-  );
 
   const serviceMix = analytics?.account.services ?? [];
   const topIntents = analytics?.account.intents.slice(0, 4) ?? [];
@@ -455,6 +477,35 @@ export default function OverviewPage() {
                   value={`${formatCompactNumber(analytics.account.summary.message_quota_used)} / ${formatCompactNumber(analytics.account.summary.message_quota_limit)}`}
                   note={`${Math.round(quotaRatio * 100)}% of the current billing allowance`}
                   accent={quotaAccent}
+                />
+                <MetricCard
+                  label="VIP conversations"
+                  value={formatCompactNumber(analytics.account.summary.vip_conversations)}
+                  note="Visitor-tagged VIP handoffs in this range"
+                />
+                <MetricCard
+                  label="Avg first response"
+                  value={formatSeconds(analytics.account.summary.avg_first_response_seconds)}
+                  note="From handoff request to first agent reply"
+                />
+                <MetricCard
+                  label="Avg handle time"
+                  value={formatSeconds(analytics.account.summary.avg_handle_seconds)}
+                  note="From assignment to closed conversation"
+                />
+                <MetricCard
+                  label="Agent utilization"
+                  value={formatUtilization(analytics.account.summary.agent_utilization_ratio)}
+                  note="Active assigned chats / configured queue capacity"
+                />
+                <MetricCard
+                  label="CSAT"
+                  value={
+                    analytics.account.summary.csat_avg_rating === null
+                      ? "No data"
+                      : `${analytics.account.summary.csat_avg_rating.toFixed(2)} / 5`
+                  }
+                  note={`${formatExactNumber(analytics.account.summary.csat_responses)} responses`}
                 />
               </div>
 
@@ -746,6 +797,25 @@ export default function OverviewPage() {
                             {
                               label: "Knowledge hit rate",
                               value: formatPercent(analytics.workspace.knowledge_hit_rate)
+                            },
+                            {
+                              label: "First response",
+                              value: formatSeconds(analytics.workspace.summary.avg_first_response_seconds)
+                            },
+                            {
+                              label: "Handle time",
+                              value: formatSeconds(analytics.workspace.summary.avg_handle_seconds)
+                            },
+                            {
+                              label: "Utilization",
+                              value: formatUtilization(analytics.workspace.summary.agent_utilization_ratio)
+                            },
+                            {
+                              label: "CSAT",
+                              value:
+                                analytics.workspace.summary.csat_avg_rating === null
+                                  ? "No data"
+                                  : `${analytics.workspace.summary.csat_avg_rating.toFixed(2)} / 5`
                             }
                           ].map((item) => (
                             <div

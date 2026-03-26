@@ -12,6 +12,10 @@ export type PlatformAvatarSource = "initials" | "manual" | "google" | "facebook"
 export type PlatformAuthProvider = "password" | "google" | "facebook";
 export type PlatformSubscriptionPlan = "trial" | "starter" | "growth" | "enterprise";
 export type PlatformSubscriptionStatus = "active" | "canceled" | "expired" | "past_due";
+export type WorkspaceMemberRole = "owner" | "admin" | "supervisor" | "agent" | "viewer";
+export type AgentPresenceStatus = "online" | "away" | "offline";
+export type QueueRoutingMode = "manual_accept" | "auto_assign";
+export type QueueAfterHoursAction = "collect_info" | "overflow" | "ai_only";
 
 export type TenantBusinessProfile = {
   business_type: string;
@@ -43,6 +47,8 @@ export type TenantBusinessProfile = {
   notif_text: string;
   notif_animation: NotifAnimation;
   notif_chips: string[];
+  csat_enabled: boolean;
+  csat_prompt: string;
 };
 
 export type PlatformWidgetConfig = {
@@ -85,8 +91,14 @@ export type PlatformTenant = {
   tenant_id: string;
   name: string | null;
   allowed_domains: string[];
+  workspace_role?: WorkspaceMemberRole | null;
   business_profile: TenantBusinessProfile;
   knowledge_base: PlatformKnowledgeBase;
+  retention?: {
+    conversation_retention_days: number;
+    retention_purge_grace_days: number;
+    allow_conversation_export: boolean;
+  };
   domain_verification: PlatformDomainVerification;
   widget?: PlatformWidgetConfig;
 };
@@ -109,6 +121,7 @@ export type PlatformSubscription = {
   status: PlatformSubscriptionStatus;
   max_tenants: number;
   max_messages_mo: number;
+  max_seats: number;
   cancel_at_period_end: boolean;
   trial_ends_at: string | null;
   trial_days_remaining: number | null;
@@ -121,6 +134,7 @@ export type PlatformAnalyticsRange = "7d" | "30d" | "billing_cycle";
 
 export type PlatformAnalyticsSummary = {
   conversations: number;
+  vip_conversations: number;
   messages_total: number;
   user_messages: number;
   assistant_messages: number;
@@ -129,6 +143,11 @@ export type PlatformAnalyticsSummary = {
   tokens_exact: number;
   tokens_estimated: number;
   avg_response_ms: number | null;
+  avg_first_response_seconds: number | null;
+  avg_handle_seconds: number | null;
+  agent_utilization_ratio: number | null;
+  csat_avg_rating: number | null;
+  csat_responses: number;
   message_quota_used: number;
   message_quota_limit: number;
 };
@@ -148,6 +167,9 @@ export type PlatformAnalyticsWorkspaceRow = {
   tokens_total: number;
   conversations: number;
   unique_visitors: number;
+  avg_first_response_seconds: number | null;
+  avg_handle_seconds: number | null;
+  agent_utilization_ratio: number | null;
 };
 
 export type PlatformAnalyticsBreakdownRow = {
@@ -221,4 +243,104 @@ export type PlatformVisitorContactsResponse = {
   limit: number;
   offset: number;
   contacts: PlatformVisitorContact[];
+};
+
+export type PlatformWorkspaceMember = {
+  id: string;
+  workspace_id: string;
+  user_id: string;
+  role: WorkspaceMemberRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  user: {
+    id: string;
+    email: string;
+    full_name: string;
+    avatar_url: string | null;
+  } | null;
+};
+
+export type PlatformWorkspaceInvitation = {
+  id: string;
+  workspace_id: string;
+  email: string;
+  role: WorkspaceMemberRole;
+  invited_by: string | null;
+  expires_at: string;
+  accepted_at: string | null;
+  created_at: string;
+  status: "pending" | "accepted" | "expired";
+};
+
+export type PlatformQueue = {
+  id: string;
+  workspace_id: string;
+  tenant_id: string;
+  name: string;
+  routing_mode: QueueRoutingMode;
+  routing_strategy: "priority_least_active" | "round_robin";
+  is_vip_queue: boolean;
+  is_active: boolean;
+  business_hours: Record<string, unknown>;
+  after_hours_action: QueueAfterHoursAction;
+  sla_first_response_seconds: number;
+  sla_warning_seconds: number;
+  overflow_after_seconds: number;
+  overflow_queue_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlatformQueueMember = {
+  id: string;
+  queue_id: string;
+  workspace_member_id: string;
+  priority: number;
+  max_concurrent_chats: number;
+  skills: string[];
+  handles_vip: boolean;
+  last_assigned_at: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  workspace_member: {
+    id: string;
+    workspace_id: string;
+    user_id: string;
+    role: WorkspaceMemberRole;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    platform_user: {
+      id: string;
+      email: string;
+      full_name: string;
+      avatar_url: string | null;
+    } | null;
+  } | null;
+};
+
+export type PlatformPresenceEntry = {
+  workspace_member_id: string;
+  user_id: string;
+  full_name: string;
+  email: string;
+  avatar_url: string | null;
+  role: WorkspaceMemberRole;
+  status: AgentPresenceStatus;
+  last_heartbeat_at: string | null;
+};
+
+export type SupervisorAgentLoad = {
+  queue_id: string;
+  user_id: string;
+  full_name: string;
+  role: WorkspaceMemberRole;
+  status: AgentPresenceStatus;
+  last_heartbeat_at: string | null;
+  active_chats: number;
+  max_concurrent_chats: number;
+  priority: number;
 };

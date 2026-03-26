@@ -10,6 +10,7 @@ type StreamPayload = {
   tenant_id: string;
   device_id: string;
   chat_id?: string;
+  client_message_id?: string;
   message: string;
   page_context?: {
     url?: string;
@@ -65,6 +66,8 @@ export type WidgetAppearanceConfig = {
   notifText?: string;
   notifAnimation?: "bounce" | "pulse" | "slide";
   notifChips?: string[];
+  csatEnabled?: boolean;
+  csatPrompt?: string;
 };
 
 export type WidgetConfig = {
@@ -458,4 +461,115 @@ export async function fetchAirportSuggestions(query: string, backendUrl?: string
 
   const json = (await response.json()) as unknown;
   return toAirportSuggestions(json);
+}
+
+/** Phase 1: Request handoff to a live agent */
+export async function requestHandoff(input: {
+  chatId: string;
+  tenantId: string;
+  deviceId: string;
+  visitorIsVip?: boolean;
+  routingSkill?: string;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<{
+  chat_id: string;
+  mode: string;
+  status: string;
+  queue_id?: string;
+  after_hours?: boolean;
+  after_hours_action?: "collect_info" | "overflow" | "ai_only";
+  sla_first_response_due_at?: string | null;
+}> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(`${base}/api/conversation/${input.chatId}/handoff`, {
+    method: "POST",
+    headers: buildHeaders(input, true),
+    body: JSON.stringify({
+      tenant_id: input.tenantId,
+      device_id: input.deviceId,
+      visitor_is_vip: input.visitorIsVip,
+      routing_skill: input.routingSkill
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as {
+    chat_id: string;
+    mode: string;
+    status: string;
+    queue_id?: string;
+    after_hours?: boolean;
+    after_hours_action?: "collect_info" | "overflow" | "ai_only";
+    sla_first_response_due_at?: string | null;
+  };
+}
+
+export async function getConversationCsat(input: {
+  chatId: string;
+  tenantId: string;
+  deviceId: string;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<{
+  chat_id: string;
+  csat: { rating: number; feedback: string | null } | null;
+}> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(
+    `${base}/api/conversation/${encodeURIComponent(input.chatId)}/csat?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}`,
+    {
+      headers: buildHeaders(input),
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as {
+    chat_id: string;
+    csat: { rating: number; feedback: string | null } | null;
+  };
+}
+
+export async function submitConversationCsat(input: {
+  chatId: string;
+  tenantId: string;
+  deviceId: string;
+  rating: number;
+  feedback?: string;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<{
+  chat_id: string;
+  csat: { rating: number; feedback: string | null };
+}> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(`${base}/api/conversation/${encodeURIComponent(input.chatId)}/csat`, {
+    method: "POST",
+    headers: buildHeaders(input, true),
+    body: JSON.stringify({
+      tenant_id: input.tenantId,
+      device_id: input.deviceId,
+      rating: input.rating,
+      feedback: input.feedback?.trim() || undefined
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as {
+    chat_id: string;
+    csat: { rating: number; feedback: string | null };
+  };
 }

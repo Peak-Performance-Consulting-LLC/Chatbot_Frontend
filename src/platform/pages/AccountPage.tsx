@@ -1,5 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import {
+  platformExportConversationsCsv,
+  platformExportConversationsJson,
+  platformGetWorkspaceRetention,
+  platformUpdateWorkspaceRetention
+} from "@/lib/platformApi";
 import UserAvatar from "@/platform/components/UserAvatar";
 import { useTrialCountdown } from "@/platform/subscription";
 import { usePlatformAuth } from "@/platform/state/auth";
@@ -13,7 +19,7 @@ const providerLabelMap: Record<PlatformAuthProvider, string> = {
 
 export default function AccountPage() {
   const navigate = useNavigate();
-  const { profile, logout, updateUserProfile, loading, error, setError } = usePlatformAuth();
+  const { profile, token, selectedTenant, logout, updateUserProfile, loading, error, setError } = usePlatformAuth();
 
   /* ── edit profile state ─────────────────────────── */
   const [editMode, setEditMode] = useState(false);
@@ -25,6 +31,17 @@ export default function AccountPage() {
   const [confirmPw, setConfirmPw] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [localError, setLocalError] = useState("");
+  const [retentionDays, setRetentionDays] = useState(selectedTenant?.retention?.conversation_retention_days ?? 365);
+  const [retentionGraceDays, setRetentionGraceDays] = useState(selectedTenant?.retention?.retention_purge_grace_days ?? 30);
+  const [allowExport, setAllowExport] = useState(selectedTenant?.retention?.allow_conversation_export ?? true);
+  const [retentionLoading, setRetentionLoading] = useState(false);
+  const [retentionSaving, setRetentionSaving] = useState(false);
+  const [retentionStatus, setRetentionStatus] = useState("");
+  const [exportLoading, setExportLoading] = useState<"" | "json" | "csv">("");
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
+  const [exportIncludeMessages, setExportIncludeMessages] = useState(true);
+  const [exportIncludeEvents, setExportIncludeEvents] = useState(true);
 
   const createdAt = profile?.user.created_at
     ? new Date(profile.user.created_at).toLocaleDateString("en-US", {
@@ -41,6 +58,8 @@ export default function AccountPage() {
   );
   const subscription = profile?.subscription;
   const trialCountdown = useTrialCountdown(subscription?.trial_ends_at);
+  const canManageRetention =
+    selectedTenant?.workspace_role === "owner" || selectedTenant?.workspace_role === "admin";
 
   function formatPlanName(plan: PlatformSubscriptionPlan | undefined) {
     switch (plan) {
@@ -82,6 +101,127 @@ export default function AccountPage() {
       day: "numeric",
       year: "numeric"
     });
+  }
+
+  useEffect(() => {
+    if (!token || !selectedTenant?.tenant_id) {
+      return;
+    }
+
+    let disposed = false;
+    setRetentionLoading(true);
+    setRetentionStatus("");
+
+    platformGetWorkspaceRetention(token, selectedTenant.tenant_id)
+      .then((response) => {
+        if (disposed) {
+          return;
+        }
+        setRetentionDays(response.retention.conversation_retention_days);
+        setRetentionGraceDays(response.retention.retention_purge_grace_days);
+        setAllowExport(response.retention.allow_conversation_export);
+      })
+      .catch((err) => {
+        if (!disposed) {
+          setRetentionStatus(err instanceof Error ? err.message : "Failed to load retention settings");
+        }
+      })
+      .finally(() => {
+        if (!disposed) {
+          setRetentionLoading(false);
+        }
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [selectedTenant?.tenant_id, token]);
+
+  function downloadBlob(blob: Blob, filename: string) {
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(href);
+  }
+
+  async function handleSaveRetentionSettings(event: React.FormEvent) {
+    event.preventDefault();
+    if (!token || !selectedTenant?.tenant_id) {
+      return;
+    }
+
+    setRetentionSaving(true);
+    setRetentionStatus("");
+    try {
+      const response = await platformUpdateWorkspaceRetention(
+        token,
+        {
+          tenantId: selectedTenant.tenant_id,
+          conversationRetentionDays: retentionDays,
+          retentionPurgeGraceDays: retentionGraceDays,
+          allowConversationExport: allowExport
+        }
+      );
+      setRetentionDays(response.retention.conversation_retention_days);
+      setRetentionGraceDays(response.retention.retention_purge_grace_days);
+      setAllowExport(response.retention.allow_conversation_export);
+      setRetentionStatus("Retention policy updated.");
+    } catch (err) {
+      setRetentionStatus(err instanceof Error ? err.message : "Failed to update retention policy");
+    } finally {
+      setRetentionSaving(false);
+    }
+  }
+
+  async function handleExport(format: "json" | "csv") {
+    if (!token || !selectedTenant?.tenant_id) {
+      return;
+    }
+
+    const startAt = exportStartDate ? `${exportStartDate}T00:00:00.000Z` : undefined;
+    const endAt = exportEndDate ? `${exportEndDate}T23:59:59.999Z` : undefined;
+    setExportLoading(format);
+    setRetentionStatus("");
+
+    try {
+      if (format === "json") {
+        const payload = await platformExportConversationsJson(token, {
+          tenantId: selectedTenant.tenant_id,
+          startAt,
+          endAt,
+          includeMessages: exportIncludeMessages,
+          includeEvents: exportIncludeEvents
+        });
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json;charset=utf-8"
+        });
+        downloadBlob(
+          blob,
+          `conversation_export_${selectedTenant.tenant_id}_${new Date().toISOString().slice(0, 10)}.json`
+        );
+      } else {
+        const blob = await platformExportConversationsCsv(token, {
+          tenantId: selectedTenant.tenant_id,
+          startAt,
+          endAt,
+          includeMessages: exportIncludeMessages,
+          includeEvents: exportIncludeEvents
+        });
+        downloadBlob(
+          blob,
+          `conversation_export_${selectedTenant.tenant_id}_${new Date().toISOString().slice(0, 10)}.csv`
+        );
+      }
+      setRetentionStatus(`Conversation export (${format.toUpperCase()}) completed.`);
+    } catch (err) {
+      setRetentionStatus(err instanceof Error ? err.message : "Failed to export conversations");
+    } finally {
+      setExportLoading("");
+    }
   }
 
   function openEdit() {
@@ -267,6 +407,141 @@ export default function AccountPage() {
           <Link className="app-btn-secondary" to="/platform/app/pricing">
             Upgrade plan
           </Link>
+        </div>
+      ) : null}
+
+      {selectedTenant ? (
+        <div className="app-card">
+          <p className="app-card-title">Data Governance</p>
+          <p style={{ fontSize: "0.82rem", color: "rgba(10,10,15,0.5)", marginTop: "-8px" }}>
+            Workspace: <strong>{selectedTenant.name || selectedTenant.tenant_id}</strong>
+          </p>
+          <form
+            onSubmit={handleSaveRetentionSettings}
+            style={{ display: "flex", flexDirection: "column", gap: "14px", marginTop: "14px" }}
+          >
+            <div className="app-stat-grid" style={{ marginBottom: 0 }}>
+              <label className="app-form-group" style={{ marginBottom: 0 }}>
+                <span>Retention days</span>
+                <input
+                  type="number"
+                  min={30}
+                  max={3650}
+                  className="app-input"
+                  value={retentionDays}
+                  onChange={(event) => setRetentionDays(Number(event.target.value))}
+                  disabled={retentionLoading || !canManageRetention}
+                />
+              </label>
+              <label className="app-form-group" style={{ marginBottom: 0 }}>
+                <span>Purge grace days</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={3650}
+                  className="app-input"
+                  value={retentionGraceDays}
+                  onChange={(event) => setRetentionGraceDays(Number(event.target.value))}
+                  disabled={retentionLoading || !canManageRetention}
+                />
+              </label>
+              <div
+                className="app-form-group"
+                style={{ marginBottom: 0, justifyContent: "center", alignItems: "flex-start", gap: "8px" }}
+              >
+                <span>Allow export</span>
+                <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: "0.82rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={allowExport}
+                    onChange={(event) => setAllowExport(event.target.checked)}
+                    disabled={retentionLoading || !canManageRetention}
+                  />
+                  Enable conversation export
+                </label>
+              </div>
+            </div>
+
+            {canManageRetention ? (
+              <div className="app-action-row" style={{ marginTop: 0 }}>
+                <button className="app-btn-primary" type="submit" disabled={retentionSaving || retentionLoading}>
+                  {retentionSaving ? "Saving…" : "Save Retention Policy"}
+                </button>
+              </div>
+            ) : (
+              <p style={{ fontSize: "0.78rem", color: "rgba(10,10,15,0.45)", margin: 0 }}>
+                Retention policy can be edited by owner/admin roles.
+              </p>
+            )}
+          </form>
+
+          <div style={{ marginTop: "18px", borderTop: "1px solid rgba(10,10,15,0.08)", paddingTop: "16px" }}>
+            <p style={{ fontSize: "0.84rem", fontWeight: 600, margin: "0 0 8px", color: "#0a0a0f" }}>
+              Conversation Export
+            </p>
+            <div className="app-stat-grid" style={{ marginBottom: "10px" }}>
+              <label className="app-form-group" style={{ marginBottom: 0 }}>
+                <span>Start date</span>
+                <input
+                  type="date"
+                  className="app-input"
+                  value={exportStartDate}
+                  onChange={(event) => setExportStartDate(event.target.value)}
+                />
+              </label>
+              <label className="app-form-group" style={{ marginBottom: 0 }}>
+                <span>End date</span>
+                <input
+                  type="date"
+                  className="app-input"
+                  value={exportEndDate}
+                  onChange={(event) => setExportEndDate(event.target.value)}
+                />
+              </label>
+              <div className="app-form-group" style={{ marginBottom: 0 }}>
+                <span>Payload options</span>
+                <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginTop: "8px" }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.82rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={exportIncludeMessages}
+                      onChange={(event) => setExportIncludeMessages(event.target.checked)}
+                    />
+                    Include messages
+                  </label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "0.82rem" }}>
+                    <input
+                      type="checkbox"
+                      checked={exportIncludeEvents}
+                      onChange={(event) => setExportIncludeEvents(event.target.checked)}
+                    />
+                    Include events
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="app-action-row" style={{ marginTop: 0 }}>
+              <button
+                className="app-btn-secondary"
+                type="button"
+                disabled={exportLoading !== ""}
+                onClick={() => void handleExport("json")}
+              >
+                {exportLoading === "json" ? "Exporting JSON…" : "Export JSON"}
+              </button>
+              <button
+                className="app-btn-secondary"
+                type="button"
+                disabled={exportLoading !== ""}
+                onClick={() => void handleExport("csv")}
+              >
+                {exportLoading === "csv" ? "Exporting CSV…" : "Export CSV"}
+              </button>
+            </div>
+          </div>
+
+          {retentionStatus ? <p className="app-success" style={{ marginTop: "12px" }}>{retentionStatus}</p> : null}
         </div>
       ) : null}
 

@@ -329,6 +329,8 @@ export default function CustomizationPage() {
   const [notifText, setNotifText] = useState(profile?.notif_text || "👋 Need help?");
   const [notifAnimation, setNotifAnimation] = useState<NotifAnimation>(profile?.notif_animation || "bounce");
   const [notifChips, setNotifChips] = useState<string[]>(profile?.notif_chips || ["I have a question", "Tell me more"]);
+  const [csatEnabled, setCsatEnabled] = useState(profile?.csat_enabled ?? true);
+  const [csatPrompt, setCsatPrompt] = useState(profile?.csat_prompt || "Rate this conversation");
 
 
   // Sync form state from saved profile whenever the tenant changes.
@@ -369,6 +371,8 @@ export default function CustomizationPage() {
     setNotifText(profile.notif_text || "👋 Need help?");
     setNotifAnimation(profile.notif_animation || "bounce");
     setNotifChips(profile.notif_chips || ["I have a question", "Tell me more"]);
+    setCsatEnabled(profile.csat_enabled ?? true);
+    setCsatPrompt(profile.csat_prompt || "Rate this conversation");
   }, [profile, selectedTenant?.tenant_id]);
 
 
@@ -425,6 +429,8 @@ export default function CustomizationPage() {
         notif_text: notifText.trim() || "👋 Need help?",
         notif_animation: notifAnimation,
         notif_chips: notifChips,
+        csat_enabled: csatEnabled,
+        csat_prompt: csatPrompt.trim() || "Rate this conversation"
       });
       setSuccess("✅ Customization saved! Changes are live.");
       setTimeout(() => setSuccess(""), 4000);
@@ -654,6 +660,29 @@ export default function CustomizationPage() {
                 </label>
                 <label className="cust-label full">Support CTA label
                   <input className="cust-input" value={supportCtaLabel} onChange={e => setSupportCtaLabel(e.target.value)} placeholder="Connect with a specialist" />
+                </label>
+              </div>
+
+              <p className="cust-sub-heading">Post-Conversation CSAT</p>
+              <div className="cust-field-grid">
+                <label className="cust-label full" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={csatEnabled}
+                    onChange={e => setCsatEnabled(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: "#1a5c5c" }}
+                  />
+                  Enable CSAT survey after conversation close
+                </label>
+                <label className="cust-label full">Survey prompt
+                  <input
+                    className="cust-input"
+                    value={csatPrompt}
+                    onChange={e => setCsatPrompt(e.target.value)}
+                    maxLength={180}
+                    placeholder="Rate this conversation"
+                    disabled={!csatEnabled}
+                  />
                 </label>
               </div>
             </div>

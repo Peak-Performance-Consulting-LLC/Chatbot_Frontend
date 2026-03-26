@@ -84,6 +84,15 @@ export function IconLeads(props: IconProps) {
   );
 }
 
+export function IconInbox(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v11A2.5 2.5 0 0 1 17.5 20h-11A2.5 2.5 0 0 1 4 17.5z" />
+      <path d="M4 13h4l1.4 2h5.2l1.4-2H20" />
+    </BaseIcon>
+  );
+}
+
 export function IconCustomization(props: IconProps) {
   return (
     <BaseIcon {...props}>
@@ -201,6 +210,27 @@ export function IconTenants(props: IconProps) {
       <rect x="13.5" y="10" width="8" height="11" rx="1.5" />
       <path d="M6 10V6.5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 18 6.5V10" />
       <path d="M9 21v-5a3 3 0 0 1 6 0v5" />
+    </BaseIcon>
+  );
+}
+
+export function IconTeam(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <circle cx="8" cy="9" r="2.2" />
+      <circle cx="15.8" cy="8" r="1.8" />
+      <path d="M4.2 18c.9-2.2 2.4-3.4 4.5-3.4S12.2 15.8 13 18" />
+      <path d="M13.8 18c.6-1.5 1.7-2.3 3.2-2.3 1 0 1.9.4 2.8 1.2" />
+    </BaseIcon>
+  );
+}
+
+export function IconQueue(props: IconProps) {
+  return (
+    <BaseIcon {...props}>
+      <rect x="4" y="4.5" width="16" height="4.5" rx="1.2" />
+      <rect x="4" y="10" width="12" height="4.5" rx="1.2" />
+      <rect x="4" y="15.5" width="9" height="4" rx="1.2" />
     </BaseIcon>
   );
 }
