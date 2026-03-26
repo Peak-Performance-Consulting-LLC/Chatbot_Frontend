@@ -15,7 +15,7 @@ export default function DocumentationPage() {
   const widget = selectedTenant?.widget;
   const widgetScript =
     widget?.script_snippet ||
-    `<script src="https://your-widget-host.example/widget.js" data-tenant-id="${selectedTenant?.tenant_id || "your-tenant"}" defer></script>`;
+    `<script src="https://chatbot-backend-theta-two.vercel.app/api/embed?tenant_id=starlux-travel"></script>`;
   const reactSnippet =
     widget?.react_snippet ||
     `import { ChatWidget } from "@/components/ChatWidget";
