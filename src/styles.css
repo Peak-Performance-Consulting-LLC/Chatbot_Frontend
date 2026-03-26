@@ -1350,11 +1350,11 @@ body.chat-widget-embedded .chat-peek-stack {
 }
 
 body.chat-widget-embedded .chat-peek-stack-right {
-  right: 0;
+  right: 8px;
 }
 
 body.chat-widget-embedded .chat-peek-stack-left {
-  left: 0;
+  left: 8px;
 }
 
 .chat-peek-stack.launcher-only .chat-peek-card,
@@ -1553,19 +1553,19 @@ body.chat-widget-embedded .chat-embed-dock {
 }
 
 body.chat-widget-embedded .chat-embed-dock-right {
-  right: 0;
+  right: 8px;
 }
 
 body.chat-widget-embedded .chat-embed-dock-left {
-  left: 0;
+  left: 8px;
 }
 
 body.chat-widget-embedded .chat-shell.embedded.public-embed-shell.chat-shell-right {
-  right: 0;
+  right: 8px;
 }
 
 body.chat-widget-embedded .chat-shell.embedded.public-embed-shell.chat-shell-left {
-  left: 0;
+  left: 8px;
 }
 
 .chat-embed-powered {
