@@ -7,6 +7,8 @@ import PlatformLogo from "@/platform/components/PlatformLogo";
 import { IconChevronDown, IconClose, IconLogout, IconMenu, IconSupport } from "@/platform/components/PlatformIcons";
 import { usePlatformAuth } from "@/platform/state/auth";
 
+const PENDING_INVITE_TOKEN_KEY = "aeroconcierge_pending_invite_token";
+
 /** Shimmer skeleton shown inside the content area while a lazy page chunk loads. */
 function PageSkeleton() {
   return (
@@ -115,16 +117,22 @@ export default function PlatformShell() {
       return;
     }
     if (currentItem.allowedRoles && !currentItem.allowedRoles.includes(currentRole)) {
-      navigate("/platform/app/overview", { replace: true });
+      const fallbackPath = visibleNavItems[0]?.path ?? "/platform/app/overview";
+      navigate(fallbackPath, { replace: true });
     }
-  }, [location.pathname, currentRole, navigate, allNavItems]);
+  }, [location.pathname, currentRole, navigate, allNavItems, visibleNavItems]);
 
   useEffect(() => {
     if (!token) {
       return;
     }
     const params = new URLSearchParams(location.search);
-    const inviteToken = params.get("invite")?.trim();
+    const inviteTokenFromQuery = params.get("invite")?.trim() || "";
+    if (inviteTokenFromQuery) {
+      localStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteTokenFromQuery);
+    }
+    const inviteTokenFromStorage = localStorage.getItem(PENDING_INVITE_TOKEN_KEY)?.trim() || "";
+    const inviteToken = inviteTokenFromQuery || inviteTokenFromStorage;
     if (!inviteToken || inviteHandledRef.current === inviteToken) {
       return;
     }
@@ -133,6 +141,7 @@ export default function PlatformShell() {
     setInviteStatus("Accepting workspace invitation...");
     platformAcceptTeamInvitation(token, inviteToken, backendUrl)
       .then(async () => {
+        localStorage.removeItem(PENDING_INVITE_TOKEN_KEY);
         await refresh();
         setInviteStatus("Workspace invitation accepted.");
       })
@@ -140,12 +149,14 @@ export default function PlatformShell() {
         setInviteStatus(error instanceof Error ? error.message : "Invitation acceptance failed.");
       })
       .finally(() => {
-        params.delete("invite");
-        const nextSearch = params.toString();
-        navigate(
-          { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" },
-          { replace: true }
-        );
+        if (inviteTokenFromQuery) {
+          params.delete("invite");
+          const nextSearch = params.toString();
+          navigate(
+            { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" },
+            { replace: true }
+          );
+        }
       });
   }, [token, location.pathname, location.search, navigate, backendUrl, refresh]);
 

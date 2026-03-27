@@ -4,6 +4,8 @@ import PlatformLogo from "@/platform/components/PlatformLogo";
 import SocialAuthButtons from "@/platform/components/SocialAuthButtons";
 import { usePlatformAuth } from "@/platform/state/auth";
 
+const PENDING_INVITE_TOKEN_KEY = "aeroconcierge_pending_invite_token";
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -16,6 +18,13 @@ export default function LoginPage() {
   const postLoginPath = inviteToken
     ? `/platform/app/overview?invite=${encodeURIComponent(inviteToken)}`
     : "/platform/app/overview";
+
+  useEffect(() => {
+    if (!inviteToken) {
+      return;
+    }
+    localStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteToken);
+  }, [inviteToken]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -201,7 +210,10 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-[#0a0a0f]/50">
             Need an account?{" "}
-            <Link to="/platform/signup" className="font-medium text-[#1a5c5c] hover:underline">
+            <Link
+              to={inviteToken ? `/platform/signup?invite=${encodeURIComponent(inviteToken)}` : "/platform/signup"}
+              className="font-medium text-[#1a5c5c] hover:underline"
+            >
               Create one
             </Link>
           </p>

@@ -45,7 +45,7 @@ function formatDateTime(input: string) {
 }
 
 export default function TeamManagementPage() {
-  const { token, selectedTenantId } = usePlatformAuth();
+  const { token, selectedTenantId, selectedTenant } = usePlatformAuth();
   const backendUrl = import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
   const [members, setMembers] = useState<PlatformWorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<PlatformWorkspaceInvitation[]>([]);
@@ -58,6 +58,8 @@ export default function TeamManagementPage() {
   const [submitting, setSubmitting] = useState(false);
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState("");
   const [error, setError] = useState("");
+  const currentRole = selectedTenant?.workspace_role ?? "viewer";
+  const canManageTeam = currentRole === "owner" || currentRole === "admin";
 
   const presenceByUserId = useMemo(() => {
     const map = new Map<string, PlatformPresenceEntry>();
@@ -176,38 +178,40 @@ export default function TeamManagementPage() {
         </div>
       ) : null}
 
-      <section className="app-card">
-        <h2 className="app-card-title">Invite Team Member</h2>
-        <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto]" onSubmit={handleInvite}>
-          <input
-            type="email"
-            value={inviteEmail}
-            onChange={(event) => setInviteEmail(event.target.value)}
-            className="app-input"
-            placeholder="agent@company.com"
-            required
-          />
-          <select
-            value={inviteRole}
-            onChange={(event) => setInviteRole(event.target.value as WorkspaceMemberRole)}
-            className="app-input"
-          >
-            {ROLE_OPTIONS.map((role) => (
-              <option key={role} value={role}>
-                {role}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="app-btn-primary" disabled={submitting || !selectedTenantId}>
-            {submitting ? "Inviting..." : "Send Invite"}
-          </button>
-        </form>
-        {lastInviteUrl ? (
-          <div className="mt-3 rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] px-3 py-2 text-xs text-[#0a0a0f]/65">
-            Latest invite link: <span className="font-mono text-[11px]">{lastInviteUrl}</span>
-          </div>
-        ) : null}
-      </section>
+      {canManageTeam ? (
+        <section className="app-card">
+          <h2 className="app-card-title">Invite Team Member</h2>
+          <form className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_auto]" onSubmit={handleInvite}>
+            <input
+              type="email"
+              value={inviteEmail}
+              onChange={(event) => setInviteEmail(event.target.value)}
+              className="app-input"
+              placeholder="agent@company.com"
+              required
+            />
+            <select
+              value={inviteRole}
+              onChange={(event) => setInviteRole(event.target.value as WorkspaceMemberRole)}
+              className="app-input"
+            >
+              {ROLE_OPTIONS.map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="app-btn-primary" disabled={submitting || !selectedTenantId}>
+              {submitting ? "Inviting..." : "Send Invite"}
+            </button>
+          </form>
+          {lastInviteUrl ? (
+            <div className="mt-3 rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] px-3 py-2 text-xs text-[#0a0a0f]/65">
+              Latest invite link: <span className="font-mono text-[11px]">{lastInviteUrl}</span>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="app-card">
         <div className="flex items-center justify-between mb-4">
@@ -225,7 +229,7 @@ export default function TeamManagementPage() {
             const memberPresence = member.user ? presenceByUserId.get(member.user.id) : null;
             const status = memberPresence?.status ?? "offline";
             const pendingRole = pendingRoleByUserId[member.user_id] ?? member.role;
-            const canEditRole = member.role !== "owner";
+            const canEditRole = canManageTeam && member.role !== "owner";
             const isUpdatingRole = updatingRoleUserId === member.user_id;
             return (
               <div key={member.id} className="rounded-xl border border-[#0a0a0f]/10 bg-white px-4 py-3">
@@ -286,37 +290,39 @@ export default function TeamManagementPage() {
         </div>
       </section>
 
-      <section className="app-card">
-        <h2 className="app-card-title">Invitations</h2>
-        <div className="space-y-2">
-          {invitations.length === 0 ? (
-            <p className="text-sm text-[#0a0a0f]/55">No invitations found.</p>
-          ) : null}
-          {invitations.map((invitation) => (
-            <div key={invitation.id} className="rounded-xl border border-[#0a0a0f]/10 bg-white px-4 py-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="font-medium text-[#0a0a0f]">{invitation.email}</div>
-                  <div className="text-xs text-[#0a0a0f]/50">
-                    Role: {invitation.role} • Expires: {formatDateTime(invitation.expires_at)}
+      {canManageTeam ? (
+        <section className="app-card">
+          <h2 className="app-card-title">Invitations</h2>
+          <div className="space-y-2">
+            {invitations.length === 0 ? (
+              <p className="text-sm text-[#0a0a0f]/55">No invitations found.</p>
+            ) : null}
+            {invitations.map((invitation) => (
+              <div key={invitation.id} className="rounded-xl border border-[#0a0a0f]/10 bg-white px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-[#0a0a0f]">{invitation.email}</div>
+                    <div className="text-xs text-[#0a0a0f]/50">
+                      Role: {invitation.role} • Expires: {formatDateTime(invitation.expires_at)}
+                    </div>
                   </div>
+                  <span
+                    className={`rounded-full px-2 py-1 text-xs uppercase tracking-wide ${
+                      invitation.status === "pending"
+                        ? "bg-[#1a5c5c]/12 text-[#1a5c5c]"
+                        : invitation.status === "accepted"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-[#0a0a0f]/8 text-[#0a0a0f]/60"
+                    }`}
+                  >
+                    {invitation.status}
+                  </span>
                 </div>
-                <span
-                  className={`rounded-full px-2 py-1 text-xs uppercase tracking-wide ${
-                    invitation.status === "pending"
-                      ? "bg-[#1a5c5c]/12 text-[#1a5c5c]"
-                      : invitation.status === "accepted"
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-[#0a0a0f]/8 text-[#0a0a0f]/60"
-                  }`}
-                >
-                  {invitation.status}
-                </span>
               </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

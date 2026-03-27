@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import PlatformLogo from "@/platform/components/PlatformLogo";
 import SocialAuthButtons from "@/platform/components/SocialAuthButtons";
 import { usePlatformAuth } from "@/platform/state/auth";
+
+const PENDING_INVITE_TOKEN_KEY = "aeroconcierge_pending_invite_token";
 
 function splitDocUrls(input: string): string[] {
   return input.split(/\n|,/).map((s) => s.trim()).filter(Boolean);
@@ -10,7 +12,9 @@ function splitDocUrls(input: string): string[] {
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { signup, loading, error, setError } = usePlatformAuth();
+  const inviteToken = new URLSearchParams(location.search).get("invite")?.trim() || "";
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,12 +25,23 @@ export default function SignupPage() {
   const [docUrls, setDocUrls] = useState("");
   const [faqText, setFaqText] = useState("");
 
+  useEffect(() => {
+    if (!inviteToken) {
+      return;
+    }
+    localStorage.setItem(PENDING_INVITE_TOKEN_KEY, inviteToken);
+  }, [inviteToken]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     try {
       await signup({ full_name: fullName, email, password, company_name: companyName, website_url: websiteUrl, sitemap_url: sitemapUrl || undefined, doc_urls: splitDocUrls(docUrls), faq_text: faqText || undefined });
-      navigate("/platform/app/overview");
+      navigate(
+        inviteToken
+          ? `/platform/app/overview?invite=${encodeURIComponent(inviteToken)}`
+          : "/platform/app/overview"
+      );
     } catch { /* handled in context */ }
   }
 
@@ -190,7 +205,12 @@ export default function SignupPage() {
 
           <p className="mt-6 text-center text-sm text-[#0a0a0f]/50">
             Already have an account?{" "}
-            <Link to="/platform/login" className="font-medium text-[#1a5c5c] hover:underline">Login</Link>
+            <Link
+              to={inviteToken ? `/platform/login?invite=${encodeURIComponent(inviteToken)}` : "/platform/login"}
+              className="font-medium text-[#1a5c5c] hover:underline"
+            >
+              Login
+            </Link>
           </p>
         </div>
       </section>

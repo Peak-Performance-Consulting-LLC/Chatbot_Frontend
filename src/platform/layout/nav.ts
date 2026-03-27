@@ -34,7 +34,13 @@ export type PlatformNavSection = {
 };
 
 export const appPrimaryNavItems: PlatformNavItem[] = [
-  { key: "overview", label: "Overview", path: "/platform/app/overview", icon: createElement(IconOverview) },
+  {
+    key: "overview",
+    label: "Overview",
+    path: "/platform/app/overview",
+    icon: createElement(IconOverview),
+    allowedRoles: ["owner", "admin", "supervisor"]
+  },
   {
     key: "inbox",
     label: "Agent Inbox",
@@ -76,7 +82,7 @@ export const appNavSections: PlatformNavSection[] = [
         label: "Team",
         path: "/platform/app/team",
         icon: createElement(IconTeam),
-        allowedRoles: ["owner", "admin"]
+        allowedRoles: ["owner", "admin", "supervisor", "agent"]
       },
       {
         key: "queues",
@@ -90,7 +96,7 @@ export const appNavSections: PlatformNavSection[] = [
         label: "Captured Users",
         path: "/platform/app/leads",
         icon: createElement(IconLeads),
-        allowedRoles: ["owner", "admin", "supervisor", "viewer"]
+        allowedRoles: ["owner", "admin"]
       }
     ]
   },
@@ -141,9 +147,27 @@ export const appNavSections: PlatformNavSection[] = [
     label: "Account & Billing",
     icon: createElement(IconAccount),
     items: [
-      { key: "docs", label: "Documentation", path: "/platform/app/docs", icon: createElement(IconDocs) },
-      { key: "account", label: "Account", path: "/platform/app/account", icon: createElement(IconAccount) },
-      { key: "pricing", label: "Pricing", path: "/platform/app/pricing", icon: createElement(IconPricing) }
+      {
+        key: "docs",
+        label: "Documentation",
+        path: "/platform/app/docs",
+        icon: createElement(IconDocs),
+        allowedRoles: ["owner", "admin", "supervisor"]
+      },
+      {
+        key: "account",
+        label: "Account",
+        path: "/platform/app/account",
+        icon: createElement(IconAccount),
+        allowedRoles: ["owner", "admin", "supervisor"]
+      },
+      {
+        key: "pricing",
+        label: "Pricing",
+        path: "/platform/app/pricing",
+        icon: createElement(IconPricing),
+        allowedRoles: ["owner", "admin"]
+      }
     ]
   }
 ];
