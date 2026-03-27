@@ -9,12 +9,65 @@ import {
 import UserAvatar from "@/platform/components/UserAvatar";
 import { useTrialCountdown } from "@/platform/subscription";
 import { usePlatformAuth } from "@/platform/state/auth";
-import type { PlatformAuthProvider, PlatformSubscriptionPlan } from "@/platform/types";
+import type {
+  PlatformAuthProvider,
+  PlatformSubscriptionPlan,
+  WorkspaceMemberRole
+} from "@/platform/types";
 
 const providerLabelMap: Record<PlatformAuthProvider, string> = {
   password: "Password",
   google: "Google",
   facebook: "Facebook"
+};
+
+const roleLabelMap: Record<WorkspaceMemberRole, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  supervisor: "Supervisor",
+  agent: "Agent",
+  viewer: "Viewer"
+};
+
+const rightsByRole: Record<
+  WorkspaceMemberRole,
+  Array<{ label: string; enabled: boolean }>
+> = {
+  owner: [
+    { label: "Account and profile management", enabled: true },
+    { label: "Conversation export", enabled: true },
+    { label: "Retention policy updates", enabled: true },
+    { label: "Queue and team administration", enabled: true },
+    { label: "Supervisor controls", enabled: true }
+  ],
+  admin: [
+    { label: "Account and profile management", enabled: true },
+    { label: "Conversation export", enabled: true },
+    { label: "Retention policy updates", enabled: true },
+    { label: "Queue and team administration", enabled: true },
+    { label: "Supervisor controls", enabled: true }
+  ],
+  supervisor: [
+    { label: "Account and profile management", enabled: true },
+    { label: "Conversation export", enabled: true },
+    { label: "Retention policy updates", enabled: false },
+    { label: "Queue administration", enabled: true },
+    { label: "Supervisor controls", enabled: true }
+  ],
+  agent: [
+    { label: "Account and profile management", enabled: true },
+    { label: "Conversation export", enabled: true },
+    { label: "Retention policy updates", enabled: false },
+    { label: "Queue and team administration", enabled: false },
+    { label: "Supervisor controls", enabled: false }
+  ],
+  viewer: [
+    { label: "Account and profile management", enabled: true },
+    { label: "Conversation export", enabled: true },
+    { label: "Retention policy updates", enabled: false },
+    { label: "Queue and team administration", enabled: false },
+    { label: "Supervisor controls", enabled: false }
+  ]
 };
 
 export default function AccountPage() {
@@ -58,8 +111,11 @@ export default function AccountPage() {
   );
   const subscription = profile?.subscription;
   const trialCountdown = useTrialCountdown(subscription?.trial_ends_at);
+  const currentRole = selectedTenant?.workspace_role ?? null;
   const canManageRetention =
-    selectedTenant?.workspace_role === "owner" || selectedTenant?.workspace_role === "admin";
+    currentRole === "owner" || currentRole === "admin";
+  const canExportConversations = Boolean(currentRole);
+  const currentRights = currentRole ? rightsByRole[currentRole] : [];
 
   function formatPlanName(plan: PlatformSubscriptionPlan | undefined) {
     switch (plan) {
@@ -348,6 +404,12 @@ export default function AccountPage() {
 
         <div className="app-stat-grid" style={{ marginBottom: 0 }}>
           <div className="app-stat-card">
+            <p className="stat-label">Workspace role</p>
+            <p className="stat-value" style={{ fontSize: "1rem", marginTop: "4px" }}>
+              {currentRole ? roleLabelMap[currentRole] : "No workspace selected"}
+            </p>
+          </div>
+          <div className="app-stat-card">
             <p className="stat-label">Email</p>
             <p className="stat-value" style={{ fontSize: "0.85rem", marginTop: "4px" }}>{profile?.user.email || "N/A"}</p>
           </div>
@@ -410,9 +472,48 @@ export default function AccountPage() {
         </div>
       ) : null}
 
+      {selectedTenant && currentRole ? (
+        <div className="app-card">
+          <p className="app-card-title">Role and workspace rights</p>
+          <p style={{ fontSize: "0.82rem", color: "rgba(10,10,15,0.5)", marginTop: "-8px" }}>
+            Workspace: <strong>{selectedTenant.name || selectedTenant.tenant_id}</strong> · Role:{" "}
+            <strong>{roleLabelMap[currentRole]}</strong>
+          </p>
+
+          <div className="app-stat-grid" style={{ marginTop: "16px", marginBottom: 0 }}>
+            {currentRights.map((right) => (
+              <div key={right.label} className="app-stat-card" style={{ paddingTop: "18px", paddingBottom: "18px" }}>
+                <p className="stat-label">{right.label}</p>
+                <p
+                  className="stat-value"
+                  style={{
+                    fontSize: "0.92rem",
+                    marginTop: "6px",
+                    color: right.enabled ? "#1a5c5c" : "rgba(10,10,15,0.45)"
+                  }}
+                >
+                  {right.enabled ? "Allowed" : "Restricted"}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="app-note-list" style={{ marginTop: "18px" }}>
+            <div className="app-note">
+              <strong>Account page access</strong>
+              <p>Agents, supervisors, admins, and owners can access this page to manage their own profile and workspace visibility.</p>
+            </div>
+            <div className="app-note">
+              <strong>Workspace governance</strong>
+              <p>Retention policy changes stay restricted to owner/admin roles. Export remains available to operator roles that can view conversations.</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {selectedTenant ? (
         <div className="app-card">
-          <p className="app-card-title">Data Governance</p>
+          <p className="app-card-title">Workspace Governance</p>
           <p style={{ fontSize: "0.82rem", color: "rgba(10,10,15,0.5)", marginTop: "-8px" }}>
             Workspace: <strong>{selectedTenant.name || selectedTenant.tenant_id}</strong>
           </p>
@@ -525,7 +626,7 @@ export default function AccountPage() {
               <button
                 className="app-btn-secondary"
                 type="button"
-                disabled={exportLoading !== ""}
+                disabled={exportLoading !== "" || !canExportConversations}
                 onClick={() => void handleExport("json")}
               >
                 {exportLoading === "json" ? "Exporting JSON…" : "Export JSON"}
@@ -533,12 +634,17 @@ export default function AccountPage() {
               <button
                 className="app-btn-secondary"
                 type="button"
-                disabled={exportLoading !== ""}
+                disabled={exportLoading !== "" || !canExportConversations}
                 onClick={() => void handleExport("csv")}
               >
                 {exportLoading === "csv" ? "Exporting CSV…" : "Export CSV"}
               </button>
             </div>
+            {!canExportConversations ? (
+              <p style={{ fontSize: "0.78rem", color: "rgba(10,10,15,0.45)", margin: "10px 0 0" }}>
+                Conversation export requires workspace conversation visibility.
+              </p>
+            ) : null}
           </div>
 
           {retentionStatus ? <p className="app-success" style={{ marginTop: "12px" }}>{retentionStatus}</p> : null}
@@ -645,13 +751,16 @@ export default function AccountPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
               {(profile?.tenants ?? []).map((tenant) => {
                 const verified = tenant.domain_verification?.status === "verified";
+                const tenantRole = tenant.workspace_role ?? "viewer";
                 return (
                   <div key={tenant.tenant_id} className="app-workspace-item">
                     <div>
                       <p style={{ fontSize: "0.85rem", fontWeight: 600, color: "#0a0a0f", margin: "0 0 2px" }}>
                         {tenant.name || tenant.tenant_id}
                       </p>
-                      <p style={{ fontSize: "0.74rem", color: "rgba(10,10,15,0.4)", margin: 0 }}>{tenant.tenant_id}</p>
+                      <p style={{ fontSize: "0.74rem", color: "rgba(10,10,15,0.4)", margin: 0 }}>
+                        {tenant.tenant_id} · {roleLabelMap[tenantRole]}
+                      </p>
                     </div>
                     <span className={`app-status-badge ${verified ? "ready" : "pending"}`}>
                       {verified ? "Verified" : "Setup in progress"}

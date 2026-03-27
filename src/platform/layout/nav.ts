@@ -159,7 +159,7 @@ export const appNavSections: PlatformNavSection[] = [
         label: "Account",
         path: "/platform/app/account",
         icon: createElement(IconAccount),
-        allowedRoles: ["owner", "admin", "supervisor"]
+        allowedRoles: ["owner", "admin", "supervisor", "agent"]
       },
       {
         key: "pricing",
