@@ -51,6 +51,10 @@ function getConversationLabel(conversation: ChatThread) {
   return "AI";
 }
 
+function getConversationDisplayName(conversation: ChatThread) {
+  return conversation.visitor_name?.trim() || conversation.title || "Conversation";
+}
+
 export default function AgentInboxPage() {
   const { token, profile, selectedTenantId, selectedTenant } = usePlatformAuth();
   const backendUrl = import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
@@ -380,11 +384,11 @@ export default function AgentInboxPage() {
   useEffect(() => {
     if (!supabaseClient || !selectedTenantId || !currentAgentId) return;
 
-    const queueChannel = supabaseClient.channel(`queue:${selectedTenantId}`);
-    queueChannel.on("broadcast", { event: "new_conversation" }, () => {
+    const workspaceChannel = supabaseClient.channel(`workspace:${selectedTenantId}`);
+    workspaceChannel.on("broadcast", { event: "inbox_update" }, () => {
       void loadInbox();
     });
-    queueChannel.subscribe();
+    workspaceChannel.subscribe();
 
     const agentChannel = supabaseClient.channel(`agent:${currentAgentId}`);
     agentChannel.on("broadcast", { event: "assignment" }, () => {
@@ -396,7 +400,7 @@ export default function AgentInboxPage() {
     agentChannel.subscribe();
 
     return () => {
-      supabaseClient.removeChannel(queueChannel);
+      supabaseClient.removeChannel(workspaceChannel);
       supabaseClient.removeChannel(agentChannel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -457,6 +461,23 @@ export default function AgentInboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId]);
 
+  useEffect(() => {
+    if (!token) return;
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void loadInbox();
+      if (selectedConversationId) {
+        void loadConversationMessages(selectedConversationId);
+      }
+    }, 18000);
+
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selectedConversationId]);
+
   return (
     <div className="space-y-6">
       <header className="app-page-header">
@@ -492,8 +513,8 @@ export default function AgentInboxPage() {
         </div>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="app-card">
+      <div className="agent-inbox-grid grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+        <section className="app-card agent-inbox-list-pane">
           <div className="flex items-center justify-between mb-3">
             <h2 className="app-card-title !mb-0">Conversations</h2>
             <button type="button" className="app-btn-secondary" onClick={() => void loadInbox()} disabled={loadingInbox}>
@@ -527,15 +548,24 @@ export default function AgentInboxPage() {
                 key={conversation.id}
                 type="button"
                 onClick={() => setSelectedConversationId(conversation.id)}
-                className={`w-full text-left rounded-xl border px-3 py-3 transition ${
+                className={`agent-inbox-row w-full text-left rounded-xl border px-3 py-3 transition ${
                   selectedConversationId === conversation.id
                     ? "border-[#1a5c5c]/35 bg-[#1a5c5c]/8"
                     : "border-[#0a0a0f]/10 bg-white hover:border-[#0a0a0f]/20"
                 }`}
               >
                 <div className="flex items-center justify-between gap-3">
-                  <strong className="truncate text-sm text-[#0a0a0f]">{conversation.title || "Conversation"}</strong>
+                  <strong className="truncate text-sm text-[#0a0a0f]">{getConversationDisplayName(conversation)}</strong>
                   <span className="text-xs text-[#0a0a0f]/55">{getConversationLabel(conversation)}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#0a0a0f]/50">
+                  {conversation.visitor_email ? <span className="truncate">{conversation.visitor_email}</span> : null}
+                  {conversation.visitor_phone ? <span>{conversation.visitor_phone}</span> : null}
+                  {conversation.visitor_contact_captured ? (
+                    <span className="rounded-full border border-[#1a5c5c]/25 bg-[#1a5c5c]/10 px-2 py-[1px] text-[10px] font-semibold text-[#1a5c5c]">
+                      Contact
+                    </span>
+                  ) : null}
                 </div>
                 <div className="mt-1 text-xs text-[#0a0a0f]/45">{toDateLabel(conversation.last_message_at)}</div>
               </button>
@@ -543,15 +573,18 @@ export default function AgentInboxPage() {
           </div>
         </section>
 
-        <section className="app-card">
+        <section className="app-card agent-inbox-thread-pane">
           {!selectedConversation ? (
             <p className="text-sm text-[#0a0a0f]/55">Select a conversation to view details.</p>
           ) : (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="app-card-title !mb-1">{selectedConversation.title || "Conversation"}</h2>
+                  <h2 className="app-card-title !mb-1">{getConversationDisplayName(selectedConversation)}</h2>
                   <p className="text-sm text-[#0a0a0f]/55">Mode: {selectedConversation.conversation_mode ?? "ai_only"}</p>
+                  <p className="text-xs text-[#0a0a0f]/45">
+                    {selectedConversation.visitor_email || "No email"} · {selectedConversation.visitor_phone || "No phone"}
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   {selectedConversation.conversation_mode === "handoff_pending" ? (
@@ -651,13 +684,22 @@ export default function AgentInboxPage() {
                 </div>
               ) : null}
 
-              <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 h-[420px] overflow-y-auto space-y-3">
+              <div className="agent-thread rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 h-[420px] overflow-y-auto space-y-3">
                 {loadingMessages ? <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p> : null}
                 {!loadingMessages && messages.length === 0 ? (
                   <p className="text-sm text-[#0a0a0f]/55">No messages yet.</p>
                 ) : null}
                 {messages.map((message) => (
-                  <div key={message.id} className="rounded-lg border border-[#0a0a0f]/8 bg-white px-3 py-2">
+                  <div
+                    key={message.id}
+                    className={`rounded-lg border px-3 py-2 ${
+                      message.sender_type === "visitor"
+                        ? "border-[#0a0a0f]/10 bg-white"
+                        : message.sender_type === "agent"
+                          ? "border-[#1a5c5c]/20 bg-[#e9f6f3]"
+                          : "border-[#0a0a0f]/8 bg-white/80"
+                    }`}
+                  >
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs uppercase tracking-wide text-[#0a0a0f]/45">
                         {message.sender_type ?? message.role}
@@ -669,7 +711,7 @@ export default function AgentInboxPage() {
                   </div>
                 ))}
                 {visitorTyping ? (
-                  <div className="text-xs text-[#0a0a0f]/55">Visitor is typing...</div>
+                  <div className="text-xs text-[#0a0a0f]/55 italic">Visitor is typing...</div>
                 ) : null}
               </div>
 
@@ -706,7 +748,7 @@ export default function AgentInboxPage() {
                 </div>
               ) : null}
 
-              <div className="space-y-2">
+              <div className="space-y-2 sticky bottom-0 bg-[#fffdf9] pt-2">
                 <textarea
                   value={replyText}
                   onChange={(event) => setReplyText(event.target.value)}

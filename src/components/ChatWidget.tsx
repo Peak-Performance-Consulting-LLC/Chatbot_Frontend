@@ -6,8 +6,10 @@ import {
   deleteChat,
   getWidgetConfig,
   getConversationCsat,
+  HandoffRequestError,
   listChats,
   listMessages,
+  publishVisitorTyping,
   renameChat,
   requestHandoff,
   searchPlaceSuggestions,
@@ -109,6 +111,8 @@ const defaultHeaderCtaConfig: HeaderCtaConfig = {
 };
 const poweredByBrand = "PPConsultings";
 const CONTACT_CAPTURE_STORAGE_PREFIX = "aeroconcierge_contact_captured";
+const HANDOFF_CONTACT_CAPTURE_PROMPT =
+  "Please share your name, email, and phone before we connect you to a live agent.";
 
 function normalizeAppearance(
   input?: Partial<ChatWidgetAppearance> | null,
@@ -1098,6 +1102,7 @@ export function ChatWidget({
   const [isSubmittingContact, setIsSubmittingContact] = useState(false);
   const [contactSuccessMessage, setContactSuccessMessage] = useState<string | null>(null);
   const [hasCapturedContact, setHasCapturedContact] = useState(false);
+  const [showHandoffContactCapture, setShowHandoffContactCapture] = useState(false);
   const [conversationMode, setConversationMode] = useState<ConversationMode>("ai_only");
   const [isRequestingHandoff, setIsRequestingHandoff] = useState(false);
   const [activeAgent, setActiveAgent] = useState<ActiveAgent>(null);
@@ -1115,6 +1120,9 @@ export function ChatWidget({
   const streamedAssistantIdRef = useRef<string | null>(null);
   const streamedAssistantTextRef = useRef("");
   const streamFlushTimerRef = useRef<number | null>(null);
+  const visitorTypingDebounceRef = useRef<number | null>(null);
+  const visitorTypingStopRef = useRef<number | null>(null);
+  const visitorTypingStateRef = useRef(false);
   const widgetQueryConfig = useMemo(() => parseWidgetConfigFromQuery(), []);
 
   const tenantId = useMemo(() => resolveTenantId(tenantIdProp), [tenantIdProp]);
@@ -1215,10 +1223,22 @@ export function ChatWidget({
   const serviceUi = latestAssistantMeta?.service_ui ?? null;
   const contactCapture = latestAssistantMeta?.contact_capture ?? null;
   const isContactCaptureRequired = Boolean(contactCapture?.required && !hasCapturedContact);
+  const effectiveContactCapture: ContactCapture | null =
+    contactCapture ??
+    (showHandoffContactCapture
+      ? {
+          required: true,
+          prompt: HANDOFF_CONTACT_CAPTURE_PROMPT,
+          fields: ["name", "email", "phone"]
+        }
+      : null);
+  const shouldShowContactCaptureForm = Boolean(
+    effectiveContactCapture && ((isContactCaptureRequired && !hasCapturedContact) || showHandoffContactCapture)
+  );
   const isInteractionLocked =
     isSending ||
     isSubmittingContact ||
-    isContactCaptureRequired ||
+    shouldShowContactCaptureForm ||
     conversationMode === "closed";
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
   const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, publicEmbedWidth);
@@ -1265,6 +1285,9 @@ export function ChatWidget({
     const key = buildContactCaptureStorageKey(tenantId, deviceId);
     const captured = window.localStorage.getItem(key) === "1";
     setHasCapturedContact(captured);
+    if (captured) {
+      setShowHandoffContactCapture(false);
+    }
   }, [tenantId, deviceId]);
 
   function flushStreamedAssistantText() {
@@ -1306,11 +1329,100 @@ export function ChatWidget({
     streamedAssistantTextRef.current = "";
   }
 
+  function clearVisitorTypingTimers() {
+    if (visitorTypingDebounceRef.current !== null) {
+      window.clearTimeout(visitorTypingDebounceRef.current);
+      visitorTypingDebounceRef.current = null;
+    }
+    if (visitorTypingStopRef.current !== null) {
+      window.clearTimeout(visitorTypingStopRef.current);
+      visitorTypingStopRef.current = null;
+    }
+  }
+
+  function canPublishVisitorTyping(chatId: string | null, mode: ConversationMode) {
+    return Boolean(
+      chatId &&
+        isUuid(chatId) &&
+        (mode === "agent_active" || mode === "handoff_pending" || mode === "copilot")
+    );
+  }
+
+  async function emitVisitorTypingState(nextValue: boolean, chatIdOverride?: string | null) {
+    const chatId = chatIdOverride ?? activeChatId;
+    if (!canPublishVisitorTyping(chatId, conversationMode)) {
+      return;
+    }
+
+    if (visitorTypingStateRef.current === nextValue) {
+      return;
+    }
+
+    visitorTypingStateRef.current = nextValue;
+    await publishVisitorTyping({
+      chatId: chatId!,
+      tenantId,
+      deviceId,
+      isTyping: nextValue,
+      backendUrl,
+      authToken: portalToken,
+      siteHost
+    }).catch(() => undefined);
+  }
+
+  function scheduleVisitorTyping(inputValue: string) {
+    if (!canPublishVisitorTyping(activeChatId, conversationMode)) {
+      return;
+    }
+
+    clearVisitorTypingTimers();
+    const isTyping = inputValue.trim().length > 0;
+    visitorTypingDebounceRef.current = window.setTimeout(() => {
+      void emitVisitorTypingState(isTyping);
+    }, isTyping ? 180 : 0);
+
+    if (isTyping) {
+      visitorTypingStopRef.current = window.setTimeout(() => {
+        void emitVisitorTypingState(false);
+      }, 2500);
+    }
+  }
+
+  function handleComposerInputChange(value: string) {
+    setInput(value);
+    scheduleVisitorTyping(value);
+  }
+
   useEffect(() => {
     if (embedded && portalToken) setIsOpen(true);
   }, [embedded, portalToken]);
 
-  useEffect(() => () => resetStreamBuffer(), []);
+  useEffect(
+    () => () => {
+      resetStreamBuffer();
+      clearVisitorTypingTimers();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  useEffect(() => {
+    return () => {
+      if (!activeChatId || !isUuid(activeChatId) || !visitorTypingStateRef.current) {
+        return;
+      }
+      visitorTypingStateRef.current = false;
+      void publishVisitorTyping({
+        chatId: activeChatId,
+        tenantId,
+        deviceId,
+        isTyping: false,
+        backendUrl,
+        authToken: portalToken,
+        siteHost
+      }).catch(() => undefined);
+    };
+  }, [activeChatId, backendUrl, deviceId, portalToken, siteHost, tenantId]);
 
   useEffect(() => {
     if (!tenantId || portalToken) {
@@ -1431,6 +1543,18 @@ export function ChatWidget({
       setConversationMode(activeThread.conversation_mode);
     }
   }, [activeChatId, threads]);
+
+  useEffect(() => {
+    if (conversationMode === "handoff_pending" || conversationMode === "agent_active") {
+      setShowHandoffContactCapture(false);
+    }
+
+    if (!canPublishVisitorTyping(activeChatId, conversationMode)) {
+      clearVisitorTypingTimers();
+      visitorTypingStateRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChatId, conversationMode]);
 
   useEffect(() => {
     if (!pendingLauncherReply || !isOpen) return;
@@ -1591,6 +1715,7 @@ export function ChatWidget({
     event.preventDefault();
     setError(null);
     setContactSuccessMessage(null);
+    const shouldAutoRequestHandoff = showHandoffContactCapture;
     const validation = validateVisitorContactInput(contactValues);
     if (Object.keys(validation).length > 0) {
       setContactErrors(validation);
@@ -1616,7 +1741,12 @@ export function ChatWidget({
       window.localStorage.setItem(key, "1");
       setHasCapturedContact(true);
       setContactErrors({});
-      setContactSuccessMessage("Details saved. You can continue chatting.");
+      if (shouldAutoRequestHandoff && activeChatId && isUuid(activeChatId)) {
+        setContactSuccessMessage("Details saved. Connecting you to a live agent...");
+        await handleRequestHandoff({ skipContactGate: true });
+      } else {
+        setContactSuccessMessage("Details saved. You can continue chatting.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save contact details");
     } finally {
@@ -1624,8 +1754,19 @@ export function ChatWidget({
     }
   }
 
-  async function handleRequestHandoff() {
+  async function handleRequestHandoff(options?: { skipContactGate?: boolean }) {
     if (!activeChatId || isRequestingHandoff) return;
+    if (!isUuid(activeChatId)) {
+      setError("Unable to connect to an agent right now. Please send one message and try again.");
+      return;
+    }
+    if (!options?.skipContactGate && !hasCapturedContact) {
+      setShowHandoffContactCapture(true);
+      setContactSuccessMessage(null);
+      setError("Please share your name, email, and phone before connecting to a live agent.");
+      return;
+    }
+
     setIsRequestingHandoff(true);
     setError(null);
     setIsAgentTyping(false);
@@ -1640,6 +1781,7 @@ export function ChatWidget({
         siteHost
       });
       setConversationMode(result.mode as ConversationMode);
+      setShowHandoffContactCapture(false);
       if (result.mode === "handoff_pending") {
         const systemMsg: ChatMessage = {
           id: `system-handoff-${Date.now()}`,
@@ -1653,7 +1795,15 @@ export function ChatWidget({
         setMessages((prev) => [...prev, systemMsg]);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to request agent");
+      if (err instanceof HandoffRequestError && err.requiresContactCapture) {
+        const key = buildContactCaptureStorageKey(tenantId, deviceId);
+        window.localStorage.removeItem(key);
+        setHasCapturedContact(false);
+        setShowHandoffContactCapture(true);
+        setError(err.message);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to request agent");
+      }
     } finally {
       setIsRequestingHandoff(false);
     }
@@ -1781,6 +1931,36 @@ export function ChatWidget({
   }, [activeChatId, conversationMode]);
 
   useEffect(() => {
+    if (!activeChatId) {
+      return;
+    }
+    if (
+      conversationMode !== "handoff_pending" &&
+      conversationMode !== "agent_active" &&
+      conversationMode !== "copilot"
+    ) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void Promise.all([
+        listMessages({ chatId: activeChatId, tenantId, deviceId, backendUrl, authToken: portalToken, siteHost }),
+        listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost })
+      ])
+        .then(([nextMessages, nextThreads]) => {
+          setMessages((prev) => mergeSyncedMessages(activeChatId, nextMessages, prev));
+          setThreads(nextThreads);
+        })
+        .catch(() => undefined);
+    }, 18000);
+
+    return () => window.clearInterval(interval);
+  }, [activeChatId, backendUrl, conversationMode, deviceId, portalToken, siteHost, tenantId]);
+
+  useEffect(() => {
     if (!activeChatId || conversationMode !== "closed" || !appearance.csatEnabled) {
       setCsatSubmitted(null);
       setCsatRating(0);
@@ -1839,12 +2019,14 @@ export function ChatWidget({
   async function sendMessage(rawText: string) {
     const text = rawText.trim();
     if (!text || isSending || isSubmittingContact) return;
-    if (isContactCaptureRequired) {
+    if (shouldShowContactCaptureForm) {
       setError("Please share your contact details first to continue chatting.");
       return;
     }
 
     setInput(""); setError(null);
+    clearVisitorTypingTimers();
+    void emitVisitorTypingState(false);
     const existingChatId = activeChatId;
     const localChatId = existingChatId ?? `local-chat-${Date.now()}`;
     const clientMessageId = generateClientMessageId();
@@ -2232,12 +2414,12 @@ export function ChatWidget({
                 <GuidedServiceInput serviceUi={serviceUi} disabled={isInteractionLocked} onSubmit={sendMessage} />
               ) : null}
 
-              {contactCapture && isContactCaptureRequired ? (
+              {effectiveContactCapture && shouldShowContactCaptureForm ? (
                 <ContactCaptureForm
-                  capture={contactCapture}
+                  capture={effectiveContactCapture}
                   values={contactValues}
                   errors={contactErrors}
-                  disabled={isSending}
+                  disabled={isSending || isRequestingHandoff}
                   submitting={isSubmittingContact}
                   successMessage={contactSuccessMessage}
                   onChange={handleContactFieldChange}
@@ -2311,7 +2493,7 @@ export function ChatWidget({
                   <textarea
                     value={input}
                     placeholder={
-                      isContactCaptureRequired
+                      shouldShowContactCaptureForm
                         ? "Share your contact details to continue..."
                         : conversationMode === "agent_active"
                           ? "Type a message to the agent…"
@@ -2321,7 +2503,7 @@ export function ChatWidget({
                               ? "Conversation closed"
                             : "Type a message… (Enter to send)"
                     }
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => handleComposerInputChange(e.target.value)}
                     onKeyDown={handleKeyDown}
                     rows={1}
                     disabled={isInteractionLocked}
@@ -2331,7 +2513,7 @@ export function ChatWidget({
                   {activeChatId && conversationMode === "ai_only" && messages.length > 0 ? (
                     <button
                       type="button"
-                      onClick={handleRequestHandoff}
+                      onClick={() => void handleRequestHandoff()}
                       disabled={isRequestingHandoff || isSending}
                       aria-label="Talk to agent"
                       title="Talk to a live agent"

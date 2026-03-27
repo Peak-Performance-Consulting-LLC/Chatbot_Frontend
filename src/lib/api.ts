@@ -105,6 +105,29 @@ async function parseError(response: Response): Promise<string> {
   }
 }
 
+async function parseErrorBody(
+  response: Response
+): Promise<{ error?: string; requires_contact_capture?: boolean } | null> {
+  try {
+    const json = (await response.json()) as { error?: string; requires_contact_capture?: boolean };
+    return json;
+  } catch {
+    return null;
+  }
+}
+
+export class HandoffRequestError extends Error {
+  readonly status: number;
+  readonly requiresContactCapture: boolean;
+
+  constructor(message: string, input: { status: number; requiresContactCapture?: boolean }) {
+    super(message);
+    this.name = "HandoffRequestError";
+    this.status = input.status;
+    this.requiresContactCapture = Boolean(input.requiresContactCapture);
+  }
+}
+
 export async function getWidgetConfig(input: {
   tenantId: string;
   backendUrl?: string;
@@ -495,7 +518,11 @@ export async function requestHandoff(input: {
   });
 
   if (!response.ok) {
-    throw new Error(await parseError(response));
+    const body = await parseErrorBody(response);
+    throw new HandoffRequestError(body?.error || `HTTP ${response.status}`, {
+      status: response.status,
+      requiresContactCapture: body?.requires_contact_capture
+    });
   }
 
   return (await response.json()) as {
@@ -507,6 +534,31 @@ export async function requestHandoff(input: {
     after_hours_action?: "collect_info" | "overflow" | "ai_only";
     sla_first_response_due_at?: string | null;
   };
+}
+
+export async function publishVisitorTyping(input: {
+  chatId: string;
+  tenantId: string;
+  deviceId: string;
+  isTyping: boolean;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<void> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(`${base}/api/conversation/${input.chatId}/typing`, {
+    method: "POST",
+    headers: buildHeaders(input, true),
+    body: JSON.stringify({
+      tenant_id: input.tenantId,
+      device_id: input.deviceId,
+      is_typing: input.isTyping
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
 }
 
 export async function getConversationCsat(input: {

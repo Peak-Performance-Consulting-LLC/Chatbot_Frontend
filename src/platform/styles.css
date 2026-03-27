@@ -1596,3 +1596,31 @@ border: 1px solid rgba(10,10,15,0.08);
   content: ''; width: 60px; height: 4px;
   border-radius: 999px; background: rgba(10,10,15,0.2);
 }
+
+.agent-inbox-grid {
+  align-items: stretch;
+}
+
+.agent-inbox-list-pane,
+.agent-inbox-thread-pane {
+  min-height: 720px;
+}
+
+.agent-inbox-list-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-inbox-thread-pane {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-inbox-row {
+  box-shadow: 0 1px 0 rgba(10, 10, 15, 0.04);
+}
+
+.agent-thread {
+  flex: 1;
+  min-height: 360px;
+}
