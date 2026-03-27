@@ -14,7 +14,12 @@ import {
   platformAgentTyping
 } from "@/lib/platformApi";
 import { usePlatformAuth } from "@/platform/state/auth";
-import type { AgentPresenceStatus, PlatformQueue, PlatformWorkspaceMember } from "@/platform/types";
+import type {
+  AgentPresenceStatus,
+  PlatformQueue,
+  PlatformWorkspaceMember,
+  WorkspaceMemberRole
+} from "@/platform/types";
 import type { ChatMessage, ChatThread } from "@/types";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
@@ -47,9 +52,11 @@ function getConversationLabel(conversation: ChatThread) {
 }
 
 export default function AgentInboxPage() {
-  const { token, profile, selectedTenantId } = usePlatformAuth();
+  const { token, profile, selectedTenantId, selectedTenant } = usePlatformAuth();
   const backendUrl = import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
   const currentAgentId = profile?.user.id ?? "";
+  const workspaceRole: WorkspaceMemberRole = selectedTenant?.workspace_role ?? "viewer";
+  const canManageConversation = workspaceRole !== "viewer";
   const [tab, setTab] = useState<InboxTab>("my_active");
   const [myActive, setMyActive] = useState<ChatThread[]>([]);
   const [queueUnassigned, setQueueUnassigned] = useState<ChatThread[]>([]);
@@ -551,7 +558,7 @@ export default function AgentInboxPage() {
                     <button
                       type="button"
                       className="app-btn-primary"
-                      disabled={runningAction}
+                      disabled={runningAction || !canManageConversation}
                       onClick={() => void handleAccept(selectedConversation.id)}
                     >
                       {runningAction ? "Accepting..." : "Accept"}
@@ -562,7 +569,7 @@ export default function AgentInboxPage() {
                     <button
                       type="button"
                       className="app-btn-secondary"
-                      disabled={runningAction}
+                      disabled={runningAction || !canManageConversation}
                       onClick={() => void handleReturnToAI(selectedConversation.id)}
                     >
                       {runningAction ? "Updating..." : "Return to AI"}
@@ -574,7 +581,7 @@ export default function AgentInboxPage() {
                     <button
                       type="button"
                       className="app-btn-secondary"
-                      disabled={runningCopilot}
+                      disabled={runningCopilot || !canManageConversation}
                       onClick={() =>
                         void handleCopilotToggle(
                           selectedConversation.id,
@@ -592,55 +599,57 @@ export default function AgentInboxPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3">
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
-                  Transfer
-                </div>
-                <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
-                  <select
-                    className="app-input"
-                    value={transferTargetQueueId}
-                    onChange={(event) => setTransferTargetQueueId(event.target.value)}
-                  >
-                    <option value="">Select queue (optional)</option>
-                    {queueOptions.map((queue) => (
-                      <option key={queue.id} value={queue.id}>
-                        {queue.name}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    className="app-input"
-                    value={transferTargetAgentId}
-                    onChange={(event) => setTransferTargetAgentId(event.target.value)}
-                  >
-                    <option value="">Select agent</option>
-                    {teamOptions
-                      .filter((member) => member.is_active && member.role !== "viewer")
-                      .map((member) => (
-                        <option key={member.user_id} value={member.user_id}>
-                          {member.user?.full_name || member.user?.email || member.user_id}
+              {canManageConversation ? (
+                <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
+                    Transfer
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
+                    <select
+                      className="app-input"
+                      value={transferTargetQueueId}
+                      onChange={(event) => setTransferTargetQueueId(event.target.value)}
+                    >
+                      <option value="">Select queue (optional)</option>
+                      {queueOptions.map((queue) => (
+                        <option key={queue.id} value={queue.id}>
+                          {queue.name}
                         </option>
                       ))}
-                  </select>
-                  <button
-                    type="button"
-                    className="app-btn-secondary"
-                    disabled={transferring || !transferTargetQueueId}
-                    onClick={() => void handleTransferToQueue()}
-                  >
-                    {transferring ? "Transferring..." : "To Queue"}
-                  </button>
-                  <button
-                    type="button"
-                    className="app-btn-primary"
-                    disabled={transferring || !transferTargetAgentId}
-                    onClick={() => void handleTransferToAgent()}
-                  >
-                    {transferring ? "Transferring..." : "To Agent"}
-                  </button>
+                    </select>
+                    <select
+                      className="app-input"
+                      value={transferTargetAgentId}
+                      onChange={(event) => setTransferTargetAgentId(event.target.value)}
+                    >
+                      <option value="">Select agent</option>
+                      {teamOptions
+                        .filter((member) => member.is_active && member.role !== "viewer")
+                        .map((member) => (
+                          <option key={member.user_id} value={member.user_id}>
+                            {member.user?.full_name || member.user?.email || member.user_id}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      className="app-btn-secondary"
+                      disabled={transferring || !transferTargetQueueId}
+                      onClick={() => void handleTransferToQueue()}
+                    >
+                      {transferring ? "Transferring..." : "To Queue"}
+                    </button>
+                    <button
+                      type="button"
+                      className="app-btn-primary"
+                      disabled={transferring || !transferTargetAgentId}
+                      onClick={() => void handleTransferToAgent()}
+                    >
+                      {transferring ? "Transferring..." : "To Agent"}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 h-[420px] overflow-y-auto space-y-3">
                 {loadingMessages ? <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p> : null}
@@ -666,7 +675,8 @@ export default function AgentInboxPage() {
 
               {(selectedConversation.conversation_mode === "agent_active" ||
                 selectedConversation.conversation_mode === "copilot") &&
-              selectedConversation.assigned_agent_id === currentAgentId ? (
+              selectedConversation.assigned_agent_id === currentAgentId &&
+              canManageConversation ? (
                 <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 space-y-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
                     Copilot Draft
@@ -704,6 +714,7 @@ export default function AgentInboxPage() {
                   placeholder="Type your reply..."
                   rows={4}
                   disabled={
+                    !canManageConversation ||
                     submittingReply ||
                     (selectedConversation.conversation_mode !== "agent_active" &&
                       selectedConversation.conversation_mode !== "copilot")
@@ -715,6 +726,7 @@ export default function AgentInboxPage() {
                     className="app-btn-primary"
                     onClick={() => void handleSendReply()}
                     disabled={
+                      !canManageConversation ||
                       submittingReply ||
                       !replyText.trim() ||
                       (selectedConversation.conversation_mode !== "agent_active" &&

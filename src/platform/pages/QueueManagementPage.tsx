@@ -80,7 +80,9 @@ export default function QueueManagementPage() {
       setQueues(queueResponse.queues);
       setTeamMembers(teamResponse.members);
 
-      const fallbackQueueId = selectedQueueId || queueResponse.queues[0]?.id || "";
+      const fallbackQueueId = queueResponse.queues.some((queue) => queue.id === selectedQueueId)
+        ? selectedQueueId
+        : queueResponse.queues[0]?.id || "";
       setSelectedQueueId(fallbackQueueId);
 
       if (fallbackQueueId) {
@@ -195,7 +197,7 @@ export default function QueueManagementPage() {
 
   async function handleSaveQueueSettings(event: FormEvent) {
     event.preventDefault();
-    if (!token || !selectedTenantId || !selectedQueueId) {
+    if (!token || !selectedTenantId || !selectedQueueId || !selectedQueue) {
       return;
     }
 
@@ -212,21 +214,36 @@ export default function QueueManagementPage() {
     setSavingSettings(true);
     setError("");
     try {
+      const businessHoursUnchanged =
+        JSON.stringify(parsedBusinessHours) === JSON.stringify(selectedQueue.business_hours ?? {});
+      const advancedSettingsChanged =
+        settingsAfterHoursAction !== (selectedQueue.after_hours_action ?? "ai_only") ||
+        settingsOverflowQueueId !== (selectedQueue.overflow_queue_id ?? "") ||
+        settingsSlaFirstResponseSeconds !== (selectedQueue.sla_first_response_seconds ?? 180) ||
+        settingsSlaWarningSeconds !== (selectedQueue.sla_warning_seconds ?? 60) ||
+        settingsOverflowAfterSeconds !== (selectedQueue.overflow_after_seconds ?? 300) ||
+        !businessHoursUnchanged;
+
+      const updatePayload: Parameters<typeof platformUpdateQueue>[1] = {
+        tenantId: selectedTenantId,
+        queueId: selectedQueueId,
+        routingMode: settingsRoutingMode,
+        routingStrategy: settingsRoutingStrategy,
+        isVipQueue: settingsIsVipQueue
+      };
+
+      if (advancedSettingsChanged) {
+        updatePayload.afterHoursAction = settingsAfterHoursAction;
+        updatePayload.overflowQueueId = settingsOverflowQueueId || null;
+        updatePayload.slaFirstResponseSeconds = settingsSlaFirstResponseSeconds;
+        updatePayload.slaWarningSeconds = settingsSlaWarningSeconds;
+        updatePayload.overflowAfterSeconds = settingsOverflowAfterSeconds;
+        updatePayload.businessHours = parsedBusinessHours;
+      }
+
       const response = await platformUpdateQueue(
         token,
-        {
-          tenantId: selectedTenantId,
-          queueId: selectedQueueId,
-          routingMode: settingsRoutingMode,
-          routingStrategy: settingsRoutingStrategy,
-          isVipQueue: settingsIsVipQueue,
-          afterHoursAction: settingsAfterHoursAction,
-          overflowQueueId: settingsOverflowQueueId || null,
-          slaFirstResponseSeconds: settingsSlaFirstResponseSeconds,
-          slaWarningSeconds: settingsSlaWarningSeconds,
-          overflowAfterSeconds: settingsOverflowAfterSeconds,
-          businessHours: parsedBusinessHours
-        },
+        updatePayload,
         backendUrl
       );
 
