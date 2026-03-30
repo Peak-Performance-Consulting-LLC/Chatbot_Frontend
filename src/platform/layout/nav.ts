@@ -82,7 +82,7 @@ export const appNavSections: PlatformNavSection[] = [
         label: "Team",
         path: "/platform/app/team",
         icon: createElement(IconTeam),
-        allowedRoles: ["owner", "admin", "supervisor", "agent"]
+        allowedRoles: ["owner", "admin", "supervisor"]
       },
       {
         key: "queues",

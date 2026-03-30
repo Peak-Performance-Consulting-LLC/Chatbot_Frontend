@@ -109,7 +109,7 @@ export default function AccountPage() {
     () => authProviders.map((provider) => providerLabelMap[provider] ?? provider),
     [authProviders]
   );
-  const subscription = profile?.subscription;
+  const subscription = selectedTenant?.subscription ?? profile?.subscription;
   const trialCountdown = useTrialCountdown(subscription?.trial_ends_at);
   const currentRole = selectedTenant?.workspace_role ?? null;
   const canManageRetention =

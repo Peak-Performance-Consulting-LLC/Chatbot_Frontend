@@ -296,6 +296,9 @@ export default function OverviewPage() {
   }
 
   const profile = selectedTenant.business_profile;
+  const currentRole = selectedTenant.workspace_role ?? "viewer";
+  const isWorkspaceScopedRole =
+    currentRole === "agent" || currentRole === "supervisor" || currentRole === "viewer";
   const domainVerification = selectedTenant.domain_verification;
   const knowledgeBase = selectedTenant.knowledge_base;
   const widgetReady = selectedTenant.widget?.enabled === true;
@@ -321,13 +324,16 @@ export default function OverviewPage() {
     { label: "Specialist number", value: profile.support_phone || "Not configured" }
   ];
 
-  const serviceMix = analytics?.account.services ?? [];
-  const topIntents = analytics?.account.intents.slice(0, 4) ?? [];
+  const activeScope = isWorkspaceScopedRole ? analytics?.workspace ?? null : analytics?.account ?? null;
+  const activeSummary = activeScope?.summary ?? null;
+  const activeTrendData = isWorkspaceScopedRole ? workspaceTrendData : trendData;
+  const serviceMix = activeScope?.services ?? [];
+  const topIntents = activeScope?.intents.slice(0, 4) ?? [];
   const hasUsage =
-    (analytics?.account.summary.messages_total ?? 0) > 0 ||
-    (analytics?.account.summary.tokens_total ?? 0) > 0;
+    (activeSummary?.messages_total ?? 0) > 0 ||
+    (activeSummary?.tokens_total ?? 0) > 0;
 
-  const quotaRatio = analytics ? buildQuotaRatio(analytics.account.summary) : 0;
+  const quotaRatio = activeSummary ? buildQuotaRatio(activeSummary) : 0;
   const quotaAccent = quotaRatio >= 0.8 ? "warning" : "default";
   const tokenTrackingStartedAt = formatDateTime(analytics?.token_tracking_started_at ?? null);
 
@@ -396,11 +402,12 @@ export default function OverviewPage() {
                 Usage Analytics
               </p>
               <h3 className="mt-2 font-[family-name:var(--font-display)] text-4xl font-light leading-none text-[#0a0a0f]">
-                Live account and workspace activity
+                {isWorkspaceScopedRole ? "Live workspace activity" : "Live account and workspace activity"}
               </h3>
               <p className="mt-2 max-w-2xl text-sm text-[#0a0a0f]/55">
-                Messages, tokens, visitors, quota usage, and workspace health update automatically
-                every minute while this page is visible.
+                {isWorkspaceScopedRole
+                  ? "Messages, tokens, visitors, quota usage, and response performance for the selected workspace update automatically every minute while this page is visible."
+                  : "Messages, tokens, visitors, quota usage, and workspace health update automatically every minute while this page is visible."}
               </p>
               {tokenTrackingStartedAt ? (
                 <p className="mt-3 text-xs text-[#0a0a0f]/45">
@@ -446,68 +453,78 @@ export default function OverviewPage() {
             </div>
           ) : analytics ? (
             <>
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <MetricCard
-                  label="Conversations"
-                  value={formatCompactNumber(analytics.account.summary.conversations)}
-                  note={`${formatExactNumber(analytics.account.summary.unique_visitors)} unique visitors in this window`}
-                />
-                <MetricCard
-                  label="Messages"
-                  value={formatCompactNumber(analytics.account.summary.messages_total)}
-                  note={`${formatExactNumber(analytics.account.summary.user_messages)} user / ${formatExactNumber(analytics.account.summary.assistant_messages)} assistant`}
-                />
-                <MetricCard
-                  label="Tokens used"
-                  value={formatCompactNumber(analytics.account.summary.tokens_total)}
-                  note={`${formatExactNumber(analytics.account.summary.tokens_exact)} exact and ${formatExactNumber(analytics.account.summary.tokens_estimated)} estimated`}
-                />
-                <MetricCard
-                  label="Unique visitors"
-                  value={formatCompactNumber(analytics.account.summary.unique_visitors)}
-                  note="Distinct device IDs across visitor conversations"
-                />
-                <MetricCard
-                  label="Active workspaces"
-                  value={formatCompactNumber(analytics.account.health.workspaces_total)}
-                  note={`${analytics.account.health.dns_verified_count} DNS verified / ${analytics.account.health.knowledge_ready_count} knowledge ready`}
-                />
-                <MetricCard
-                  label="Message quota used"
-                  value={`${formatCompactNumber(analytics.account.summary.message_quota_used)} / ${formatCompactNumber(analytics.account.summary.message_quota_limit)}`}
-                  note={`${Math.round(quotaRatio * 100)}% of the current billing allowance`}
-                  accent={quotaAccent}
-                />
-                <MetricCard
-                  label="VIP conversations"
-                  value={formatCompactNumber(analytics.account.summary.vip_conversations)}
-                  note="Visitor-tagged VIP handoffs in this range"
-                />
-                <MetricCard
-                  label="Avg first response"
-                  value={formatSeconds(analytics.account.summary.avg_first_response_seconds)}
-                  note="From handoff request to first agent reply"
-                />
-                <MetricCard
-                  label="Avg handle time"
-                  value={formatSeconds(analytics.account.summary.avg_handle_seconds)}
-                  note="From assignment to closed conversation"
-                />
-                <MetricCard
-                  label="Agent utilization"
-                  value={formatUtilization(analytics.account.summary.agent_utilization_ratio)}
-                  note="Active assigned chats / configured queue capacity"
-                />
-                <MetricCard
-                  label="CSAT"
-                  value={
-                    analytics.account.summary.csat_avg_rating === null
-                      ? "No data"
-                      : `${analytics.account.summary.csat_avg_rating.toFixed(2)} / 5`
-                  }
-                  note={`${formatExactNumber(analytics.account.summary.csat_responses)} responses`}
-                />
-              </div>
+              {activeSummary ? (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <MetricCard
+                    label="Conversations"
+                    value={formatCompactNumber(activeSummary.conversations)}
+                    note={`${formatExactNumber(activeSummary.unique_visitors)} unique visitors in this window`}
+                  />
+                  <MetricCard
+                    label="Messages"
+                    value={formatCompactNumber(activeSummary.messages_total)}
+                    note={`${formatExactNumber(activeSummary.user_messages)} user / ${formatExactNumber(activeSummary.assistant_messages)} assistant`}
+                  />
+                  <MetricCard
+                    label="Tokens used"
+                    value={formatCompactNumber(activeSummary.tokens_total)}
+                    note={`${formatExactNumber(activeSummary.tokens_exact)} exact and ${formatExactNumber(activeSummary.tokens_estimated)} estimated`}
+                  />
+                  <MetricCard
+                    label="Unique visitors"
+                    value={formatCompactNumber(activeSummary.unique_visitors)}
+                    note="Distinct device IDs across visitor conversations"
+                  />
+                  {isWorkspaceScopedRole ? (
+                    <MetricCard
+                      label="Knowledge hit rate"
+                      value={formatPercent(activeScope?.knowledge_hit_rate ?? null)}
+                      note="Knowledge-assisted responses inside this workspace"
+                    />
+                  ) : (
+                    <MetricCard
+                      label="Active workspaces"
+                      value={formatCompactNumber(analytics.account.health.workspaces_total)}
+                      note={`${analytics.account.health.dns_verified_count} DNS verified / ${analytics.account.health.knowledge_ready_count} knowledge ready`}
+                    />
+                  )}
+                  <MetricCard
+                    label="Message quota used"
+                    value={`${formatCompactNumber(activeSummary.message_quota_used)} / ${formatCompactNumber(activeSummary.message_quota_limit)}`}
+                    note={`${Math.round(quotaRatio * 100)}% of the current billing allowance`}
+                    accent={quotaAccent}
+                  />
+                  <MetricCard
+                    label="VIP conversations"
+                    value={formatCompactNumber(activeSummary.vip_conversations)}
+                    note="Visitor-tagged VIP handoffs in this range"
+                  />
+                  <MetricCard
+                    label="Avg first response"
+                    value={formatSeconds(activeSummary.avg_first_response_seconds)}
+                    note="From handoff request to first agent reply"
+                  />
+                  <MetricCard
+                    label="Avg handle time"
+                    value={formatSeconds(activeSummary.avg_handle_seconds)}
+                    note="From assignment to closed conversation"
+                  />
+                  <MetricCard
+                    label="Agent utilization"
+                    value={formatUtilization(activeSummary.agent_utilization_ratio)}
+                    note="Active assigned chats / configured queue capacity"
+                  />
+                  <MetricCard
+                    label="CSAT"
+                    value={
+                      activeSummary.csat_avg_rating === null
+                        ? "No data"
+                        : `${activeSummary.csat_avg_rating.toFixed(2)} / 5`
+                    }
+                    note={`${formatExactNumber(activeSummary.csat_responses)} responses`}
+                  />
+                </div>
+              ) : null}
 
               {!hasUsage ? (
                 <EmptyAnalyticsState />
@@ -518,17 +535,17 @@ export default function OverviewPage() {
                       <div className="mb-4 flex items-center justify-between">
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
-                            Messages vs Tokens
+                            {isWorkspaceScopedRole ? "Workspace Trend" : "Messages vs Tokens"}
                           </p>
                           <h4 className="mt-1 text-lg font-semibold text-[#0a0a0f]">
-                            Usage trend
+                            {isWorkspaceScopedRole ? `${selectedTenant.name || profile.bot_name || "Workspace"} usage trend` : "Usage trend"}
                           </h4>
                         </div>
                         <span className="text-xs text-[#0a0a0f]/45">Dynamic by selected range</span>
                       </div>
                       <div className="h-[280px]">
                         <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={trendData}>
+                          <ComposedChart data={activeTrendData}>
                             <CartesianGrid stroke={CHART_COLORS.grid} vertical={false} />
                             <XAxis
                               dataKey="label"
@@ -577,14 +594,46 @@ export default function OverviewPage() {
                       <div className="mb-4 flex items-center justify-between">
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
-                            Workspace Usage
+                            {isWorkspaceScopedRole ? "Token Source Breakdown" : "Workspace Usage"}
                           </p>
                           <h4 className="mt-1 text-lg font-semibold text-[#0a0a0f]">
-                            Top workspaces by message volume
+                            {isWorkspaceScopedRole ? "Where token accounting comes from" : "Top workspaces by message volume"}
                           </h4>
                         </div>
                       </div>
-                      {workspaceBarData.length === 0 ? (
+                      {isWorkspaceScopedRole ? (
+                        <div className="space-y-3">
+                          {(activeScope?.token_sources ?? []).map((source) => (
+                            <div key={source.key}>
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-[#0a0a0f]/62">{source.label}</span>
+                                <span className="font-semibold text-[#0a0a0f]">
+                                  {formatCompactNumber(source.value)}
+                                </span>
+                              </div>
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#faf8f4]">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    source.key === "estimated" ? "bg-[#c74b4b]" : "bg-[#1a5c5c]"
+                                  }`}
+                                  style={{ width: `${Math.max(4, Math.round(source.share * 100))}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                          <div className="rounded-2xl bg-[#faf8f4] px-4 py-4">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/42">
+                              Response speed
+                            </p>
+                            <strong className="mt-2 block text-2xl font-semibold text-[#0a0a0f]">
+                              {formatDuration(activeScope?.avg_response_ms ?? null)}
+                            </strong>
+                            <p className="mt-2 text-sm text-[#0a0a0f]/52">
+                              Measured from assistant generation start to final text in this workspace
+                            </p>
+                          </div>
+                        </div>
+                      ) : workspaceBarData.length === 0 ? (
                         <div className="rounded-2xl bg-[#faf8f4] px-4 py-6 text-sm text-[#0a0a0f]/50">
                           Workspace usage will appear here after conversations start.
                         </div>
@@ -629,7 +678,9 @@ export default function OverviewPage() {
                             Service Mix
                           </p>
                           <h4 className="mt-1 text-lg font-semibold text-[#0a0a0f]">
-                            Assistant intent and service distribution
+                            {isWorkspaceScopedRole
+                              ? "Assistant intent and service distribution for this workspace"
+                              : "Assistant intent and service distribution"}
                           </h4>
                         </div>
                       </div>
@@ -715,37 +766,64 @@ export default function OverviewPage() {
                     <div className="rounded-3xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
                       <div className="mb-4">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
-                          Operations Health
+                          {isWorkspaceScopedRole ? "Workspace Performance" : "Operations Health"}
                         </p>
                         <h4 className="mt-1 text-lg font-semibold text-[#0a0a0f]">
-                          Readiness across workspaces
+                          {isWorkspaceScopedRole ? "Selected workspace operational health" : "Readiness across workspaces"}
                         </h4>
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        {[
-                          {
-                            label: "DNS verified",
-                            value: analytics.account.health.dns_verified_count,
-                            note: `${analytics.account.health.workspaces_total} total workspaces`
-                          },
-                          {
-                            label: "Knowledge ready",
-                            value: analytics.account.health.knowledge_ready_count,
-                            note: "Ready or warning states included"
-                          },
-                          {
-                            label: "Widget ready",
-                            value: analytics.account.health.widget_ready_count,
-                            note: "Live install available after DNS"
-                          },
-                          {
-                            label: "Avg response",
-                            value: analytics.account.summary.avg_response_ms
-                              ? formatDuration(analytics.account.summary.avg_response_ms)
-                              : "No data",
-                            note: "Measured from assistant generation start to final text"
-                          }
-                        ].map((item) => (
+                        {(isWorkspaceScopedRole
+                          ? [
+                              {
+                                label: "DNS status",
+                                value: domainVerification?.status === "verified" ? "Verified" : "Pending",
+                                note: getDnsReminderMessage(domainVerification)
+                              },
+                              {
+                                label: "Knowledge base",
+                                value: getKnowledgeStatusLabel(knowledgeBase.status),
+                                note: knowledgeBase.message || "Current ingestion and answer state"
+                              },
+                              {
+                                label: "Widget status",
+                                value: widgetReady ? "Ready" : "Blocked",
+                                note: widgetReady
+                                  ? "Live install is available for this workspace"
+                                  : "Widget unlocks once DNS is verified"
+                              },
+                              {
+                                label: "Avg response",
+                                value: activeSummary?.avg_response_ms
+                                  ? formatDuration(activeSummary.avg_response_ms)
+                                  : "No data",
+                                note: "Measured from assistant generation start to final text"
+                              }
+                            ]
+                          : [
+                              {
+                                label: "DNS verified",
+                                value: analytics.account.health.dns_verified_count,
+                                note: `${analytics.account.health.workspaces_total} total workspaces`
+                              },
+                              {
+                                label: "Knowledge ready",
+                                value: analytics.account.health.knowledge_ready_count,
+                                note: "Ready or warning states included"
+                              },
+                              {
+                                label: "Widget ready",
+                                value: analytics.account.health.widget_ready_count,
+                                note: "Live install available after DNS"
+                              },
+                              {
+                                label: "Avg response",
+                                value: analytics.account.summary.avg_response_ms
+                                  ? formatDuration(analytics.account.summary.avg_response_ms)
+                                  : "No data",
+                                note: "Measured from assistant generation start to final text"
+                              }
+                            ]).map((item) => (
                           <div
                             key={item.label}
                             className="rounded-2xl bg-[#faf8f4] px-4 py-4"
@@ -765,7 +843,7 @@ export default function OverviewPage() {
                     </div>
                   </div>
 
-                  {analytics.workspace ? (
+                  {!isWorkspaceScopedRole && analytics.workspace ? (
                     <div className="rounded-3xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                         <div>

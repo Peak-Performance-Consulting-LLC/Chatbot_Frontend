@@ -92,6 +92,7 @@ export type PlatformTenant = {
   name: string | null;
   allowed_domains: string[];
   workspace_role?: WorkspaceMemberRole | null;
+  subscription?: PlatformSubscription | null;
   business_profile: TenantBusinessProfile;
   knowledge_base: PlatformKnowledgeBase;
   retention?: {

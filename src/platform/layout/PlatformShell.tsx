@@ -73,9 +73,11 @@ export default function PlatformShell() {
   );
   const activeNavItem = visibleNavItems.find((item) => location.pathname.startsWith(item.path));
   const activeSectionLabel = activeNavItem?.label || "Dashboard";
+  const selectedWorkspaceSubscription = selectedTenant?.subscription ?? null;
   const shouldShowTrialBanner =
-    profile?.subscription?.plan === "trial" &&
-    (profile.subscription.status === "active" || profile.subscription.status === "expired");
+    selectedWorkspaceSubscription?.plan === "trial" &&
+    (selectedWorkspaceSubscription.status === "active" ||
+      selectedWorkspaceSubscription.status === "expired");
 
   useEffect(() => {
     setIsSidebarOpen(false);
@@ -396,9 +398,9 @@ export default function PlatformShell() {
           </div>
         </header>
 
-        {shouldShowTrialBanner && profile?.subscription ? (
+        {shouldShowTrialBanner && selectedWorkspaceSubscription ? (
           <div className="px-4 pt-4 sm:px-6">
-            <TrialUpgradeBanner subscription={profile.subscription} />
+            <TrialUpgradeBanner subscription={selectedWorkspaceSubscription} />
           </div>
         ) : null}
         {inviteStatus ? (
