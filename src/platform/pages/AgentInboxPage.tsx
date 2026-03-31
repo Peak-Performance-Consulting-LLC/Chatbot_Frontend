@@ -226,6 +226,11 @@ export default function AgentInboxPage() {
   const arrivalAudioContextRef = useRef<AudioContext | null>(null);
   const threadViewportRef = useRef<HTMLDivElement | null>(null);
   const keepThreadPinnedRef = useRef(true);
+  const inboxReloadTimerRef = useRef<number | null>(null);
+  const inboxReloadQueuedRef = useRef(false);
+  const loadingInboxRef = useRef(false);
+  const loadingMessagesRef = useRef(false);
+  const typingStateSentRef = useRef<boolean | null>(null);
 
   const selectedConversation = useMemo(
     () =>
@@ -286,8 +291,24 @@ export default function AgentInboxPage() {
     keepThreadPinnedRef.current = distanceFromBottom < 64;
   }
 
+  function scheduleInboxReload(delayMs = 120) {
+    if (inboxReloadTimerRef.current) {
+      window.clearTimeout(inboxReloadTimerRef.current);
+      inboxReloadTimerRef.current = null;
+    }
+    inboxReloadTimerRef.current = window.setTimeout(() => {
+      inboxReloadTimerRef.current = null;
+      void loadInbox();
+    }, delayMs);
+  }
+
   async function loadInbox() {
     if (!token) return;
+    if (loadingInboxRef.current) {
+      inboxReloadQueuedRef.current = true;
+      return;
+    }
+    loadingInboxRef.current = true;
     setLoadingInbox(true);
     setError("");
     try {
@@ -363,12 +384,21 @@ export default function AgentInboxPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inbox");
     } finally {
+      loadingInboxRef.current = false;
       setLoadingInbox(false);
+      if (inboxReloadQueuedRef.current) {
+        inboxReloadQueuedRef.current = false;
+        void loadInbox();
+      }
     }
   }
 
   async function loadConversationMessages(conversationId: string) {
     if (!token || !conversationId) return;
+    if (loadingMessagesRef.current) {
+      return;
+    }
+    loadingMessagesRef.current = true;
     setLoadingMessages(true);
     setError("");
     try {
@@ -402,6 +432,7 @@ export default function AgentInboxPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load conversation messages");
     } finally {
+      loadingMessagesRef.current = false;
       setLoadingMessages(false);
     }
   }
@@ -665,6 +696,7 @@ export default function AgentInboxPage() {
       return;
     }
     keepThreadPinnedRef.current = true;
+    typingStateSentRef.current = null;
     void loadConversationMessages(selectedConversationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId, token]);
@@ -693,6 +725,14 @@ export default function AgentInboxPage() {
 
   useEffect(() => {
     return () => {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      if (inboxReloadTimerRef.current) {
+        window.clearTimeout(inboxReloadTimerRef.current);
+        inboxReloadTimerRef.current = null;
+      }
       if (!arrivalAudioContextRef.current) {
         if (visitorTypingTimeoutRef.current) {
           window.clearTimeout(visitorTypingTimeoutRef.current);
@@ -718,8 +758,19 @@ export default function AgentInboxPage() {
 
   useEffect(() => {
     if (!token || !selectedConversationId) return;
-    if (!selectedConversation) return;
-    if (selectedConversation.conversation_mode !== "agent_active" && selectedConversation.conversation_mode !== "copilot") {
+    const isLiveMode =
+      selectedConversation?.conversation_mode === "agent_active" ||
+      selectedConversation?.conversation_mode === "copilot";
+
+    if (!isLiveMode) {
+      if (typingTimeoutRef.current) {
+        window.clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      if (typingStateSentRef.current === true) {
+        typingStateSentRef.current = false;
+        void platformAgentTyping(token, selectedConversationId, false, backendUrl).catch(() => undefined);
+      }
       return;
     }
 
@@ -729,34 +780,42 @@ export default function AgentInboxPage() {
     }
 
     const isTyping = replyText.trim().length > 0;
-    void platformAgentTyping(token, selectedConversationId, isTyping, backendUrl).catch(() => undefined);
+    if (typingStateSentRef.current !== isTyping) {
+      typingStateSentRef.current = isTyping;
+      void platformAgentTyping(token, selectedConversationId, isTyping, backendUrl).catch(() => undefined);
+    }
 
     if (isTyping) {
       typingTimeoutRef.current = window.setTimeout(() => {
+        typingStateSentRef.current = false;
         void platformAgentTyping(token, selectedConversationId, false, backendUrl).catch(() => undefined);
       }, 2500);
     }
-  }, [replyText, token, selectedConversationId, selectedConversation, backendUrl]);
+  }, [replyText, token, selectedConversationId, selectedConversation?.conversation_mode, backendUrl]);
 
   useEffect(() => {
     if (!supabaseClient || !selectedTenantId || !currentAgentId) return;
 
     const workspaceChannel = supabaseClient.channel(`workspace:${selectedTenantId}`);
     workspaceChannel.on("broadcast", { event: "inbox_update" }, () => {
-      void loadInbox();
+      scheduleInboxReload(120);
     });
     workspaceChannel.subscribe();
 
     const agentChannel = supabaseClient.channel(`agent:${currentAgentId}`);
     agentChannel.on("broadcast", { event: "assignment" }, () => {
-      void loadInbox();
+      scheduleInboxReload(90);
     });
     agentChannel.on("broadcast", { event: "inbox_update" }, () => {
-      void loadInbox();
+      scheduleInboxReload(120);
     });
     agentChannel.subscribe();
 
     return () => {
+      if (inboxReloadTimerRef.current) {
+        window.clearTimeout(inboxReloadTimerRef.current);
+        inboxReloadTimerRef.current = null;
+      }
       supabaseClient.removeChannel(workspaceChannel);
       supabaseClient.removeChannel(agentChannel);
     };
@@ -777,7 +836,7 @@ export default function AgentInboxPage() {
         );
         return sortMessages([...withoutOptimisticMatch, message]);
       });
-      void loadInbox();
+      scheduleInboxReload(100);
     });
 
     channel.on("broadcast", { event: "mode_change" }, (payload) => {
@@ -813,9 +872,9 @@ export default function AgentInboxPage() {
               closed_at: data.mode === "closed" ? data.closed_at ?? new Date().toISOString() : prev.closed_at,
               assigned_agent_id: data.agent_id ?? prev.assigned_agent_id
             }
-          : prev
+            : prev
       );
-      void loadInbox();
+      scheduleInboxReload(100);
     });
 
     channel.on("broadcast", { event: "typing" }, (payload) => {
@@ -855,7 +914,7 @@ export default function AgentInboxPage() {
   }, [selectedConversationId]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || supabaseClient) return;
 
     const interval = window.setInterval(() => {
       if (document.visibilityState !== "visible") {
@@ -865,11 +924,11 @@ export default function AgentInboxPage() {
       if (selectedConversationId) {
         void loadConversationMessages(selectedConversationId);
       }
-    }, 18000);
+    }, 45000);
 
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, selectedConversationId]);
+  }, [token, selectedConversationId, selectedTenantId]);
 
   return (
     <div className="space-y-6">
