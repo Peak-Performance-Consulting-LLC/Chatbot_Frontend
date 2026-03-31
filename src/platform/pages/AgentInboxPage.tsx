@@ -157,6 +157,13 @@ function isConversationEnded(conversation: ChatThread | null | undefined) {
   );
 }
 
+function canReplyToConversation(conversation: ChatThread | null | undefined) {
+  if (!conversation) {
+    return false;
+  }
+  return !isConversationEnded(conversation);
+}
+
 function toDayLabel(input: string) {
   const date = new Date(input);
   if (Number.isNaN(date.getTime())) {
@@ -1395,8 +1402,7 @@ export default function AgentInboxPage() {
                   disabled={
                     !canManageConversation ||
                     submittingReply ||
-                    (selectedConversation.conversation_mode !== "agent_active" &&
-                      selectedConversation.conversation_mode !== "copilot")
+                    !canReplyToConversation(selectedConversation)
                   }
                 />
                 <div className="flex justify-between items-center">
@@ -1404,7 +1410,7 @@ export default function AgentInboxPage() {
                     {selectedConversation.conversation_mode === "agent_active" ||
                     selectedConversation.conversation_mode === "copilot"
                       ? "Live mode active"
-                      : "Join conversation to reply"}
+                      : "First reply will switch this chat to live agent mode"}
                   </div>
                   <button
                     type="button"
@@ -1414,8 +1420,7 @@ export default function AgentInboxPage() {
                       !canManageConversation ||
                       submittingReply ||
                       !replyText.trim() ||
-                      (selectedConversation.conversation_mode !== "agent_active" &&
-                        selectedConversation.conversation_mode !== "copilot")
+                      !canReplyToConversation(selectedConversation)
                     }
                   >
                     {submittingReply ? "Sending..." : "Send reply"}
