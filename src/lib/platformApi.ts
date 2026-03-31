@@ -997,6 +997,29 @@ export async function platformUpdateTeamMemberRole(
   });
 }
 
+export async function platformRemoveTeamMember(
+  token: string,
+  input: {
+    tenantId: string;
+    userId: string;
+  },
+  backendUrl?: string
+) {
+  return authedJson<{
+    tenant_id: string;
+    member: PlatformWorkspaceMember;
+  }>({
+    path: "/api/platform/team",
+    token,
+    method: "DELETE",
+    body: {
+      tenant_id: input.tenantId,
+      user_id: input.userId
+    },
+    backendUrl
+  });
+}
+
 export async function platformAcceptTeamInvitation(
   token: string,
   inviteToken: string,

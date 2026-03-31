@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   platformInviteTeamMember,
+  platformRemoveTeamMember,
   platformUpdateTeamMemberRole,
   platformWorkspacePresence,
   platformWorkspaceTeam
@@ -15,7 +16,7 @@ import type {
 
 const ROLE_OPTIONS: WorkspaceMemberRole[] = ["agent", "supervisor", "admin", "viewer"];
 
-function formatRelativeTs(input: string | null) {
+function formatRelativeTs(input: string | null, nowMs = Date.now()) {
   if (!input) {
     return "Never";
   }
@@ -23,7 +24,7 @@ function formatRelativeTs(input: string | null) {
   if (!Number.isFinite(ts)) {
     return "Never";
   }
-  const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  const seconds = Math.max(0, Math.floor((nowMs - ts) / 1000));
   if (seconds < 60) {
     return `${seconds}s ago`;
   }
@@ -45,7 +46,7 @@ function formatDateTime(input: string) {
 }
 
 export default function TeamManagementPage() {
-  const { token, selectedTenantId, selectedTenant } = usePlatformAuth();
+  const { token, profile, selectedTenantId, selectedTenant } = usePlatformAuth();
   const backendUrl = import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
   const [members, setMembers] = useState<PlatformWorkspaceMember[]>([]);
   const [invitations, setInvitations] = useState<PlatformWorkspaceInvitation[]>([]);
@@ -57,9 +58,12 @@ export default function TeamManagementPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [updatingRoleUserId, setUpdatingRoleUserId] = useState("");
+  const [removingUserId, setRemovingUserId] = useState("");
   const [error, setError] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const currentRole = selectedTenant?.workspace_role ?? "viewer";
   const canManageTeam = currentRole === "owner" || currentRole === "admin";
+  const currentUserId = profile?.user.id ?? "";
 
   const presenceByUserId = useMemo(() => {
     const map = new Map<string, PlatformPresenceEntry>();
@@ -96,6 +100,18 @@ export default function TeamManagementPage() {
       setError(err instanceof Error ? err.message : "Failed to load team");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPresenceOnly() {
+    if (!token || !selectedTenantId) {
+      return;
+    }
+    try {
+      const presenceResponse = await platformWorkspacePresence(token, selectedTenantId, backendUrl);
+      setPresence(presenceResponse.presence);
+    } catch {
+      // Keep last known presence snapshot if refresh fails.
     }
   }
 
@@ -153,8 +169,59 @@ export default function TeamManagementPage() {
     }
   }
 
+  async function handleRemoveMember(member: PlatformWorkspaceMember) {
+    if (!token || !selectedTenantId) {
+      return;
+    }
+    const confirmed = window.confirm(
+      `Remove ${member.user?.full_name || member.user?.email || "this member"} from the workspace?`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setRemovingUserId(member.user_id);
+    setError("");
+    try {
+      await platformRemoveTeamMember(
+        token,
+        {
+          tenantId: selectedTenantId,
+          userId: member.user_id
+        },
+        backendUrl
+      );
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Member removal failed");
+    } finally {
+      setRemovingUserId("");
+    }
+  }
+
   useEffect(() => {
     void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selectedTenantId]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 10_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!token || !selectedTenantId) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      void loadPresenceOnly();
+    }, 12_000);
+    return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, selectedTenantId]);
 
@@ -216,9 +283,12 @@ export default function TeamManagementPage() {
       <section className="app-card">
         <div className="flex items-center justify-between mb-4">
           <h2 className="app-card-title !mb-0">Members</h2>
-          <button type="button" className="app-btn-secondary" disabled={loading} onClick={() => void loadData()}>
-            {loading ? "Refreshing..." : "Refresh"}
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-[#0a0a0f]/45">Live status updates every ~12s</div>
+            <button type="button" className="app-btn-secondary" disabled={loading} onClick={() => void loadData()}>
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -231,6 +301,11 @@ export default function TeamManagementPage() {
             const pendingRole = pendingRoleByUserId[member.user_id] ?? member.role;
             const canEditRole = canManageTeam && member.role !== "owner";
             const isUpdatingRole = updatingRoleUserId === member.user_id;
+            const canRemoveMember =
+              currentRole === "owner" &&
+              member.role !== "owner" &&
+              member.user_id !== currentUserId;
+            const isRemovingMember = removingUserId === member.user_id;
             return (
               <div key={member.id} className="rounded-xl border border-[#0a0a0f]/10 bg-white px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -255,7 +330,7 @@ export default function TeamManagementPage() {
                       {status}
                     </span>
                     <span className="text-[#0a0a0f]/45">
-                      {formatRelativeTs(memberPresence?.last_heartbeat_at ?? null)}
+                      {formatRelativeTs(memberPresence?.last_heartbeat_at ?? null, nowMs)}
                     </span>
                   </div>
                 </div>
@@ -285,6 +360,16 @@ export default function TeamManagementPage() {
                   >
                     {isUpdatingRole ? "Saving..." : "Update Role"}
                   </button>
+                  {canRemoveMember ? (
+                    <button
+                      type="button"
+                      className="app-btn-secondary border-red-200 text-red-600 hover:bg-red-50"
+                      disabled={isRemovingMember || isUpdatingRole}
+                      onClick={() => void handleRemoveMember(member)}
+                    >
+                      {isRemovingMember ? "Removing..." : "Remove Member"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             );
