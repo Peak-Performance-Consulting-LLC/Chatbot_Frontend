@@ -227,7 +227,7 @@ export default function TeamManagementPage() {
           ) : null}
           {members.map((member) => {
             const memberPresence = member.user ? presenceByUserId.get(member.user.id) : null;
-            const status = memberPresence?.status ?? "offline";
+            const status = memberPresence?.effective_status ?? memberPresence?.status ?? "offline";
             const pendingRole = pendingRoleByUserId[member.user_id] ?? member.role;
             const canEditRole = canManageTeam && member.role !== "owner";
             const isUpdatingRole = updatingRoleUserId === member.user_id;
@@ -245,6 +245,8 @@ export default function TeamManagementPage() {
                       className={`rounded-full px-2 py-1 uppercase tracking-wide ${
                         status === "online"
                           ? "bg-[#1a5c5c]/12 text-[#1a5c5c]"
+                          : status === "busy"
+                            ? "bg-[#ffe8df] text-[#a53f22]"
                           : status === "away"
                             ? "bg-amber-100 text-amber-700"
                             : "bg-[#0a0a0f]/8 text-[#0a0a0f]/60"

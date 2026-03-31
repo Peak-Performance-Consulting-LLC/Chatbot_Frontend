@@ -14,6 +14,7 @@ export type PlatformSubscriptionPlan = "trial" | "starter" | "growth" | "enterpr
 export type PlatformSubscriptionStatus = "active" | "canceled" | "expired" | "past_due";
 export type WorkspaceMemberRole = "owner" | "admin" | "supervisor" | "agent" | "viewer";
 export type AgentPresenceStatus = "online" | "away" | "offline";
+export type AgentEffectiveStatus = "online" | "busy" | "away" | "offline";
 export type QueueRoutingMode = "manual_accept" | "auto_assign";
 export type QueueAfterHoursAction = "collect_info" | "overflow" | "ai_only";
 
@@ -332,6 +333,10 @@ export type PlatformPresenceEntry = {
   role: WorkspaceMemberRole;
   status: AgentPresenceStatus;
   last_heartbeat_at: string | null;
+  active_chats?: number;
+  capacity_limit?: number;
+  is_busy?: boolean;
+  effective_status?: AgentEffectiveStatus;
 };
 
 export type SupervisorAgentLoad = {

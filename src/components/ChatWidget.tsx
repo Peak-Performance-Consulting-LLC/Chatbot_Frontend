@@ -49,6 +49,7 @@ type HeaderCtaConfig = {
   label: string;
   notice: string;
 };
+type LiveSupportAvailability = "online" | "busy" | "away" | "offline";
 type ActiveAgent = {
   id: string;
   name: string;
@@ -211,6 +212,17 @@ function parseMessageTs(input: string) {
 
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function normalizeLiveSupportAvailability(input: string | null | undefined): LiveSupportAvailability {
+  return input === "busy" || input === "away" || input === "offline" ? input : "online";
+}
+
+function getLiveSupportLabel(availability: LiveSupportAvailability) {
+  if (availability === "busy") return "Live team busy";
+  if (availability === "away") return "Live team away";
+  if (availability === "offline") return "Live team offline";
+  return "Live team online";
 }
 
 function messagesAreEquivalent(localMessage: ChatMessage, syncedMessage: ChatMessage) {
@@ -1132,6 +1144,10 @@ export function ChatWidget({
     [embedded, portalToken]
   );
   const runtimeAppearance = runtimeWidgetConfig?.appearance;
+  const liveSupportAvailability = useMemo(
+    () => normalizeLiveSupportAvailability(runtimeWidgetConfig?.live_support?.availability),
+    [runtimeWidgetConfig?.live_support?.availability]
+  );
   const tenantCallCtaOverride = useMemo(
     () =>
       buildCallCtaOverride(
@@ -1783,11 +1799,17 @@ export function ChatWidget({
       setConversationMode(result.mode as ConversationMode);
       setShowHandoffContactCapture(false);
       if (result.mode === "handoff_pending") {
+        const handoffStatusMessage =
+          result.all_agents_busy && result.waiting_eta_label
+            ? `All agents are currently busy. Estimated wait: ${result.waiting_eta_label}.`
+            : result.all_agents_busy
+              ? "All agents are currently busy. We will connect you shortly."
+              : "Connecting you with a live agent...";
         const systemMsg: ChatMessage = {
           id: `system-handoff-${Date.now()}`,
           chat_id: activeChatId,
           role: "system",
-          content: "Connecting you with a live agent...",
+          content: handoffStatusMessage,
           metadata: null,
           sender_type: "system",
           created_at: new Date().toISOString()
@@ -2234,8 +2256,8 @@ export function ChatWidget({
                   {headerCtaConfig.label ? <span className="chat-header-badge">{headerCtaConfig.label}</span> : null}
                 </strong>
                 <p>
-                  <span className="chat-online-dot" />
-                  Online
+                  <span className={`chat-presence-dot ${liveSupportAvailability}`} />
+                  {getLiveSupportLabel(liveSupportAvailability)}
                 </p>
               </div>
             </div>

@@ -746,6 +746,10 @@ export async function platformAgentInbox(
     conversations: ChatThread[];
     my_active: ChatThread[];
     queue_unassigned: ChatThread[];
+    waiting_count: number;
+    answered_count: number;
+    high_waiting_count: number;
+    critical_waiting_count: number;
   }>({
     path: `/api/agent/inbox${params}`,
     token,
@@ -761,6 +765,12 @@ export async function platformAgentConversationMessages(
 ) {
   return authedJson<{
     chat_id: string;
+    conversation?: {
+      id: string;
+      conversation_mode: ConversationMode;
+      conversation_status: string;
+      closed_at: string | null;
+    };
     messages: ChatMessage[];
   }>({
     path: `/api/agent/conversation/${encodeURIComponent(conversationId)}/messages`,

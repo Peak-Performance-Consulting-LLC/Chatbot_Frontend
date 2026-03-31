@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createClient } from "@supabase/supabase-js";
 import {
   platformAgentAcceptConversation,
@@ -9,9 +9,9 @@ import {
   platformAgentReplyConversation,
   platformAgentReturnToAI,
   platformAgentTransferConversation,
+  platformAgentTyping,
   platformQueues,
-  platformWorkspaceTeam,
-  platformAgentTyping
+  platformWorkspaceTeam
 } from "@/lib/platformApi";
 import { usePlatformAuth } from "@/platform/state/auth";
 import type {
@@ -22,12 +22,21 @@ import type {
 } from "@/platform/types";
 import type { ChatMessage, ChatThread } from "@/types";
 
+const WAITING_WARNING_SECONDS = 2 * 60;
+const WAITING_HIGH_SECONDS = 5 * 60;
+const WAITING_CRITICAL_SECONDS = 15 * 60;
+const ARRIVAL_ALERT_TTL_MS = 7000;
+const VISITOR_TYPING_STALE_MS = 8000;
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const supabaseClient =
   SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
-type InboxTab = "my_active" | "queue_unassigned";
+type InboxMessage = ChatMessage & {
+  _optimistic?: boolean;
+  _failed?: boolean;
+};
 
 function toDateLabel(input: string) {
   const date = new Date(input);
@@ -42,7 +51,89 @@ function toDateLabel(input: string) {
   });
 }
 
-function getConversationLabel(conversation: ChatThread) {
+function toRelativeAgeLabel(input: string | null | undefined) {
+  if (!input) {
+    return "";
+  }
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  const deltaMs = Date.now() - date.getTime();
+  if (deltaMs < 0) {
+    return "just now";
+  }
+  const minutes = Math.floor(deltaMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m waiting`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h waiting`;
+  const days = Math.floor(hours / 24);
+  return `${days}d waiting`;
+}
+
+function toWaitingAgeSeconds(conversation: ChatThread): number | null {
+  if (typeof conversation.waiting_age_seconds === "number") {
+    return conversation.waiting_age_seconds;
+  }
+  const source = conversation.last_external_message_at ?? conversation.last_message_at;
+  if (!source) return null;
+  const ts = new Date(source).getTime();
+  if (!Number.isFinite(ts)) return null;
+  return Math.max(0, Math.floor((Date.now() - ts) / 1000));
+}
+
+function getWaitingUrgency(conversation: ChatThread): "normal" | "warning" | "high" | "critical" | null {
+  if (!isConversationWaiting(conversation)) {
+    return null;
+  }
+  if (conversation.waiting_urgency) {
+    return conversation.waiting_urgency;
+  }
+  const ageSeconds = toWaitingAgeSeconds(conversation);
+  if (ageSeconds === null || ageSeconds < WAITING_WARNING_SECONDS) {
+    return "normal";
+  }
+  if (ageSeconds < WAITING_HIGH_SECONDS) {
+    return "warning";
+  }
+  if (ageSeconds < WAITING_CRITICAL_SECONDS) {
+    return "high";
+  }
+  return "critical";
+}
+
+function getVisitorStateLabel(conversation: ChatThread) {
+  const state = conversation.visitor_state ?? "away";
+  if (state === "typing") return "Typing";
+  if (state === "active") return "Active";
+  if (state === "idle") return "Idle";
+  return "Away";
+}
+
+function getVisitorStateTone(conversation: ChatThread) {
+  const state = conversation.visitor_state ?? "away";
+  if (state === "typing") return "border-[#2563eb]/30 bg-[#e8f1ff] text-[#1d4ed8]";
+  if (state === "active") return "border-[#1a5c5c]/25 bg-[#e9f6f3] text-[#1a5c5c]";
+  if (state === "idle") return "border-amber-300/60 bg-amber-100 text-amber-700";
+  return "border-[#0a0a0f]/20 bg-[#f1f1f3] text-[#5a5a68]";
+}
+
+function getWaitingUrgencyTone(urgency: "normal" | "warning" | "high" | "critical" | null) {
+  if (urgency === "critical") return "border-[#b91c1c]/35 bg-[#ffe3e3] text-[#991b1b]";
+  if (urgency === "high") return "border-[#c84c2a]/30 bg-[#ffe8df] text-[#a53f22]";
+  if (urgency === "warning") return "border-amber-300/60 bg-amber-100 text-amber-700";
+  return "border-[#1a5c5c]/25 bg-[#e9f6f3] text-[#1a5c5c]";
+}
+
+function isConversationWaiting(conversation: ChatThread) {
+  if (typeof conversation.awaiting_agent_reply === "boolean") {
+    return conversation.awaiting_agent_reply;
+  }
+  return conversation.last_external_sender_type === "visitor" || conversation.conversation_mode === "handoff_pending";
+}
+
+function getConversationModeLabel(conversation: ChatThread) {
   if (conversation.conversation_mode === "handoff_pending") return "Waiting";
   if (conversation.conversation_mode === "agent_active") return "Live";
   if (conversation.conversation_mode === "copilot") return "Copilot";
@@ -55,17 +146,63 @@ function getConversationDisplayName(conversation: ChatThread) {
   return conversation.visitor_name?.trim() || conversation.title || "Conversation";
 }
 
+function isConversationEnded(conversation: ChatThread | null | undefined) {
+  if (!conversation) {
+    return false;
+  }
+  return (
+    conversation.conversation_mode === "closed" ||
+    conversation.conversation_status === "closed" ||
+    conversation.conversation_status === "archived"
+  );
+}
+
+function toDayLabel(input: string) {
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+}
+
+function sortMessages(messages: ChatMessage[]): InboxMessage[] {
+  return [...messages].sort((a, b) => {
+    const aTime = new Date(a.created_at).getTime();
+    const bTime = new Date(b.created_at).getTime();
+    return aTime - bTime;
+  });
+}
+
+function dedupeConversations(conversations: ChatThread[]) {
+  const byId = new Map<string, ChatThread>();
+  for (const conversation of conversations) {
+    if (!conversation?.id) continue;
+    byId.set(conversation.id, conversation);
+  }
+  return [...byId.values()];
+}
+
 export default function AgentInboxPage() {
   const { token, profile, selectedTenantId, selectedTenant } = usePlatformAuth();
   const backendUrl = import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
   const currentAgentId = profile?.user.id ?? "";
   const workspaceRole: WorkspaceMemberRole = selectedTenant?.workspace_role ?? "viewer";
-  const canManageConversation = workspaceRole !== "viewer";
-  const [tab, setTab] = useState<InboxTab>("my_active");
-  const [myActive, setMyActive] = useState<ChatThread[]>([]);
-  const [queueUnassigned, setQueueUnassigned] = useState<ChatThread[]>([]);
+  const canManageConversation = workspaceRole === "owner" || workspaceRole === "agent";
+
+  const [conversations, setConversations] = useState<ChatThread[]>([]);
+  const [selectedConversationSnapshot, setSelectedConversationSnapshot] = useState<ChatThread | null>(null);
+  const [waitingCount, setWaitingCount] = useState(0);
+  const [answeredCount, setAnsweredCount] = useState(0);
+  const [highWaitingCount, setHighWaitingCount] = useState(0);
+  const [criticalWaitingCount, setCriticalWaitingCount] = useState(0);
+  const [arrivalAlerts, setArrivalAlerts] = useState<Array<{
+    id: string;
+    chatId: string;
+    label: string;
+    createdAt: string;
+  }>>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string>("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [replyText, setReplyText] = useState("");
   const [copilotPrompt, setCopilotPrompt] = useState("");
   const [copilotDraft, setCopilotDraft] = useState("");
@@ -83,12 +220,71 @@ export default function AgentInboxPage() {
   const [teamOptions, setTeamOptions] = useState<PlatformWorkspaceMember[]>([]);
   const [error, setError] = useState("");
   const typingTimeoutRef = useRef<number | null>(null);
+  const visitorTypingTimeoutRef = useRef<number | null>(null);
+  const waitingStateRef = useRef<Map<string, boolean>>(new Map());
+  const hasInboxSnapshotRef = useRef(false);
+  const arrivalAudioContextRef = useRef<AudioContext | null>(null);
+  const threadViewportRef = useRef<HTMLDivElement | null>(null);
+  const keepThreadPinnedRef = useRef(true);
 
-  const conversations = tab === "my_active" ? myActive : queueUnassigned;
   const selectedConversation = useMemo(
-    () => [...myActive, ...queueUnassigned].find((item) => item.id === selectedConversationId) ?? null,
-    [myActive, queueUnassigned, selectedConversationId]
+    () =>
+      conversations.find((item) => item.id === selectedConversationId) ??
+      (selectedConversationSnapshot?.id === selectedConversationId ? selectedConversationSnapshot : null),
+    [conversations, selectedConversationId, selectedConversationSnapshot]
   );
+  const selectedConversationEnded = isConversationEnded(selectedConversation);
+
+  function playArrivalTone() {
+    try {
+      const AudioCtor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtor) {
+        return;
+      }
+      const audioContext = arrivalAudioContextRef.current ?? new AudioCtor();
+      arrivalAudioContextRef.current = audioContext;
+      if (audioContext.state === "suspended") {
+        void audioContext.resume().catch(() => undefined);
+      }
+
+      const now = audioContext.currentTime;
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+      oscillator.connect(gain);
+      gain.connect(audioContext.destination);
+      oscillator.start(now);
+      oscillator.stop(now + 0.22);
+    } catch {
+      // Ignore browser autoplay/audio constraints; visual alerts still render.
+    }
+  }
+
+  function scrollThreadToBottom(behavior: ScrollBehavior = "auto") {
+    const viewport = threadViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    viewport.scrollTo({
+      top: viewport.scrollHeight,
+      behavior
+    });
+  }
+
+  function onThreadScroll() {
+    const viewport = threadViewportRef.current;
+    if (!viewport) {
+      return;
+    }
+    const distanceFromBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+    keepThreadPinnedRef.current = distanceFromBottom < 64;
+  }
 
   async function loadInbox() {
     if (!token) return;
@@ -96,14 +292,73 @@ export default function AgentInboxPage() {
     setError("");
     try {
       const response = await platformAgentInbox(token, backendUrl, selectedTenantId ?? undefined);
-      setMyActive(response.my_active ?? []);
-      setQueueUnassigned(response.queue_unassigned ?? []);
+      const merged = dedupeConversations(
+        response.conversations?.length
+          ? response.conversations
+          : [...(response.my_active ?? []), ...(response.queue_unassigned ?? [])]
+      );
 
-      const allConversations = [...(response.my_active ?? []), ...(response.queue_unassigned ?? [])];
-      if (!selectedConversationId && allConversations[0]?.id) {
-        setSelectedConversationId(allConversations[0].id);
-      } else if (selectedConversationId && !allConversations.some((c) => c.id === selectedConversationId)) {
-        setSelectedConversationId(allConversations[0]?.id ?? "");
+      const computedWaiting = merged.filter((conversation) => isConversationWaiting(conversation)).length;
+      const computedAnswered = Math.max(0, merged.length - computedWaiting);
+      const computedHighWaiting = merged.filter((conversation) => getWaitingUrgency(conversation) === "high").length;
+      const computedCriticalWaiting = merged.filter((conversation) => getWaitingUrgency(conversation) === "critical").length;
+      const nextWaitingMap = new Map<string, boolean>();
+      for (const conversation of merged) {
+        nextWaitingMap.set(conversation.id, isConversationWaiting(conversation));
+      }
+
+      if (hasInboxSnapshotRef.current) {
+        const newlyWaiting = merged.filter((conversation) => {
+          const isWaitingNow = nextWaitingMap.get(conversation.id) ?? false;
+          const wasWaiting = waitingStateRef.current.get(conversation.id) ?? false;
+          return isWaitingNow && !wasWaiting;
+        });
+
+        if (newlyWaiting.length > 0) {
+          playArrivalTone();
+          const nextAlerts = newlyWaiting.slice(0, 4).map((conversation) => {
+            const alertId = `arrival-${conversation.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+            return {
+              id: alertId,
+              chatId: conversation.id,
+              label: `${getConversationDisplayName(conversation)} needs a reply`,
+              createdAt: new Date().toISOString()
+            };
+          });
+          setArrivalAlerts((prev) => [...nextAlerts, ...prev].slice(0, 8));
+          nextAlerts.forEach((alert) => {
+            window.setTimeout(() => {
+              setArrivalAlerts((prev) => prev.filter((item) => item.id !== alert.id));
+            }, ARRIVAL_ALERT_TTL_MS);
+          });
+        }
+      }
+      waitingStateRef.current = nextWaitingMap;
+      hasInboxSnapshotRef.current = true;
+
+      setConversations(merged);
+      setWaitingCount(
+        typeof response.waiting_count === "number" ? response.waiting_count : computedWaiting
+      );
+      setAnsweredCount(
+        typeof response.answered_count === "number" ? response.answered_count : computedAnswered
+      );
+      setHighWaitingCount(
+        typeof response.high_waiting_count === "number" ? response.high_waiting_count : computedHighWaiting
+      );
+      setCriticalWaitingCount(
+        typeof response.critical_waiting_count === "number" ? response.critical_waiting_count : computedCriticalWaiting
+      );
+
+      const selectedFromInbox = selectedConversationId
+        ? merged.find((conversation) => conversation.id === selectedConversationId) ?? null
+        : null;
+      if (selectedFromInbox) {
+        setSelectedConversationSnapshot(selectedFromInbox);
+      }
+      if (!selectedConversationId && merged[0]?.id) {
+        setSelectedConversationId(merged[0].id);
+        setSelectedConversationSnapshot(merged[0]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load inbox");
@@ -118,7 +373,32 @@ export default function AgentInboxPage() {
     setError("");
     try {
       const response = await platformAgentConversationMessages(token, conversationId, backendUrl);
-      setMessages(response.messages);
+      setMessages(sortMessages(response.messages));
+      if (response.conversation) {
+        setConversations((prev) =>
+          prev.map((conversation) =>
+            conversation.id === conversationId
+              ? {
+                  ...conversation,
+                  conversation_mode: response.conversation?.conversation_mode,
+                  conversation_status: response.conversation?.conversation_status,
+                  closed_at: response.conversation?.closed_at
+                }
+              : conversation
+          )
+        );
+        setSelectedConversationSnapshot((prev) =>
+          prev && prev.id === conversationId
+            ? {
+                ...prev,
+                conversation_mode: response.conversation?.conversation_mode,
+                conversation_status: response.conversation?.conversation_status,
+                closed_at: response.conversation?.closed_at
+              }
+            : prev
+        );
+      }
+      requestAnimationFrame(() => scrollThreadToBottom("auto"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load conversation messages");
     } finally {
@@ -167,11 +447,10 @@ export default function AgentInboxPage() {
     setError("");
     try {
       await platformAgentAcceptConversation(token, conversationId, backendUrl);
-      setTab("my_active");
       await loadInbox();
       await loadConversationMessages(conversationId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to accept conversation");
+      setError(err instanceof Error ? err.message : "Failed to join conversation");
     } finally {
       setRunningAction(false);
     }
@@ -246,8 +525,24 @@ export default function AgentInboxPage() {
   async function handleSendReply() {
     if (!token || !selectedConversationId || !replyText.trim()) return;
     const content = replyText.trim();
+    const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const optimisticMessage: InboxMessage = {
+      id: optimisticId,
+      chat_id: selectedConversationId,
+      role: "assistant",
+      content,
+      metadata: null,
+      sender_type: "agent",
+      sender_id: profile?.user.id ?? null,
+      created_at: new Date().toISOString(),
+      _optimistic: true
+    };
+
     setSubmittingReply(true);
     setError("");
+    keepThreadPinnedRef.current = true;
+    setMessages((prev) => [...prev, optimisticMessage]);
+    requestAnimationFrame(() => scrollThreadToBottom("smooth"));
     try {
       const response = await platformAgentReplyConversation(
         token,
@@ -259,18 +554,46 @@ export default function AgentInboxPage() {
       );
       setReplyText("");
       setMessages((prev) => {
-        if (prev.some((message) => message.id === response.message.id)) {
-          return prev;
+        if (prev.some((message) => message.id === response.message.id && !message._optimistic)) {
+          return prev.filter((message) => message.id !== optimisticId);
         }
-        return [...prev, response.message];
+        return prev.map((message) =>
+          message.id === optimisticId
+            ? {
+                ...response.message
+              }
+            : message
+        );
       });
       await platformAgentTyping(token, selectedConversationId, false, backendUrl).catch(() => undefined);
       await loadInbox();
     } catch (err) {
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === optimisticId
+            ? {
+                ...message,
+                _optimistic: false,
+                _failed: true
+              }
+            : message
+        )
+      );
       setError(err instanceof Error ? err.message : "Failed to send reply");
     } finally {
       setSubmittingReply(false);
     }
+  }
+
+  function handleComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== "Enter" || event.shiftKey) {
+      return;
+    }
+    event.preventDefault();
+    if (submittingReply || !replyText.trim()) {
+      return;
+    }
+    void handleSendReply();
   }
 
   async function handleTransferToQueue() {
@@ -331,10 +654,17 @@ export default function AgentInboxPage() {
   }, [token, selectedTenantId]);
 
   useEffect(() => {
+    waitingStateRef.current = new Map();
+    hasInboxSnapshotRef.current = false;
+    setArrivalAlerts([]);
+  }, [selectedTenantId]);
+
+  useEffect(() => {
     if (!selectedConversationId) {
       setMessages([]);
       return;
     }
+    keepThreadPinnedRef.current = true;
     void loadConversationMessages(selectedConversationId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId, token]);
@@ -362,9 +692,36 @@ export default function AgentInboxPage() {
   }, [token, selectedTenantId, presenceStatus]);
 
   useEffect(() => {
+    return () => {
+      if (!arrivalAudioContextRef.current) {
+        if (visitorTypingTimeoutRef.current) {
+          window.clearTimeout(visitorTypingTimeoutRef.current);
+          visitorTypingTimeoutRef.current = null;
+        }
+        return;
+      }
+      void arrivalAudioContextRef.current.close().catch(() => undefined);
+      arrivalAudioContextRef.current = null;
+      if (visitorTypingTimeoutRef.current) {
+        window.clearTimeout(visitorTypingTimeoutRef.current);
+        visitorTypingTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (keepThreadPinnedRef.current) {
+      requestAnimationFrame(() => scrollThreadToBottom("auto"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length, visitorTyping]);
+
+  useEffect(() => {
     if (!token || !selectedConversationId) return;
-    if (!selectedConversation || selectedConversation.assigned_agent_id !== currentAgentId) return;
-    if (selectedConversation.conversation_mode !== "agent_active") return;
+    if (!selectedConversation) return;
+    if (selectedConversation.conversation_mode !== "agent_active" && selectedConversation.conversation_mode !== "copilot") {
+      return;
+    }
 
     if (typingTimeoutRef.current) {
       window.clearTimeout(typingTimeoutRef.current);
@@ -379,7 +736,7 @@ export default function AgentInboxPage() {
         void platformAgentTyping(token, selectedConversationId, false, backendUrl).catch(() => undefined);
       }, 2500);
     }
-  }, [replyText, token, selectedConversationId, selectedConversation, currentAgentId, backendUrl]);
+  }, [replyText, token, selectedConversationId, selectedConversation, backendUrl]);
 
   useEffect(() => {
     if (!supabaseClient || !selectedTenantId || !currentAgentId) return;
@@ -415,27 +772,48 @@ export default function AgentInboxPage() {
       if (!message?.id || message.chat_id !== selectedConversationId) return;
       setMessages((prev) => {
         if (prev.some((item) => item.id === message.id)) return prev;
-        return [...prev, message];
+        const withoutOptimisticMatch = prev.filter(
+          (item) => !(item._optimistic && item.sender_type === "agent" && item.content.trim() === message.content.trim())
+        );
+        return sortMessages([...withoutOptimisticMatch, message]);
       });
       void loadInbox();
     });
 
     channel.on("broadcast", { event: "mode_change" }, (payload) => {
-      const data = payload.payload as { chat_id?: string; mode?: ChatThread["conversation_mode"] };
+      const data = payload.payload as {
+        chat_id?: string;
+        mode?: ChatThread["conversation_mode"];
+        agent_id?: string;
+        closed_at?: string | null;
+      };
       if (!data?.chat_id || !data.mode) return;
-      setMyActive((prev) =>
+      setConversations((prev) =>
         prev.map((conversation) =>
           conversation.id === data.chat_id
-            ? { ...conversation, conversation_mode: data.mode }
+            ? {
+                ...conversation,
+                conversation_mode: data.mode,
+                assigned_agent_id: data.agent_id ?? conversation.assigned_agent_id,
+                conversation_status: data.mode === "closed" ? "closed" : conversation.conversation_status,
+                closed_at:
+                  data.mode === "closed"
+                    ? data.closed_at ?? new Date().toISOString()
+                    : conversation.closed_at
+              }
             : conversation
         )
       );
-      setQueueUnassigned((prev) =>
-        prev.map((conversation) =>
-          conversation.id === data.chat_id
-            ? { ...conversation, conversation_mode: data.mode }
-            : conversation
-        )
+      setSelectedConversationSnapshot((prev) =>
+        prev && prev.id === data.chat_id
+          ? {
+              ...prev,
+              conversation_mode: data.mode,
+              conversation_status: data.mode === "closed" ? "closed" : prev.conversation_status,
+              closed_at: data.mode === "closed" ? data.closed_at ?? new Date().toISOString() : prev.closed_at,
+              assigned_agent_id: data.agent_id ?? prev.assigned_agent_id
+            }
+          : prev
       );
       void loadInbox();
     });
@@ -449,7 +827,18 @@ export default function AgentInboxPage() {
       };
       if (data.chat_id !== selectedConversationId) return;
       if (data.actor === "visitor") {
-        setVisitorTyping(Boolean(data.is_typing));
+        const active = Boolean(data.is_typing);
+        setVisitorTyping(active);
+        if (visitorTypingTimeoutRef.current) {
+          window.clearTimeout(visitorTypingTimeoutRef.current);
+          visitorTypingTimeoutRef.current = null;
+        }
+        if (active) {
+          visitorTypingTimeoutRef.current = window.setTimeout(() => {
+            setVisitorTyping(false);
+            visitorTypingTimeoutRef.current = null;
+          }, VISITOR_TYPING_STALE_MS);
+        }
       }
     });
 
@@ -457,6 +846,10 @@ export default function AgentInboxPage() {
     return () => {
       supabaseClient.removeChannel(channel);
       setVisitorTyping(false);
+      if (visitorTypingTimeoutRef.current) {
+        window.clearTimeout(visitorTypingTimeoutRef.current);
+        visitorTypingTimeoutRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId]);
@@ -484,7 +877,7 @@ export default function AgentInboxPage() {
         <div>
           <span className="app-kicker">Agent</span>
           <h1 className="app-h1">Inbox</h1>
-          <p className="app-lead">Accept queue handoffs, respond in realtime, and return conversations to AI.</p>
+          <p className="app-lead">Shared inbox for owner and agents. Join any waiting chat and respond immediately.</p>
         </div>
       </header>
 
@@ -494,6 +887,38 @@ export default function AgentInboxPage() {
           <div>
             <div className="callout-title">Action failed</div>
             <div className="callout-body">{error}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {arrivalAlerts.length > 0 ? (
+        <div className="app-card">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/60">New waiting chats</div>
+          <div className="mt-2 space-y-2">
+            {arrivalAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className="rounded-lg border border-amber-300/55 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              >
+                <div className="font-semibold">{alert.label}</div>
+                <div className="text-xs text-amber-700/90">{toDateLabel(alert.createdAt)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {waitingCount > 0 ? (
+        <div className="app-callout warning">
+          <span className="callout-icon">!</span>
+          <div>
+            <div className="callout-title">Users waiting for reply</div>
+            <div className="callout-body">
+              {waitingCount} conversation(s) currently waiting for agent response.
+              {criticalWaitingCount > 0 || highWaitingCount > 0
+                ? ` Critical: ${criticalWaitingCount} · High: ${highWaitingCount}`
+                : ""}
+            </div>
           </div>
         </div>
       ) : null}
@@ -522,54 +947,81 @@ export default function AgentInboxPage() {
             </button>
           </div>
 
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              className={tab === "my_active" ? "app-btn-primary" : "app-btn-secondary"}
-              onClick={() => setTab("my_active")}
-            >
-              My Active ({myActive.length})
-            </button>
-            <button
-              type="button"
-              className={tab === "queue_unassigned" ? "app-btn-primary" : "app-btn-secondary"}
-              onClick={() => setTab("queue_unassigned")}
-            >
-              Queue ({queueUnassigned.length})
-            </button>
+          <div className="mb-3 text-xs text-[#0a0a0f]/55">
+            Waiting: <strong>{waitingCount}</strong> · Answered: <strong>{answeredCount}</strong> · High: <strong>{highWaitingCount}</strong> · Critical: <strong>{criticalWaitingCount}</strong>
           </div>
 
           <div className="space-y-2">
             {conversations.length === 0 ? (
-              <p className="text-sm text-[#0a0a0f]/55">No conversations in this tab.</p>
+              <p className="text-sm text-[#0a0a0f]/55">No conversations in shared inbox.</p>
             ) : null}
-            {conversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                type="button"
-                onClick={() => setSelectedConversationId(conversation.id)}
-                className={`agent-inbox-row w-full text-left rounded-xl border px-3 py-3 transition ${
-                  selectedConversationId === conversation.id
-                    ? "border-[#1a5c5c]/35 bg-[#1a5c5c]/8"
-                    : "border-[#0a0a0f]/10 bg-white hover:border-[#0a0a0f]/20"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <strong className="truncate text-sm text-[#0a0a0f]">{getConversationDisplayName(conversation)}</strong>
-                  <span className="text-xs text-[#0a0a0f]/55">{getConversationLabel(conversation)}</span>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#0a0a0f]/50">
-                  {conversation.visitor_email ? <span className="truncate">{conversation.visitor_email}</span> : null}
-                  {conversation.visitor_phone ? <span>{conversation.visitor_phone}</span> : null}
-                  {conversation.visitor_contact_captured ? (
-                    <span className="rounded-full border border-[#1a5c5c]/25 bg-[#1a5c5c]/10 px-2 py-[1px] text-[10px] font-semibold text-[#1a5c5c]">
-                      Contact
+            {conversations.map((conversation) => {
+              const waiting = isConversationWaiting(conversation);
+              const waitingUrgency = getWaitingUrgency(conversation);
+              const waitingSince = waiting
+                ? toRelativeAgeLabel(conversation.last_external_message_at ?? conversation.last_message_at)
+                : "";
+
+              return (
+                <button
+                  key={conversation.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedConversationId(conversation.id);
+                    setSelectedConversationSnapshot(conversation);
+                  }}
+                  className={`agent-inbox-row w-full text-left rounded-xl border px-3 py-3 transition ${
+                    selectedConversationId === conversation.id
+                      ? "border-[#1a5c5c]/35 bg-[#1a5c5c]/8"
+                      : "border-[#0a0a0f]/10 bg-white hover:border-[#0a0a0f]/20"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <strong className="truncate text-sm text-[#0a0a0f]">{getConversationDisplayName(conversation)}</strong>
+                    <span
+                      className={`rounded-full px-2 py-[1px] text-[10px] font-semibold ${
+                        waiting
+                          ? getWaitingUrgencyTone(waitingUrgency)
+                          : "border border-[#1a5c5c]/25 bg-[#e9f6f3] text-[#1a5c5c]"
+                      }`}
+                    >
+                      {waiting ? "Waiting" : "Answered"}
                     </span>
-                  ) : null}
-                </div>
-                <div className="mt-1 text-xs text-[#0a0a0f]/45">{toDateLabel(conversation.last_message_at)}</div>
-              </button>
-            ))}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#0a0a0f]/50">
+                    <span>{getConversationModeLabel(conversation)}</span>
+                    <span className={`rounded-full border px-2 py-[1px] text-[10px] font-semibold ${getVisitorStateTone(conversation)}`}>
+                      {getVisitorStateLabel(conversation)}
+                    </span>
+                    {conversation.visitor_email ? <span className="truncate">{conversation.visitor_email}</span> : null}
+                    {conversation.visitor_phone ? <span>{conversation.visitor_phone}</span> : null}
+                    {conversation.visitor_contact_captured ? (
+                      <span className="rounded-full border border-[#1a5c5c]/25 bg-[#1a5c5c]/10 px-2 py-[1px] text-[10px] font-semibold text-[#1a5c5c]">
+                        Contact
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-xs text-[#0a0a0f]/45">
+                    <span>{toDateLabel(conversation.last_message_at)}</span>
+                    {waiting && waitingSince ? (
+                      <span
+                        className={`font-semibold ${
+                          waitingUrgency === "critical"
+                            ? "text-[#991b1b]"
+                            : waitingUrgency === "high"
+                              ? "text-[#a53f22]"
+                              : waitingUrgency === "warning"
+                                ? "text-amber-700"
+                                : "text-[#1a5c5c]"
+                        }`}
+                      >
+                        {waitingSince}
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -581,7 +1033,19 @@ export default function AgentInboxPage() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="app-card-title !mb-1">{getConversationDisplayName(selectedConversation)}</h2>
-                  <p className="text-sm text-[#0a0a0f]/55">Mode: {selectedConversation.conversation_mode ?? "ai_only"}</p>
+                  <p className="flex flex-wrap items-center gap-2 text-sm text-[#0a0a0f]/55">
+                    <span>Mode: {selectedConversation.conversation_mode ?? "ai_only"}</span>
+                    {selectedConversationEnded ? (
+                      <span className="rounded-full border border-[#991b1b]/30 bg-[#fee2e2] px-2 py-[1px] text-[10px] font-semibold uppercase tracking-wide text-[#991b1b]">
+                        Ended
+                      </span>
+                    ) : null}
+                  </p>
+                  {selectedConversationEnded ? (
+                    <p className="text-xs text-[#991b1b]/85">
+                      Ended at {toDateLabel(selectedConversation.closed_at ?? selectedConversation.updated_at)}
+                    </p>
+                  ) : null}
                   <p className="text-xs text-[#0a0a0f]/45">
                     {selectedConversation.visitor_email || "No email"} · {selectedConversation.visitor_phone || "No phone"}
                   </p>
@@ -594,11 +1058,10 @@ export default function AgentInboxPage() {
                       disabled={runningAction || !canManageConversation}
                       onClick={() => void handleAccept(selectedConversation.id)}
                     >
-                      {runningAction ? "Accepting..." : "Accept"}
+                      {runningAction ? "Joining..." : "Join"}
                     </button>
                   ) : null}
-                  {selectedConversation.conversation_mode === "agent_active" &&
-                  selectedConversation.assigned_agent_id === currentAgentId ? (
+                  {selectedConversation.conversation_mode === "agent_active" ? (
                     <button
                       type="button"
                       className="app-btn-secondary"
@@ -609,8 +1072,7 @@ export default function AgentInboxPage() {
                     </button>
                   ) : null}
                   {(selectedConversation.conversation_mode === "agent_active" ||
-                    selectedConversation.conversation_mode === "copilot") &&
-                  selectedConversation.assigned_agent_id === currentAgentId ? (
+                    selectedConversation.conversation_mode === "copilot") ? (
                     <button
                       type="button"
                       className="app-btn-secondary"
@@ -632,7 +1094,7 @@ export default function AgentInboxPage() {
                 </div>
               </div>
 
-              {canManageConversation ? (
+              {canManageConversation && !selectedConversationEnded ? (
                 <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
                     Transfer
@@ -684,40 +1146,151 @@ export default function AgentInboxPage() {
                 </div>
               ) : null}
 
-              <div className="agent-thread rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 h-[420px] overflow-y-auto space-y-3">
-                {loadingMessages ? <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p> : null}
-                {!loadingMessages && messages.length === 0 ? (
-                  <p className="text-sm text-[#0a0a0f]/55">No messages yet.</p>
-                ) : null}
-                {messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={`rounded-lg border px-3 py-2 ${
-                      message.sender_type === "visitor"
-                        ? "border-[#0a0a0f]/10 bg-white"
-                        : message.sender_type === "agent"
-                          ? "border-[#1a5c5c]/20 bg-[#e9f6f3]"
-                          : "border-[#0a0a0f]/8 bg-white/80"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs uppercase tracking-wide text-[#0a0a0f]/45">
-                        {message.sender_type ?? message.role}
-                        {message.is_internal ? " • internal" : ""}
-                      </span>
-                      <span className="text-xs text-[#0a0a0f]/40">{toDateLabel(message.created_at)}</span>
-                    </div>
-                    <p className="text-sm text-[#0a0a0f]/80 whitespace-pre-wrap">{message.content}</p>
+              <div className="rounded-2xl border border-[#0a0a0f]/10 bg-white overflow-hidden">
+                <div className="flex items-center justify-between border-b border-[#0a0a0f]/8 bg-[#faf8f4] px-4 py-2.5">
+                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0a0a0f]/55">
+                    Conversation Thread
                   </div>
-                ))}
-                {visitorTyping ? (
-                  <div className="text-xs text-[#0a0a0f]/55 italic">Visitor is typing...</div>
-                ) : null}
+                  <div className="text-xs text-[#0a0a0f]/55">
+                    {visitorTyping ? (
+                      <span className="rounded-full border border-[#2563eb]/30 bg-[#ecf3ff] px-2 py-0.5 text-[#1d4ed8]">
+                        Visitor typing...
+                      </span>
+                    ) : (
+                      <span>{messages.length} messages</span>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  ref={threadViewportRef}
+                  onScroll={onThreadScroll}
+                  className="agent-thread h-[460px] overflow-y-auto bg-[linear-gradient(180deg,#faf8f4_0%,#ffffff_40%,#f8fbfb_100%)] px-4 py-4"
+                >
+                  {loadingMessages ? <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p> : null}
+                  {!loadingMessages && messages.length === 0 ? (
+                    <p className="text-sm text-[#0a0a0f]/55">No messages yet.</p>
+                  ) : null}
+
+                  {!loadingMessages
+                    ? (() => {
+                        let lastDayLabel = "";
+                        return messages.map((message) => {
+                          const dayLabel = toDayLabel(message.created_at);
+                          const showDayLabel = dayLabel !== "" && dayLabel !== lastDayLabel;
+                          if (showDayLabel) {
+                            lastDayLabel = dayLabel;
+                          }
+
+                          const isSystem = message.sender_type === "system" || message.role === "system";
+                          const isVisitor = message.sender_type === "visitor";
+                          const isInternal = Boolean(message.is_internal);
+                          const isOwnAgentMessage =
+                            message.sender_type === "agent" &&
+                            (message.sender_id ? message.sender_id === currentAgentId : true);
+
+                          const senderLabel = isSystem
+                            ? "System"
+                            : isVisitor
+                              ? "Visitor"
+                              : isInternal
+                                ? "Internal Note"
+                                : isOwnAgentMessage
+                                  ? "You"
+                                  : "Agent";
+
+                          return (
+                            <Fragment key={message.id}>
+                              {showDayLabel ? (
+                                <div className="mb-3 flex items-center gap-2">
+                                  <div className="h-px flex-1 bg-[#0a0a0f]/10" />
+                                  <span className="rounded-full border border-[#0a0a0f]/10 bg-white px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#0a0a0f]/50">
+                                    {dayLabel}
+                                  </span>
+                                  <div className="h-px flex-1 bg-[#0a0a0f]/10" />
+                                </div>
+                              ) : null}
+
+                              {isSystem ? (
+                                <div className="mb-3 flex justify-center">
+                                  <div className="max-w-[92%] rounded-2xl border border-[#0a0a0f]/12 bg-[#f7f7f8] px-3 py-2 text-xs text-[#0a0a0f]/65">
+                                    <div className="mb-0.5 flex items-center justify-between gap-3">
+                                      <span className="font-semibold uppercase tracking-wide text-[#0a0a0f]/45">
+                                        System
+                                      </span>
+                                      <span className="text-[10px] text-[#0a0a0f]/40">
+                                        {toDateLabel(message.created_at)}
+                                      </span>
+                                    </div>
+                                    <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className={`mb-3 flex ${isVisitor ? "justify-start" : "justify-end"}`}>
+                                  <div
+                                    className={`max-w-[82%] rounded-2xl border px-3 py-2 shadow-[0_8px_18px_rgba(10,10,15,0.04)] ${
+                                      isVisitor
+                                        ? "border-[#0a0a0f]/10 bg-white"
+                                        : isInternal
+                                          ? "border-amber-300/45 bg-amber-50"
+                                          : "border-[#1a5c5c]/20 bg-[#e8f6f2]"
+                                    }`}
+                                  >
+                                    <div className="mb-1 flex items-center justify-between gap-3">
+                                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0a0a0f]/50">
+                                        {senderLabel}
+                                      </span>
+                                      <span className="text-[10px] text-[#0a0a0f]/40">
+                                        {toDateLabel(message.created_at)}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm leading-relaxed text-[#0a0a0f]/85 whitespace-pre-wrap">
+                                      {message.content}
+                                    </p>
+                                    {message._optimistic ? (
+                                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#1a5c5c]/65">
+                                        Sending...
+                                      </p>
+                                    ) : null}
+                                    {message._failed ? (
+                                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#b45309]">
+                                        Delivery failed
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              )}
+                            </Fragment>
+                          );
+                        });
+                      })()
+                    : null}
+
+                  {visitorTyping ? (
+                    <div className="mb-1 flex justify-start">
+                      <div className="rounded-2xl border border-[#0a0a0f]/10 bg-white px-3 py-2 shadow-[0_8px_18px_rgba(10,10,15,0.04)]">
+                        <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#0a0a0f]/50">
+                          Visitor
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="h-2 w-2 rounded-full bg-[#64748b] animate-bounce" />
+                          <span
+                            className="h-2 w-2 rounded-full bg-[#64748b] animate-bounce"
+                            style={{ animationDelay: "120ms" }}
+                          />
+                          <span
+                            className="h-2 w-2 rounded-full bg-[#64748b] animate-bounce"
+                            style={{ animationDelay: "240ms" }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
               </div>
 
               {(selectedConversation.conversation_mode === "agent_active" ||
                 selectedConversation.conversation_mode === "copilot") &&
-              selectedConversation.assigned_agent_id === currentAgentId &&
               canManageConversation ? (
                 <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 space-y-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
@@ -749,12 +1322,17 @@ export default function AgentInboxPage() {
               ) : null}
 
               <div className="space-y-2 sticky bottom-0 bg-[#fffdf9] pt-2">
+                <div className="flex items-center justify-between text-[11px] text-[#0a0a0f]/55">
+                  <span>Realtime reply box</span>
+                  <span>Press Enter to send · Shift+Enter for newline</span>
+                </div>
                 <textarea
                   value={replyText}
                   onChange={(event) => setReplyText(event.target.value)}
+                  onKeyDown={handleComposerKeyDown}
                   className="app-textarea"
                   placeholder="Type your reply..."
-                  rows={4}
+                  rows={3}
                   disabled={
                     !canManageConversation ||
                     submittingReply ||
@@ -762,7 +1340,13 @@ export default function AgentInboxPage() {
                       selectedConversation.conversation_mode !== "copilot")
                   }
                 />
-                <div className="flex justify-end">
+                <div className="flex justify-between items-center">
+                  <div className="text-xs text-[#0a0a0f]/45">
+                    {selectedConversation.conversation_mode === "agent_active" ||
+                    selectedConversation.conversation_mode === "copilot"
+                      ? "Live mode active"
+                      : "Join conversation to reply"}
+                  </div>
                   <button
                     type="button"
                     className="app-btn-primary"

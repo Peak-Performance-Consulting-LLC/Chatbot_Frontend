@@ -46,7 +46,7 @@ export const appPrimaryNavItems: PlatformNavItem[] = [
     label: "Agent Inbox",
     path: "/platform/app/inbox",
     icon: createElement(IconInbox),
-    allowedRoles: ["owner", "admin", "supervisor", "agent", "viewer"]
+    allowedRoles: ["owner", "agent"]
   },
   {
     key: "chatbot",

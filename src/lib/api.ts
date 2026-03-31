@@ -76,6 +76,13 @@ export type WidgetConfig = {
   supportCtaLabel?: string;
   headerCtaLabel?: string;
   headerCtaNotice?: string;
+  live_support?: {
+    availability: "online" | "busy" | "away" | "offline";
+    online_count: number;
+    busy_count: number;
+    away_count: number;
+    updated_at: string;
+  };
 };
 
 function resolveBaseUrl(override?: string) {
@@ -504,6 +511,9 @@ export async function requestHandoff(input: {
   after_hours?: boolean;
   after_hours_action?: "collect_info" | "overflow" | "ai_only";
   sla_first_response_due_at?: string | null;
+  all_agents_busy?: boolean;
+  waiting_eta_seconds?: number | null;
+  waiting_eta_label?: string | null;
 }> {
   const base = resolveBaseUrl(input.backendUrl);
   const response = await fetch(`${base}/api/conversation/${input.chatId}/handoff`, {
@@ -533,6 +543,9 @@ export async function requestHandoff(input: {
     after_hours?: boolean;
     after_hours_action?: "collect_info" | "overflow" | "ai_only";
     sla_first_response_due_at?: string | null;
+    all_agents_busy?: boolean;
+    waiting_eta_seconds?: number | null;
+    waiting_eta_label?: string | null;
   };
 }
 

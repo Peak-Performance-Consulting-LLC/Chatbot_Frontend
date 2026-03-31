@@ -56,14 +56,14 @@ const rightsByRole: Record<
   ],
   agent: [
     { label: "Account and profile management", enabled: true },
-    { label: "Conversation export", enabled: true },
+    { label: "Conversation export", enabled: false },
     { label: "Retention policy updates", enabled: false },
     { label: "Queue and team administration", enabled: false },
     { label: "Supervisor controls", enabled: false }
   ],
   viewer: [
     { label: "Account and profile management", enabled: true },
-    { label: "Conversation export", enabled: true },
+    { label: "Conversation export", enabled: false },
     { label: "Retention policy updates", enabled: false },
     { label: "Queue and team administration", enabled: false },
     { label: "Supervisor controls", enabled: false }
@@ -112,9 +112,11 @@ export default function AccountPage() {
   const subscription = selectedTenant?.subscription ?? profile?.subscription;
   const trialCountdown = useTrialCountdown(subscription?.trial_ends_at);
   const currentRole = selectedTenant?.workspace_role ?? null;
-  const canManageRetention =
-    currentRole === "owner" || currentRole === "admin";
-  const canExportConversations = Boolean(currentRole);
+  const canManageRetention = currentRole === "owner" || currentRole === "admin";
+  const canAccessWorkspaceGovernance =
+    currentRole === "owner" || currentRole === "admin" || currentRole === "supervisor";
+  const canExportConversations =
+    currentRole === "owner" || currentRole === "admin" || currentRole === "supervisor";
   const currentRights = currentRole ? rightsByRole[currentRole] : [];
 
   function formatPlanName(plan: PlatformSubscriptionPlan | undefined) {
@@ -160,7 +162,8 @@ export default function AccountPage() {
   }
 
   useEffect(() => {
-    if (!token || !selectedTenant?.tenant_id) {
+    if (!token || !selectedTenant?.tenant_id || !canAccessWorkspaceGovernance) {
+      setRetentionStatus("");
       return;
     }
 
@@ -191,7 +194,7 @@ export default function AccountPage() {
     return () => {
       disposed = true;
     };
-  }, [selectedTenant?.tenant_id, token]);
+  }, [canAccessWorkspaceGovernance, selectedTenant?.tenant_id, token]);
 
   function downloadBlob(blob: Blob, filename: string) {
     const href = URL.createObjectURL(blob);
@@ -206,7 +209,7 @@ export default function AccountPage() {
 
   async function handleSaveRetentionSettings(event: React.FormEvent) {
     event.preventDefault();
-    if (!token || !selectedTenant?.tenant_id) {
+    if (!token || !selectedTenant?.tenant_id || !canManageRetention) {
       return;
     }
 
@@ -234,7 +237,7 @@ export default function AccountPage() {
   }
 
   async function handleExport(format: "json" | "csv") {
-    if (!token || !selectedTenant?.tenant_id) {
+    if (!token || !selectedTenant?.tenant_id || !canExportConversations) {
       return;
     }
 
@@ -511,7 +514,7 @@ export default function AccountPage() {
         </div>
       ) : null}
 
-      {selectedTenant ? (
+      {selectedTenant && canAccessWorkspaceGovernance ? (
         <div className="app-card">
           <p className="app-card-title">Workspace Governance</p>
           <p style={{ fontSize: "0.82rem", color: "rgba(10,10,15,0.5)", marginTop: "-8px" }}>
@@ -648,6 +651,31 @@ export default function AccountPage() {
           </div>
 
           {retentionStatus ? <p className="app-success" style={{ marginTop: "12px" }}>{retentionStatus}</p> : null}
+        </div>
+      ) : selectedTenant ? (
+        <div className="app-card">
+          <p className="app-card-title">Workspace Governance</p>
+          <p style={{ fontSize: "0.82rem", color: "rgba(10,10,15,0.5)", marginTop: "-8px" }}>
+            Workspace: <strong>{selectedTenant.name || selectedTenant.tenant_id}</strong>
+          </p>
+          <div
+            style={{
+              marginTop: "14px",
+              border: "1px solid rgba(10,10,15,0.08)",
+              borderRadius: "18px",
+              padding: "16px 18px",
+              background: "rgba(250,248,244,0.7)"
+            }}
+          >
+            <p style={{ fontSize: "0.9rem", fontWeight: 600, margin: 0, color: "#0a0a0f" }}>
+              Workspace governance is restricted
+            </p>
+            <p style={{ fontSize: "0.82rem", color: "rgba(10,10,15,0.6)", margin: "8px 0 0" }}>
+              Retention policy and governance changes for this workspace are limited to owner and admin
+              roles. Conversation export is limited to supervisor, admin, and owner roles. Your current
+              access here is read-only.
+            </p>
+          </div>
         </div>
       ) : null}
 

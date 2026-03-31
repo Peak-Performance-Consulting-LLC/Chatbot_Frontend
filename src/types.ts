@@ -9,6 +9,9 @@ export type ConversationMode =
   | "closed";
 
 export type SenderType = "visitor" | "ai" | "agent" | "system";
+export type ExternalSenderType = "visitor" | "agent";
+export type VisitorState = "typing" | "active" | "idle" | "away";
+export type WaitingUrgency = "normal" | "warning" | "high" | "critical";
 
 export type ChatThread = {
   id: string;
@@ -21,6 +24,7 @@ export type ChatThread = {
   conversation_mode?: ConversationMode;
   conversation_status?: string;
   assigned_agent_id?: string | null;
+  closed_at?: string | null;
   sla_breached?: boolean;
   sla_started_at?: string | null;
   sla_first_response_due_at?: string | null;
@@ -30,6 +34,15 @@ export type ChatThread = {
   overflowed_at?: string | null;
   visitor_is_vip?: boolean;
   routing_skill?: string | null;
+  awaiting_agent_reply?: boolean;
+  last_external_sender_type?: ExternalSenderType | null;
+  last_external_message_at?: string | null;
+  last_visitor_message_at?: string | null;
+  last_visitor_typing_at?: string | null;
+  last_visitor_activity_at?: string | null;
+  visitor_state?: VisitorState;
+  waiting_urgency?: WaitingUrgency | null;
+  waiting_age_seconds?: number | null;
   archived_at?: string | null;
   visitor_name?: string | null;
   visitor_email?: string | null;

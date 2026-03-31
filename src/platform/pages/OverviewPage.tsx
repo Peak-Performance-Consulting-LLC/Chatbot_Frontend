@@ -297,8 +297,8 @@ export default function OverviewPage() {
 
   const profile = selectedTenant.business_profile;
   const currentRole = selectedTenant.workspace_role ?? "viewer";
-  const isWorkspaceScopedRole =
-    currentRole === "agent" || currentRole === "supervisor" || currentRole === "viewer";
+  const isAgentRole = currentRole === "agent";
+  const isWorkspaceScopedRole = true;
   const domainVerification = selectedTenant.domain_verification;
   const knowledgeBase = selectedTenant.knowledge_base;
   const widgetReady = selectedTenant.widget?.enabled === true;
@@ -324,9 +324,9 @@ export default function OverviewPage() {
     { label: "Specialist number", value: profile.support_phone || "Not configured" }
   ];
 
-  const activeScope = isWorkspaceScopedRole ? analytics?.workspace ?? null : analytics?.account ?? null;
+  const activeScope = analytics?.workspace ?? null;
   const activeSummary = activeScope?.summary ?? null;
-  const activeTrendData = isWorkspaceScopedRole ? workspaceTrendData : trendData;
+  const activeTrendData = workspaceTrendData;
   const serviceMix = activeScope?.services ?? [];
   const topIntents = activeScope?.intents.slice(0, 4) ?? [];
   const hasUsage =
@@ -402,12 +402,18 @@ export default function OverviewPage() {
                 Usage Analytics
               </p>
               <h3 className="mt-2 font-[family-name:var(--font-display)] text-4xl font-light leading-none text-[#0a0a0f]">
-                {isWorkspaceScopedRole ? "Live workspace activity" : "Live account and workspace activity"}
+                {isAgentRole
+                  ? "Your activity in this workspace"
+                  : isWorkspaceScopedRole
+                    ? "Live workspace activity"
+                    : "Live account and workspace activity"}
               </h3>
               <p className="mt-2 max-w-2xl text-sm text-[#0a0a0f]/55">
-                {isWorkspaceScopedRole
-                  ? "Messages, tokens, visitors, quota usage, and response performance for the selected workspace update automatically every minute while this page is visible."
-                  : "Messages, tokens, visitors, quota usage, and workspace health update automatically every minute while this page is visible."}
+                {isAgentRole
+                  ? "Only conversations assigned to you are included here. Other agents, other invited users, and other companies are excluded."
+                  : isWorkspaceScopedRole
+                    ? "Messages, tokens, visitors, quota usage, and response performance for the selected workspace update automatically every minute while this page is visible."
+                    : "Messages, tokens, visitors, quota usage, and workspace health update automatically every minute while this page is visible."}
               </p>
               {tokenTrackingStartedAt ? (
                 <p className="mt-3 text-xs text-[#0a0a0f]/45">
@@ -458,12 +464,20 @@ export default function OverviewPage() {
                   <MetricCard
                     label="Conversations"
                     value={formatCompactNumber(activeSummary.conversations)}
-                    note={`${formatExactNumber(activeSummary.unique_visitors)} unique visitors in this window`}
+                    note={
+                      isAgentRole
+                        ? `${formatExactNumber(activeSummary.unique_visitors)} visitors across conversations assigned to you`
+                        : `${formatExactNumber(activeSummary.unique_visitors)} unique visitors in this window`
+                    }
                   />
                   <MetricCard
                     label="Messages"
                     value={formatCompactNumber(activeSummary.messages_total)}
-                    note={`${formatExactNumber(activeSummary.user_messages)} user / ${formatExactNumber(activeSummary.assistant_messages)} assistant`}
+                    note={
+                      isAgentRole
+                        ? `${formatExactNumber(activeSummary.user_messages)} visitor / ${formatExactNumber(activeSummary.assistant_messages)} assistant on your assigned chats`
+                        : `${formatExactNumber(activeSummary.user_messages)} user / ${formatExactNumber(activeSummary.assistant_messages)} assistant`
+                    }
                   />
                   <MetricCard
                     label="Tokens used"
@@ -479,7 +493,11 @@ export default function OverviewPage() {
                     <MetricCard
                       label="Knowledge hit rate"
                       value={formatPercent(activeScope?.knowledge_hit_rate ?? null)}
-                      note="Knowledge-assisted responses inside this workspace"
+                      note={
+                        isAgentRole
+                          ? "Knowledge-assisted responses inside conversations assigned to you"
+                          : "Knowledge-assisted responses inside this workspace"
+                      }
                     />
                   ) : (
                     <MetricCard
@@ -488,12 +506,20 @@ export default function OverviewPage() {
                       note={`${analytics.account.health.dns_verified_count} DNS verified / ${analytics.account.health.knowledge_ready_count} knowledge ready`}
                     />
                   )}
-                  <MetricCard
-                    label="Message quota used"
-                    value={`${formatCompactNumber(activeSummary.message_quota_used)} / ${formatCompactNumber(activeSummary.message_quota_limit)}`}
-                    note={`${Math.round(quotaRatio * 100)}% of the current billing allowance`}
-                    accent={quotaAccent}
-                  />
+                  {isAgentRole ? (
+                    <MetricCard
+                      label="Response speed"
+                      value={formatDuration(activeSummary.avg_response_ms)}
+                      note="Assistant response time inside conversations assigned to you"
+                    />
+                  ) : (
+                    <MetricCard
+                      label="Message quota used"
+                      value={`${formatCompactNumber(activeSummary.message_quota_used)} / ${formatCompactNumber(activeSummary.message_quota_limit)}`}
+                      note={`${Math.round(quotaRatio * 100)}% of the current billing allowance`}
+                      accent={quotaAccent}
+                    />
+                  )}
                   <MetricCard
                     label="VIP conversations"
                     value={formatCompactNumber(activeSummary.vip_conversations)}
@@ -538,7 +564,11 @@ export default function OverviewPage() {
                             {isWorkspaceScopedRole ? "Workspace Trend" : "Messages vs Tokens"}
                           </p>
                           <h4 className="mt-1 text-lg font-semibold text-[#0a0a0f]">
-                            {isWorkspaceScopedRole ? `${selectedTenant.name || profile.bot_name || "Workspace"} usage trend` : "Usage trend"}
+                            {isAgentRole
+                              ? `${selectedTenant.name || profile.bot_name || "Workspace"} conversations assigned to you`
+                              : isWorkspaceScopedRole
+                                ? `${selectedTenant.name || profile.bot_name || "Workspace"} usage trend`
+                                : "Usage trend"}
                           </h4>
                         </div>
                         <span className="text-xs text-[#0a0a0f]/45">Dynamic by selected range</span>
@@ -597,7 +627,11 @@ export default function OverviewPage() {
                             {isWorkspaceScopedRole ? "Token Source Breakdown" : "Workspace Usage"}
                           </p>
                           <h4 className="mt-1 text-lg font-semibold text-[#0a0a0f]">
-                            {isWorkspaceScopedRole ? "Where token accounting comes from" : "Top workspaces by message volume"}
+                            {isAgentRole
+                              ? "Token usage on your assigned conversations"
+                              : isWorkspaceScopedRole
+                                ? "Where token accounting comes from"
+                                : "Top workspaces by message volume"}
                           </h4>
                         </div>
                       </div>
@@ -629,7 +663,9 @@ export default function OverviewPage() {
                               {formatDuration(activeScope?.avg_response_ms ?? null)}
                             </strong>
                             <p className="mt-2 text-sm text-[#0a0a0f]/52">
-                              Measured from assistant generation start to final text in this workspace
+                              {isAgentRole
+                                ? "Measured from assistant generation start to final text in conversations assigned to you"
+                                : "Measured from assistant generation start to final text in this workspace"}
                             </p>
                           </div>
                         </div>
@@ -679,7 +715,9 @@ export default function OverviewPage() {
                           </p>
                           <h4 className="mt-1 text-lg font-semibold text-[#0a0a0f]">
                             {isWorkspaceScopedRole
-                              ? "Assistant intent and service distribution for this workspace"
+                              ? isAgentRole
+                                ? "Assistant intent and service distribution for conversations assigned to you"
+                                : "Assistant intent and service distribution for this workspace"
                               : "Assistant intent and service distribution"}
                           </h4>
                         </div>
@@ -797,7 +835,9 @@ export default function OverviewPage() {
                                 value: activeSummary?.avg_response_ms
                                   ? formatDuration(activeSummary.avg_response_ms)
                                   : "No data",
-                                note: "Measured from assistant generation start to final text"
+                                note: isAgentRole
+                                  ? "Measured from assistant generation start to final text on your assigned conversations"
+                                  : "Measured from assistant generation start to final text"
                               }
                             ]
                           : [
