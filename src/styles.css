@@ -63,6 +63,7 @@
   --radius-sm:        10px;
   --shadow-float:     0 24px 60px rgba(10,10,15,0.18), 0 8px 20px rgba(10,10,15,0.09);
   --shadow-bubble:    0 2px 8px rgba(10,10,15,0.07);
+  --chat-viewport-height: 100vh;
   --ease-spring:      cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth:      cubic-bezier(0.4, 0, 0.2, 1);
   --transition:       200ms var(--ease-smooth);
@@ -76,10 +77,39 @@ html { scroll-behavior: smooth; }
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: var(--font-body);
   background: #faf8f4;
   color: #0a0a0f;
   -webkit-font-smoothing: antialiased;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --chat-viewport-height: 100dvh;
+  }
+
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* iOS Safari: prevent focus zoom on sub-16px form controls. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 1024px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"]),
+    textarea,
+    select {
+      font-size: 16px !important;
+      line-height: 1.35;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="image"]):not([type="button"]):not([type="submit"]):not([type="reset"])::placeholder,
+    textarea::placeholder {
+      font-size: 1em !important;
+    }
+  }
 }
 
 html.chat-widget-embedded,
@@ -138,7 +168,7 @@ body.chat-widget-embedded {
   right: 20px;
   bottom: 82px;
   width: min(var(--widget-width, 440px), calc(100vw - 32px));
-  height: min(var(--widget-height, 700px), calc(100vh - 104px));
+  height: min(var(--widget-height, 700px), calc(var(--chat-viewport-height) - 104px));
   background: #ffffff;
   border-radius: var(--widget-radius, 18px);
   box-shadow: 0 0 0 1px rgba(10,10,15,0.08);
@@ -153,12 +183,12 @@ body.chat-widget-embedded {
 .chat-shell-right { left: auto; right: 20px; }
 .chat-shell.embedded {
   top: 0; right: 0; bottom: 0; left: 0;
-  width: 100vw; height: 100vh;
+  width: 100vw; height: var(--chat-viewport-height);
   border-radius: 0; box-shadow: none; animation: none;
 }
 .chat-shell.embedded.public-embed-shell {
   top: 0; right: 0; bottom: 90px; left: 0;
-  width: 100vw; height: calc(100vh - 90px);
+  width: 100vw; height: calc(var(--chat-viewport-height) - 90px);
   box-shadow: 0 0 0 1px rgba(10,10,15,0.08);
   border-radius: var(--widget-radius, 18px);
 }
@@ -435,12 +465,12 @@ body.chat-widget-embedded {
   }
   .chat-shell {
     width: calc(100vw - 24px);
-    height: min(var(--widget-height, 640px), calc(100vh - 86px));
+    height: min(var(--widget-height, 640px), calc(var(--chat-viewport-height) - 86px));
     right: 12px; left: auto; bottom: 74px;
   }
   .chat-shell-left { left: 12px; right: auto; }
   .chat-shell.embedded.public-embed-shell {
-    height: calc(100vh - 70px);
+    height: calc(var(--chat-viewport-height) - 70px);
     bottom: 70px;
     border-radius: 20px 20px 0 0;
   }
@@ -1620,7 +1650,7 @@ body.chat-widget-embedded .chat-shell.embedded.public-embed-shell.chat-shell-lef
 @media (max-width: 640px) {
   .chat-shell {
     width: min(var(--widget-width, 380px), calc(100vw - 28px), 356px);
-    height: min(var(--widget-height, 640px), calc(100vh - 118px), 620px);
+    height: min(var(--widget-height, 640px), calc(var(--chat-viewport-height) - 118px), 620px);
     right: 14px;
     bottom: 78px;
   }
