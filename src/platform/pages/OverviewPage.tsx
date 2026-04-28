@@ -166,30 +166,31 @@ function AnalyticsTooltip({
 function MetricCard(input: {
   label: string;
   value: string;
-  note: string;
+  note?: string;
   accent?: "default" | "warning";
 }) {
-  const accentClass =
-    input.accent === "warning"
-      ? "border-[#c74b4b]/15 bg-[#fff6f6]"
-      : "border-[#0a0a0f]/08 bg-white";
+  const accentClass = input.accent === "warning"
+    ? "overview-metric-card overview-metric-card-warning"
+    : "overview-metric-card";
 
   return (
-    <div className={`rounded-2xl border p-4 shadow-sm ${accentClass}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0a0a0f]/42">
+    <div className={`${accentClass}`}>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/50">
         {input.label}
       </p>
-      <strong className="mt-2 block font-[family-name:var(--font-display)] text-[1.9rem] font-light leading-none text-[#0a0a0f]">
+      <strong className="mt-1.5 block font-[family-name:var(--font-display)] text-lg font-semibold leading-none text-[#0a0a0f]">
         {input.value}
       </strong>
-      <p className="mt-2 text-sm text-[#0a0a0f]/55">{input.note}</p>
+      {input.note && (
+        <p className="mt-1 text-xs text-[#0a0a0f]/55 leading-relaxed">{input.note}</p>
+      )}
     </div>
   );
 }
 
 function EmptyAnalyticsState() {
   return (
-    <div className="rounded-3xl border border-dashed border-[#c9a96e]/40 bg-white/70 px-6 py-10 text-center shadow-sm">
+    <div className="overview-empty-state px-6 py-10 text-center">
       <span className="inline-flex rounded-full border border-[#c9a96e]/30 bg-[#fffaf1] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
         Usage starts after first visitor conversation
       </span>
@@ -338,8 +339,11 @@ export default function OverviewPage() {
   const tokenTrackingStartedAt = formatDateTime(analytics?.token_tracking_started_at ?? null);
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="overview-page space-y-6">
+      <span className="overview-page-orb overview-page-orb-gold" />
+      <span className="overview-page-orb overview-page-orb-teal" />
+
+      <div className="overview-hero">
         <p className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-[#a07840]">
           <span className="h-px w-5 bg-[#c9a96e]" /> Control Center
         </p>
@@ -350,38 +354,16 @@ export default function OverviewPage() {
           Track onboarding status, live usage, and readiness before pushing the concierge to your
           public website.
         </p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <span className="overview-hero-chip">{progress}% launch readiness</span>
+          <span className="overview-hero-chip">{completedSteps}/{checklist.length} checks complete</span>
+          <span className="overview-hero-chip">Auto-refresh: every 60s</span>
+        </div>
       </div>
 
-      {/* <div className="rounded-2xl border border-[#1a5c5c]/15 bg-gradient-to-br from-[#1a5c5c]/[0.06] to-[#c9a96e]/[0.04] p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 flex-1">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-[#a07840]">
-              Launch readiness
-            </span>
-            <strong className="mt-1 block text-lg font-semibold text-[#0a0a0f]">
-              {completedSteps} of {checklist.length} steps completed
-            </strong>
-            <p className="mt-0.5 text-sm text-[#0a0a0f]/50">
-              Your concierge is almost ready for production deployment.
-            </p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#0a0a0f]/08">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#1a5c5c] to-[#2a8080] transition-all duration-700"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          </div>
-          <Link
-            to="/platform/app/site-setup"
-            className="inline-flex items-center gap-2 self-start rounded-xl bg-[#0a0a0f] px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#1a5c5c] sm:self-center"
-          >
-            Continue setup →
-          </Link>
-        </div>
-      </div> */}
 
       {domainVerification?.status !== "verified" && (
-        <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+        <div className="overview-warning-banner flex gap-3 p-4">
           <span className="mt-0.5 text-amber-500">⚠</span>
           <div>
             <strong className="text-sm font-semibold text-amber-800">
@@ -395,7 +377,7 @@ export default function OverviewPage() {
       )}
 
       <section className="space-y-5">
-        <div className="flex flex-col gap-4 rounded-3xl border border-[#0a0a0f]/08 bg-white/90 p-5 shadow-sm sm:p-6">
+        <div className="overview-surface flex flex-col gap-4 p-5 sm:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
@@ -431,11 +413,10 @@ export default function OverviewPage() {
                     key={option.value}
                     type="button"
                     onClick={() => setRange(option.value)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      active
-                        ? "bg-[#0a0a0f] text-white shadow-md"
-                        : "border border-[#0a0a0f]/10 bg-[#faf8f4] text-[#0a0a0f]/65 hover:border-[#c9a96e]/35 hover:text-[#0a0a0f]"
-                    }`}
+                    className={`overview-range-chip rounded-full px-4 py-2 text-sm font-semibold transition ${active
+                        ? "overview-range-chip-active"
+                        : "overview-range-chip-idle"
+                      }`}
                   >
                     {option.label}
                   </button>
@@ -445,110 +426,72 @@ export default function OverviewPage() {
           </div>
 
           {analyticsLoading && !analytics ? (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, index) => (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, index) => (
                 <div
                   key={index}
-                  className="h-32 animate-pulse rounded-2xl border border-[#0a0a0f]/06 bg-[#faf8f4]"
+                  className="h-24 animate-pulse rounded-2xl bg-white/70"
                 />
               ))}
             </div>
           ) : analyticsError ? (
-            <div className="rounded-2xl border border-[#c74b4b]/15 bg-[#fff6f6] px-5 py-4 text-sm text-[#9c3a3a]">
+            <div className="overview-error-banner px-5 py-4 text-sm text-[#9c3a3a]">
               {analyticsError}
             </div>
           ) : analytics ? (
             <>
               {activeSummary ? (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-8">
                   <MetricCard
                     label="Conversations"
                     value={formatCompactNumber(activeSummary.conversations)}
-                    note={
-                      isAgentRole
-                        ? `${formatExactNumber(activeSummary.unique_visitors)} visitors across conversations assigned to you`
-                        : `${formatExactNumber(activeSummary.unique_visitors)} unique visitors in this window`
-                    }
                   />
                   <MetricCard
                     label="Messages"
                     value={formatCompactNumber(activeSummary.messages_total)}
-                    note={
-                      isAgentRole
-                        ? `${formatExactNumber(activeSummary.user_messages)} visitor / ${formatExactNumber(activeSummary.assistant_messages)} assistant on your assigned chats`
-                        : `${formatExactNumber(activeSummary.user_messages)} user / ${formatExactNumber(activeSummary.assistant_messages)} assistant`
-                    }
                   />
                   <MetricCard
                     label="Tokens used"
                     value={formatCompactNumber(activeSummary.tokens_total)}
-                    note={`${formatExactNumber(activeSummary.tokens_exact)} exact and ${formatExactNumber(activeSummary.tokens_estimated)} estimated`}
                   />
                   <MetricCard
                     label="Unique visitors"
                     value={formatCompactNumber(activeSummary.unique_visitors)}
-                    note="Distinct device IDs across visitor conversations"
                   />
                   {isWorkspaceScopedRole ? (
                     <MetricCard
                       label="Knowledge hit rate"
                       value={formatPercent(activeScope?.knowledge_hit_rate ?? null)}
-                      note={
-                        isAgentRole
-                          ? "Knowledge-assisted responses inside conversations assigned to you"
-                          : "Knowledge-assisted responses inside this workspace"
-                      }
                     />
                   ) : (
                     <MetricCard
                       label="Active workspaces"
                       value={formatCompactNumber(analytics.account.health.workspaces_total)}
-                      note={`${analytics.account.health.dns_verified_count} DNS verified / ${analytics.account.health.knowledge_ready_count} knowledge ready`}
                     />
                   )}
                   {isAgentRole ? (
                     <MetricCard
                       label="Response speed"
                       value={formatDuration(activeSummary.avg_response_ms)}
-                      note="Assistant response time inside conversations assigned to you"
                     />
                   ) : (
                     <MetricCard
                       label="Message quota used"
                       value={`${formatCompactNumber(activeSummary.message_quota_used)} / ${formatCompactNumber(activeSummary.message_quota_limit)}`}
-                      note={`${Math.round(quotaRatio * 100)}% of the current billing allowance`}
                       accent={quotaAccent}
                     />
                   )}
-                  <MetricCard
-                    label="VIP conversations"
-                    value={formatCompactNumber(activeSummary.vip_conversations)}
-                    note="Visitor-tagged VIP handoffs in this range"
-                  />
+
                   <MetricCard
                     label="Avg first response"
                     value={formatSeconds(activeSummary.avg_first_response_seconds)}
-                    note="From handoff request to first agent reply"
                   />
-                  <MetricCard
-                    label="Avg handle time"
-                    value={formatSeconds(activeSummary.avg_handle_seconds)}
-                    note="From assignment to closed conversation"
-                  />
+
                   <MetricCard
                     label="Agent utilization"
                     value={formatUtilization(activeSummary.agent_utilization_ratio)}
-                    note="Active assigned chats / configured queue capacity"
                   />
-                  <MetricCard
-                    label="CSAT"
-                    value={
-                      activeSummary.csat_avg_rating === null
-                        ? "No data"
-                        : `${activeSummary.csat_avg_rating.toFixed(2)} / 5`
-                    }
-                    note={`${formatExactNumber(activeSummary.csat_responses)} responses`}
-                  />
+
                 </div>
               ) : null}
 
@@ -557,7 +500,7 @@ export default function OverviewPage() {
               ) : (
                 <>
                   <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(320px,0.9fr)]">
-                    <div className="rounded-3xl border border-[#0a0a0f]/08 bg-[#fffdf9] p-5 shadow-sm">
+                    <div className="overview-surface p-5">
                       <div className="mb-4 flex items-center justify-between">
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
@@ -620,7 +563,7 @@ export default function OverviewPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-3xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
+                    <div className="overview-surface p-5">
                       <div className="mb-4 flex items-center justify-between">
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
@@ -645,24 +588,23 @@ export default function OverviewPage() {
                                   {formatCompactNumber(source.value)}
                                 </span>
                               </div>
-                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#faf8f4]">
+                              <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/75">
                                 <div
-                                  className={`h-full rounded-full ${
-                                    source.key === "estimated" ? "bg-[#c74b4b]" : "bg-[#1a5c5c]"
-                                  }`}
+                                  className={`h-full rounded-full ${source.key === "estimated" ? "bg-[#c74b4b]" : "bg-[#1a5c5c]"
+                                    }`}
                                   style={{ width: `${Math.max(4, Math.round(source.share * 100))}%` }}
                                 />
                               </div>
                             </div>
                           ))}
-                          <div className="rounded-2xl bg-[#faf8f4] px-4 py-4">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/42">
+                          <div className="overview-soft-card p-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/50">
                               Response speed
                             </p>
-                            <strong className="mt-2 block text-2xl font-semibold text-[#0a0a0f]">
+                            <strong className="mt-1.5 block text-lg font-semibold text-[#0a0a0f]">
                               {formatDuration(activeScope?.avg_response_ms ?? null)}
                             </strong>
-                            <p className="mt-2 text-sm text-[#0a0a0f]/52">
+                            <p className="mt-1 text-xs text-[#0a0a0f]/55 leading-relaxed">
                               {isAgentRole
                                 ? "Measured from assistant generation start to final text in conversations assigned to you"
                                 : "Measured from assistant generation start to final text in this workspace"}
@@ -670,7 +612,7 @@ export default function OverviewPage() {
                           </div>
                         </div>
                       ) : workspaceBarData.length === 0 ? (
-                        <div className="rounded-2xl bg-[#faf8f4] px-4 py-6 text-sm text-[#0a0a0f]/50">
+                        <div className="rounded-xl border border-dashed border-[#0a0a0f]/12 bg-white/70 px-4 py-5 text-xs text-[#0a0a0f]/50">
                           Workspace usage will appear here after conversations start.
                         </div>
                       ) : (
@@ -707,7 +649,7 @@ export default function OverviewPage() {
                   </div>
 
                   <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
-                    <div className="rounded-3xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
+                    <div className="overview-surface p-5">
                       <div className="mb-4 flex items-center justify-between">
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
@@ -725,7 +667,7 @@ export default function OverviewPage() {
                       <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
                         <div className="h-[220px]">
                           {serviceMix.length === 0 ? (
-                            <div className="flex h-full items-center justify-center rounded-2xl bg-[#faf8f4] px-4 text-center text-sm text-[#0a0a0f]/50">
+                            <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[#0a0a0f]/10 bg-white/70 px-4 text-center text-xs text-[#0a0a0f]/50">
                               Service mix appears after tracked assistant turns are recorded.
                             </div>
                           ) : (
@@ -758,40 +700,40 @@ export default function OverviewPage() {
                             {serviceMix.slice(0, 4).map((item, index) => (
                               <div
                                 key={item.key}
-                                className="rounded-2xl bg-[#faf8f4] px-4 py-3"
+                                className="overview-soft-card p-2.5"
                               >
                                 <div className="flex items-center gap-2">
                                   <span
-                                    className="h-2.5 w-2.5 rounded-full"
+                                    className="h-2 w-2 rounded-full"
                                     style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
                                   />
-                                  <span className="text-sm font-medium text-[#0a0a0f]">
+                                  <span className="text-xs font-semibold text-[#0a0a0f]">
                                     {item.label}
                                   </span>
                                 </div>
-                                <p className="mt-2 text-xs text-[#0a0a0f]/52">
+                                <p className="mt-1.5 text-xs text-[#0a0a0f]/55">
                                   {formatExactNumber(item.value)} turns
                                 </p>
                               </div>
                             ))}
                           </div>
 
-                          <div className="rounded-2xl border border-[#0a0a0f]/08 bg-[#fffdf9] p-4">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#0a0a0f]/42">
+                          <div className="overview-soft-card p-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/50">
                               Top intents
                             </p>
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-2 flex flex-wrap gap-1.5">
                               {topIntents.length > 0 ? (
                                 topIntents.map((item) => (
                                   <span
                                     key={item.key}
-                                    className="rounded-full border border-[#0a0a0f]/10 bg-white px-3 py-1.5 text-sm text-[#0a0a0f]/68"
+                                    className="rounded-full border border-[#0a0a0f]/10 bg-white/95 px-2.5 py-1 text-xs text-[#0a0a0f]/65"
                                   >
                                     {item.label} · {formatExactNumber(item.value)}
                                   </span>
                                 ))
                               ) : (
-                                <span className="text-sm text-[#0a0a0f]/50">
+                                <span className="text-xs text-[#0a0a0f]/50">
                                   Intent mix appears after tracked turns are recorded.
                                 </span>
                               )}
@@ -801,7 +743,7 @@ export default function OverviewPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-3xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
+                    <div className="overview-surface p-5">
                       <div className="mb-4">
                         <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
                           {isWorkspaceScopedRole ? "Workspace Performance" : "Operations Health"}
@@ -813,78 +755,77 @@ export default function OverviewPage() {
                       <div className="grid gap-3 sm:grid-cols-2">
                         {(isWorkspaceScopedRole
                           ? [
-                              {
-                                label: "DNS status",
-                                value: domainVerification?.status === "verified" ? "Verified" : "Pending",
-                                note: getDnsReminderMessage(domainVerification)
-                              },
-                              {
-                                label: "Knowledge base",
-                                value: getKnowledgeStatusLabel(knowledgeBase.status),
-                                note: knowledgeBase.message || "Current ingestion and answer state"
-                              },
-                              {
-                                label: "Widget status",
-                                value: widgetReady ? "Ready" : "Blocked",
-                                note: widgetReady
-                                  ? "Live install is available for this workspace"
-                                  : "Widget unlocks once DNS is verified"
-                              },
-                              {
-                                label: "Avg response",
-                                value: activeSummary?.avg_response_ms
-                                  ? formatDuration(activeSummary.avg_response_ms)
-                                  : "No data",
-                                note: isAgentRole
-                                  ? "Measured from assistant generation start to final text on your assigned conversations"
-                                  : "Measured from assistant generation start to final text"
-                              }
-                            ]
+                            {
+                              label: "DNS status",
+                              value: domainVerification?.status === "verified" ? "Verified" : "Pending",
+                              note: getDnsReminderMessage(domainVerification)
+                            },
+                            {
+                              label: "Knowledge base",
+                              value: getKnowledgeStatusLabel(knowledgeBase.status),
+                              note: knowledgeBase.message || "Current ingestion and answer state"
+                            },
+                            {
+                              label: "Widget status",
+                              value: widgetReady ? "Ready" : "Blocked",
+                              note: widgetReady
+                                ? "Live install is available for this workspace"
+                                : "Widget unlocks once DNS is verified"
+                            },
+                            {
+                              label: "Avg response",
+                              value: activeSummary?.avg_response_ms
+                                ? formatDuration(activeSummary.avg_response_ms)
+                                : "No data",
+                              note: isAgentRole
+                                ? "Measured from assistant generation start to final text on your assigned conversations"
+                                : "Measured from assistant generation start to final text"
+                            }
+                          ]
                           : [
-                              {
-                                label: "DNS verified",
-                                value: analytics.account.health.dns_verified_count,
-                                note: `${analytics.account.health.workspaces_total} total workspaces`
-                              },
-                              {
-                                label: "Knowledge ready",
-                                value: analytics.account.health.knowledge_ready_count,
-                                note: "Ready or warning states included"
-                              },
-                              {
-                                label: "Widget ready",
-                                value: analytics.account.health.widget_ready_count,
-                                note: "Live install available after DNS"
-                              },
-                              {
-                                label: "Avg response",
-                                value: analytics.account.summary.avg_response_ms
-                                  ? formatDuration(analytics.account.summary.avg_response_ms)
-                                  : "No data",
-                                note: "Measured from assistant generation start to final text"
-                              }
-                            ]).map((item) => (
-                          <div
-                            key={item.label}
-                            className="rounded-2xl bg-[#faf8f4] px-4 py-4"
-                          >
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#0a0a0f]/42">
-                              {item.label}
-                            </p>
-                            <strong className="mt-2 block text-2xl font-semibold text-[#0a0a0f]">
-                              {typeof item.value === "number"
-                                ? formatCompactNumber(item.value)
-                                : item.value}
-                            </strong>
-                            <p className="mt-2 text-sm text-[#0a0a0f]/52">{item.note}</p>
-                          </div>
-                        ))}
+                            {
+                              label: "DNS verified",
+                              value: analytics.account.health.dns_verified_count,
+                              note: `${analytics.account.health.workspaces_total} total workspaces`
+                            },
+                            {
+                              label: "Knowledge ready",
+                              value: analytics.account.health.knowledge_ready_count,
+                              note: "Ready or warning states included"
+                            },
+                            {
+                              label: "Widget ready",
+                              value: analytics.account.health.widget_ready_count,
+                              note: "Live install available after DNS"
+                            },
+                            {
+                              label: "Avg response",
+                              value: analytics.account.summary.avg_response_ms
+                                ? formatDuration(analytics.account.summary.avg_response_ms)
+                                : "No data",
+                              note: "Measured from assistant generation start to final text"
+                            }
+                          ]).map((item) => (
+                            <div
+                              key={item.label}
+                              className="overview-soft-card p-2.5"
+                            >
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/50">
+                                {item.label}
+                              </p>
+                              <strong className="mt-1 block text-lg font-semibold text-[#0a0a0f]">
+                                {typeof item.value === "number"
+                                  ? formatCompactNumber(item.value)
+                                  : item.value}
+                              </strong>
+                            </div>
+                          ))}
                       </div>
                     </div>
                   </div>
 
                   {!isWorkspaceScopedRole && analytics.workspace ? (
-                    <div className="rounded-3xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
+                    <div className="overview-surface p-5">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                         <div>
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
@@ -938,7 +879,7 @@ export default function OverviewPage() {
                           ].map((item) => (
                             <div
                               key={item.label}
-                              className="rounded-2xl border border-[#0a0a0f]/08 bg-[#faf8f4] px-4 py-3"
+                              className="overview-soft-card px-4 py-3"
                             >
                               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/42">
                                 {item.label}
@@ -952,7 +893,7 @@ export default function OverviewPage() {
                       </div>
 
                       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_320px]">
-                        <div className="rounded-2xl border border-[#0a0a0f]/08 bg-[#fffdf9] p-4">
+                        <div className="overview-surface p-4">
                           <div className="mb-3 flex items-center justify-between">
                             <p className="text-sm font-semibold text-[#0a0a0f]">
                               Workspace trend
@@ -997,7 +938,7 @@ export default function OverviewPage() {
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-[#0a0a0f]/08 bg-[#faf8f4] p-4">
+                        <div className="overview-soft-card p-4">
                           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#a07840]">
                             Token source breakdown
                           </p>
@@ -1010,18 +951,17 @@ export default function OverviewPage() {
                                     {formatCompactNumber(source.value)}
                                   </span>
                                 </div>
-                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white">
+                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/85">
                                   <div
-                                    className={`h-full rounded-full ${
-                                      source.key === "estimated" ? "bg-[#c74b4b]" : "bg-[#1a5c5c]"
-                                    }`}
+                                    className={`h-full rounded-full ${source.key === "estimated" ? "bg-[#c74b4b]" : "bg-[#1a5c5c]"
+                                      }`}
                                     style={{ width: `${Math.max(4, Math.round(source.share * 100))}%` }}
                                   />
                                 </div>
                               </div>
                             ))}
                           </div>
-                          <div className="mt-5 rounded-2xl bg-white px-4 py-3">
+                          <div className="overview-soft-card mt-5 px-4 py-3">
                             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#0a0a0f]/42">
                               Response speed
                             </p>
@@ -1041,13 +981,13 @@ export default function OverviewPage() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
+        <div className="overview-surface p-5">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[#0a0a0f]/50">
             Workspace details
           </h3>
           <dl className="grid grid-cols-2 gap-4">
             {kpis.map((kpi) => (
-              <div key={kpi.label} className="rounded-xl bg-[#faf8f4] px-4 py-3">
+              <div key={kpi.label} className="overview-soft-card px-4 py-3">
                 <dt className="text-[11px] uppercase tracking-wider text-[#0a0a0f]/40">
                   {kpi.label}
                 </dt>
@@ -1060,7 +1000,7 @@ export default function OverviewPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-2xl border border-[#0a0a0f]/08 bg-white p-5 shadow-sm">
+          <div className="overview-surface p-5">
             <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-[#0a0a0f]/50">
               Launch checklist
             </h3>
@@ -1068,18 +1008,16 @@ export default function OverviewPage() {
               {checklist.map((item) => (
                 <li key={item.label} className="flex items-center gap-3">
                   <span
-                    className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                      item.done
-                        ? "bg-[#1a5c5c]/10 text-[#1a5c5c]"
-                        : "bg-[#0a0a0f]/06 text-[#0a0a0f]/30"
-                    }`}
+                    className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold ${item.done
+                        ? "bg-[#1a5c5c]/12 text-[#1a5c5c]"
+                        : "bg-white/75 text-[#0a0a0f]/35"
+                      }`}
                   >
                     {item.done ? "✓" : "·"}
                   </span>
                   <span
-                    className={`text-sm ${
-                      item.done ? "text-[#0a0a0f]" : "text-[#0a0a0f]/40"
-                    }`}
+                    className={`text-sm ${item.done ? "text-[#0a0a0f]" : "text-[#0a0a0f]/40"
+                      }`}
                   >
                     {item.label}
                   </span>
@@ -1101,7 +1039,7 @@ export default function OverviewPage() {
             ].map((item) => (
               <div
                 key={item.label}
-                className="rounded-2xl border border-[#0a0a0f]/08 bg-white p-4 shadow-sm"
+                className="overview-soft-card p-4"
               >
                 <strong className="block text-sm font-semibold text-[#0a0a0f]">
                   {item.label}
@@ -1120,7 +1058,7 @@ export default function OverviewPage() {
               <Link
                 key={item.label}
                 to={item.to}
-                className="rounded-lg border border-[#0a0a0f]/10 bg-white px-4 py-2 text-sm font-medium text-[#0a0a0f]/70 shadow-sm transition hover:border-[#1a5c5c]/30 hover:text-[#1a5c5c]"
+                className="rounded-lg border border-[#0a0a0f]/10 bg-white/95 px-4 py-2 text-sm font-medium text-[#0a0a0f]/75 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#1a5c5c]/40 hover:bg-white hover:text-[#1a5c5c] hover:shadow-lg"
               >
                 {item.label}
               </Link>

@@ -148,14 +148,22 @@ export function resolvePlatformApiBaseUrl(override?: string) {
   return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 
-function toNetworkError(path: string, error: unknown): Error {
+function toNetworkError(path: string, error: unknown, target?: string): Error {
+  const requestTarget = target || path;
   if (error instanceof Error && error.name === "AbortError") {
-    return new Error(`Request to ${path} was interrupted before the backend responded.`);
+    return new Error(`Request to ${requestTarget} was interrupted before the backend responded.`);
   }
 
+  const reason = error instanceof Error && error.message ? ` (${error.message})` : "";
   return new Error(
-    `Network request failed for ${path}. Refresh the page and retry. If it persists, the browser or network blocked the request before the backend responded.`
+    `Network request failed for ${requestTarget}. Refresh the page and retry. If it persists, the browser, CORS policy, or network blocked the request before the backend responded.${reason}`
   );
+}
+
+async function wait(ms: number) {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
 }
 
 function generateClientMessageId() {
@@ -182,20 +190,40 @@ async function authedJson<T>(input: {
   backendUrl?: string;
 }): Promise<T> {
   const base = resolvePlatformApiBaseUrl(input.backendUrl);
+  const target = `${base}${input.path}`;
+  const method = input.method ?? "GET";
+  const hasBody = typeof input.body !== "undefined";
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${input.token}`
+  };
+  if (hasBody) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const doRequest = async () =>
+    fetch(target, {
+      method,
+      cache: "no-store",
+      headers,
+      ...(hasBody ? { body: JSON.stringify(input.body) } : {})
+    });
+
   let response: Response;
 
   try {
-    response = await fetch(`${base}${input.path}`, {
-      method: input.method ?? "GET",
-      cache: "no-store",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${input.token}`
-      },
-      ...(input.body ? { body: JSON.stringify(input.body) } : {})
-    });
+    response = await doRequest();
   } catch (error) {
-    throw toNetworkError(input.path, error);
+    // Retry once for transient GET/network blips.
+    if (method === "GET") {
+      await wait(220);
+      try {
+        response = await doRequest();
+      } catch (retryError) {
+        throw toNetworkError(input.path, retryError, target);
+      }
+    } else {
+      throw toNetworkError(input.path, error, target);
+    }
   }
 
   if (!response.ok) {

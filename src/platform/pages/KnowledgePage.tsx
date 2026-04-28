@@ -13,7 +13,7 @@ export default function KnowledgePage() {
   const { selectedTenant, getTenantSources, saveTenantSources, runIngest, refresh, loading, error, setError } = usePlatformAuth();
 
   const [sources, setSources] = useState<PlatformSource[]>([]);
-  const [sitemapUrl, setSitemapUrl] = useState("");
+  const [sitemapUrl, setSitemapUrl] = useState(""); 
   const [docUrls, setDocUrls] = useState("");
   const [faqText, setFaqText] = useState("");
   const [status, setStatus] = useState("");

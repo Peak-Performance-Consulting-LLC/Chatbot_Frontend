@@ -938,8 +938,11 @@ export default function AgentInboxPage() {
   }, [token, selectedConversationId, selectedTenantId]);
 
   return (
-    <div className="space-y-6">
-      <header className="app-page-header">
+    <div className="agent-inbox-page space-y-6">
+      <span className="agent-inbox-orb agent-inbox-orb-gold" />
+      <span className="agent-inbox-orb agent-inbox-orb-teal" />
+
+      <header className="app-page-header agent-inbox-hero">
         <div>
           <span className="app-kicker">Agent</span>
           <h1 className="app-h1">Inbox</h1>
@@ -958,7 +961,7 @@ export default function AgentInboxPage() {
       ) : null}
 
       {arrivalAlerts.length > 0 ? (
-        <div className="app-card">
+        <div className="app-card agent-inbox-surface">
           <div className="text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/60">New waiting chats</div>
           <div className="mt-2 space-y-2">
             {arrivalAlerts.map((alert) => (
@@ -989,7 +992,7 @@ export default function AgentInboxPage() {
         </div>
       ) : null}
 
-      <div className="app-card">
+      <div className="app-card agent-inbox-surface">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-[#0a0a0f]/65">Presence</div>
           <select
@@ -1005,7 +1008,7 @@ export default function AgentInboxPage() {
       </div>
 
       <div className="agent-inbox-grid grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="app-card agent-inbox-list-pane">
+        <section className="app-card agent-inbox-surface agent-inbox-list-pane">
           <div className="flex items-center justify-between mb-3">
             <h2 className="app-card-title !mb-0">Conversations</h2>
             <button type="button" className="app-btn-secondary" onClick={() => void loadInbox()} disabled={loadingInbox}>
@@ -1036,9 +1039,9 @@ export default function AgentInboxPage() {
                     setSelectedConversationId(conversation.id);
                     setSelectedConversationSnapshot(conversation);
                   }}
-                  className={`agent-inbox-row w-full text-left rounded-xl border px-3 py-3 transition ${
+                  className={`agent-inbox-row agent-inbox-conversation w-full text-left rounded-xl border px-3 py-3 transition ${
                     selectedConversationId === conversation.id
-                      ? "border-[#1a5c5c]/35 bg-[#1a5c5c]/8"
+                      ? "agent-inbox-conversation-active border-[#1a5c5c]/35 bg-[#1a5c5c]/8"
                       : "border-[#0a0a0f]/10 bg-white hover:border-[#0a0a0f]/20"
                   }`}
                 >
@@ -1091,7 +1094,7 @@ export default function AgentInboxPage() {
           </div>
         </section>
 
-        <section className="app-card agent-inbox-thread-pane">
+        <section className="app-card agent-inbox-surface agent-inbox-thread-pane">
           {!selectedConversation ? (
             <p className="text-sm text-[#0a0a0f]/55">Select a conversation to view details.</p>
           ) : (
@@ -1161,7 +1164,7 @@ export default function AgentInboxPage() {
               </div>
 
               {canManageConversation && !selectedConversationEnded ? (
-                <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3">
+                <div className="agent-inbox-soft-card rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3">
                   <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
                     Transfer
                   </div>
@@ -1212,7 +1215,7 @@ export default function AgentInboxPage() {
                 </div>
               ) : null}
 
-              <div className="rounded-2xl border border-[#0a0a0f]/10 bg-white overflow-hidden">
+              <div className="agent-inbox-soft-card rounded-2xl border border-[#0a0a0f]/10 bg-white overflow-hidden">
                 <div className="flex items-center justify-between border-b border-[#0a0a0f]/8 bg-[#faf8f4] px-4 py-2.5">
                   <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0a0a0f]/55">
                     Conversation Thread
@@ -1231,7 +1234,7 @@ export default function AgentInboxPage() {
                 <div
                   ref={threadViewportRef}
                   onScroll={onThreadScroll}
-                  className="agent-thread h-[460px] overflow-y-auto bg-[linear-gradient(180deg,#faf8f4_0%,#ffffff_40%,#f8fbfb_100%)] px-4 py-4"
+                  className="agent-thread h-[460px] overflow-y-auto bg-[linear-gradient(180deg,#f6f4ee_0%,#ffffff_45%,#eef7f5_100%)] px-4 py-4"
                 >
                   {loadingMessages ? <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p> : null}
                   {!loadingMessages && messages.length === 0 ? (
@@ -1358,7 +1361,7 @@ export default function AgentInboxPage() {
               {(selectedConversation.conversation_mode === "agent_active" ||
                 selectedConversation.conversation_mode === "copilot") &&
               canManageConversation ? (
-                <div className="rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 space-y-2">
+                <div className="agent-inbox-soft-card rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 space-y-2">
                   <div className="text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
                     Copilot Draft
                   </div>
@@ -1387,7 +1390,7 @@ export default function AgentInboxPage() {
                 </div>
               ) : null}
 
-              <div className="space-y-2 sticky bottom-0 bg-[#fffdf9] pt-2">
+              <div className="agent-inbox-soft-card space-y-2 sticky bottom-0 bg-[#fffdf9] pt-2">
                 <div className="flex items-center justify-between text-[11px] text-[#0a0a0f]/55">
                   <span>Realtime reply box</span>
                   <span>Press Enter to send · Shift+Enter for newline</span>
