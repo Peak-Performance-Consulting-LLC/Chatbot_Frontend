@@ -85,7 +85,7 @@ export type WidgetConfig = {
   };
 };
 
-function resolveBaseUrl(override?: string) {
+export function resolveBaseUrl(override?: string) {
   return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
 

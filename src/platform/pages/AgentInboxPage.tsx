@@ -11,8 +11,10 @@ import {
   platformAgentTransferConversation,
   platformAgentTyping,
   platformQueues,
-  platformWorkspaceTeam
+  platformWorkspaceTeam,
+  resolvePlatformApiBaseUrl
 } from "@/lib/platformApi";
+import { subscribeToBackendEvents } from "@/lib/backendEvents";
 import { usePlatformAuth } from "@/platform/state/auth";
 import type {
   AgentPresenceStatus,
@@ -766,6 +768,7 @@ export default function AgentInboxPage() {
   useEffect(() => {
     if (!token || !selectedConversationId) return;
     const isLiveMode =
+      selectedConversation?.conversation_mode === "handoff_pending" ||
       selectedConversation?.conversation_mode === "agent_active" ||
       selectedConversation?.conversation_mode === "copilot";
 
@@ -829,83 +832,95 @@ export default function AgentInboxPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTenantId, currentAgentId]);
 
+  function applyAgentConversationMessage(payload: unknown) {
+    const message = payload as ChatMessage;
+    if (!message?.id || message.chat_id !== selectedConversationId) return;
+    setMessages((prev) => {
+      if (prev.some((item) => item.id === message.id)) return prev;
+      const withoutOptimisticMatch = prev.filter(
+        (item) => !(item._optimistic && item.sender_type === "agent" && item.content.trim() === message.content.trim())
+      );
+      return sortMessages([...withoutOptimisticMatch, message]);
+    });
+    scheduleInboxReload(100);
+  }
+
+  function applyAgentConversationModeChange(payload: unknown) {
+    const data = payload as {
+      chat_id?: string;
+      mode?: ChatThread["conversation_mode"];
+      agent_id?: string;
+      closed_at?: string | null;
+    };
+    if (!data?.chat_id || !data.mode) return;
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === data.chat_id
+          ? {
+              ...conversation,
+              conversation_mode: data.mode,
+              assigned_agent_id: data.agent_id ?? conversation.assigned_agent_id,
+              conversation_status: data.mode === "closed" ? "closed" : conversation.conversation_status,
+              closed_at:
+                data.mode === "closed"
+                  ? data.closed_at ?? new Date().toISOString()
+                  : conversation.closed_at
+            }
+          : conversation
+      )
+    );
+    setSelectedConversationSnapshot((prev) =>
+      prev && prev.id === data.chat_id
+        ? {
+            ...prev,
+            conversation_mode: data.mode,
+            conversation_status: data.mode === "closed" ? "closed" : prev.conversation_status,
+            closed_at: data.mode === "closed" ? data.closed_at ?? new Date().toISOString() : prev.closed_at,
+            assigned_agent_id: data.agent_id ?? prev.assigned_agent_id
+          }
+        : prev
+    );
+    scheduleInboxReload(100);
+  }
+
+  function applyVisitorTyping(payload: unknown) {
+    const data = payload as {
+      chat_id?: string;
+      actor?: "agent" | "visitor";
+      user_id?: string;
+      is_typing?: boolean;
+    };
+    if (data.chat_id !== selectedConversationId) return;
+    if (data.actor !== "visitor") return;
+
+    const active = Boolean(data.is_typing);
+    setVisitorTyping(active);
+    if (visitorTypingTimeoutRef.current) {
+      window.clearTimeout(visitorTypingTimeoutRef.current);
+      visitorTypingTimeoutRef.current = null;
+    }
+    if (active) {
+      visitorTypingTimeoutRef.current = window.setTimeout(() => {
+        setVisitorTyping(false);
+        visitorTypingTimeoutRef.current = null;
+      }, VISITOR_TYPING_STALE_MS);
+    }
+  }
+
   useEffect(() => {
     if (!supabaseClient || !selectedConversationId) return;
 
     const channel = supabaseClient.channel(`conversation:${selectedConversationId}`);
     channel.on("broadcast", { event: "new_message" }, (payload) => {
-      const message = payload.payload as ChatMessage;
-      if (!message?.id || message.chat_id !== selectedConversationId) return;
-      setMessages((prev) => {
-        if (prev.some((item) => item.id === message.id)) return prev;
-        const withoutOptimisticMatch = prev.filter(
-          (item) => !(item._optimistic && item.sender_type === "agent" && item.content.trim() === message.content.trim())
-        );
-        return sortMessages([...withoutOptimisticMatch, message]);
-      });
-      scheduleInboxReload(100);
+      applyAgentConversationMessage(payload.payload);
     });
 
     channel.on("broadcast", { event: "mode_change" }, (payload) => {
-      const data = payload.payload as {
-        chat_id?: string;
-        mode?: ChatThread["conversation_mode"];
-        agent_id?: string;
-        closed_at?: string | null;
-      };
-      if (!data?.chat_id || !data.mode) return;
-      setConversations((prev) =>
-        prev.map((conversation) =>
-          conversation.id === data.chat_id
-            ? {
-                ...conversation,
-                conversation_mode: data.mode,
-                assigned_agent_id: data.agent_id ?? conversation.assigned_agent_id,
-                conversation_status: data.mode === "closed" ? "closed" : conversation.conversation_status,
-                closed_at:
-                  data.mode === "closed"
-                    ? data.closed_at ?? new Date().toISOString()
-                    : conversation.closed_at
-              }
-            : conversation
-        )
-      );
-      setSelectedConversationSnapshot((prev) =>
-        prev && prev.id === data.chat_id
-          ? {
-              ...prev,
-              conversation_mode: data.mode,
-              conversation_status: data.mode === "closed" ? "closed" : prev.conversation_status,
-              closed_at: data.mode === "closed" ? data.closed_at ?? new Date().toISOString() : prev.closed_at,
-              assigned_agent_id: data.agent_id ?? prev.assigned_agent_id
-            }
-            : prev
-      );
-      scheduleInboxReload(100);
+      applyAgentConversationModeChange(payload.payload);
     });
 
     channel.on("broadcast", { event: "typing" }, (payload) => {
-      const data = payload.payload as {
-        chat_id?: string;
-        actor?: "agent" | "visitor";
-        user_id?: string;
-        is_typing?: boolean;
-      };
-      if (data.chat_id !== selectedConversationId) return;
-      if (data.actor === "visitor") {
-        const active = Boolean(data.is_typing);
-        setVisitorTyping(active);
-        if (visitorTypingTimeoutRef.current) {
-          window.clearTimeout(visitorTypingTimeoutRef.current);
-          visitorTypingTimeoutRef.current = null;
-        }
-        if (active) {
-          visitorTypingTimeoutRef.current = window.setTimeout(() => {
-            setVisitorTyping(false);
-            visitorTypingTimeoutRef.current = null;
-          }, VISITOR_TYPING_STALE_MS);
-        }
-      }
+      applyVisitorTyping(payload.payload);
     });
 
     channel.subscribe();
@@ -919,6 +934,32 @@ export default function AgentInboxPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!token || !selectedConversationId) return;
+
+    const url = new URL(
+      `/api/agent/conversation/${encodeURIComponent(selectedConversationId)}/events`,
+      resolvePlatformApiBaseUrl(backendUrl)
+    );
+
+    return subscribeToBackendEvents({
+      url: url.toString(),
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      onEvent({ event, payload }) {
+        if (event === "new_message") {
+          applyAgentConversationMessage(payload);
+        } else if (event === "mode_change") {
+          applyAgentConversationModeChange(payload);
+        } else if (event === "typing") {
+          applyVisitorTyping(payload);
+        }
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selectedConversationId, backendUrl]);
 
   useEffect(() => {
     if (!token || supabaseClient) return;

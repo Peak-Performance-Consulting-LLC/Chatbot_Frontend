@@ -12,12 +12,14 @@ import {
   publishVisitorTyping,
   renameChat,
   requestHandoff,
+  resolveBaseUrl,
   searchPlaceSuggestions,
   submitConversationCsat,
   submitVisitorContact,
   streamChat,
   type WidgetConfig
 } from "@/lib/api";
+import { subscribeToBackendEvents } from "@/lib/backendEvents";
 import { getOrCreateDeviceId } from "@/lib/device";
 import { resolveTenantId } from "@/lib/tenant";
 import { getWidgetSurfaceTokens } from "@/lib/widgetTheme";
@@ -1134,6 +1136,7 @@ export function ChatWidget({
   const streamFlushTimerRef = useRef<number | null>(null);
   const visitorTypingDebounceRef = useRef<number | null>(null);
   const visitorTypingStopRef = useRef<number | null>(null);
+  const agentTypingStopRef = useRef<number | null>(null);
   const visitorTypingStateRef = useRef(false);
   const widgetQueryConfig = useMemo(() => parseWidgetConfigFromQuery(), []);
 
@@ -1356,6 +1359,13 @@ export function ChatWidget({
     }
   }
 
+  function clearAgentTypingTimer() {
+    if (agentTypingStopRef.current !== null) {
+      window.clearTimeout(agentTypingStopRef.current);
+      agentTypingStopRef.current = null;
+    }
+  }
+
   function canPublishVisitorTyping(chatId: string | null, mode: ConversationMode) {
     return Boolean(
       chatId &&
@@ -1395,7 +1405,7 @@ export function ChatWidget({
     const isTyping = inputValue.trim().length > 0;
     visitorTypingDebounceRef.current = window.setTimeout(() => {
       void emitVisitorTypingState(isTyping);
-    }, isTyping ? 180 : 0);
+    }, 0);
 
     if (isTyping) {
       visitorTypingStopRef.current = window.setTimeout(() => {
@@ -1417,6 +1427,7 @@ export function ChatWidget({
     () => () => {
       resetStreamBuffer();
       clearVisitorTypingTimers();
+      clearAgentTypingTimer();
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     []
@@ -1864,84 +1875,104 @@ export function ChatWidget({
     }
   }
 
-  // Subscribe to Supabase Realtime for live agent messages/mode changes
+  function isConversationRealtimeMode(mode: ConversationMode) {
+    return mode === "handoff_pending" || mode === "agent_active" || mode === "copilot";
+  }
+
+  function applyConversationMessage(payload: unknown) {
+    const msg = payload as ChatMessage;
+    if (!msg?.id || !msg?.content) return;
+
+    if (msg.sender_type === "agent") {
+      const metadata = (msg.metadata ?? {}) as MessageMetadata;
+      const agentId = typeof msg.sender_id === "string" ? msg.sender_id : "";
+      const agentName =
+        typeof metadata.agent_name === "string" && metadata.agent_name.trim()
+          ? metadata.agent_name.trim()
+          : "Live Agent";
+      const agentAvatar =
+        typeof metadata.agent_avatar_url === "string" ? metadata.agent_avatar_url : null;
+      if (agentId) {
+        setActiveAgent({
+          id: agentId,
+          name: agentName,
+          avatarUrl: agentAvatar
+        });
+      }
+      setIsAgentTyping(false);
+    }
+
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === msg.id)) return prev;
+      return [...prev, msg];
+    });
+    scrollToBottom();
+  }
+
+  function applyConversationModeChange(payload: unknown) {
+    const data = payload as {
+      mode?: ConversationMode;
+      agent_id?: string;
+      agent_name?: string;
+      agent_avatar_url?: string;
+    };
+    if (data.mode) {
+      setConversationMode(data.mode);
+      if (data.mode !== "agent_active") {
+        setIsAgentTyping(false);
+      }
+      if (data.mode === "agent_active" && data.agent_id) {
+        setActiveAgent({
+          id: data.agent_id,
+          name: data.agent_name?.trim() || "Live Agent",
+          avatarUrl: data.agent_avatar_url || null
+        });
+      }
+      if (data.mode === "returned_to_ai" || data.mode === "ai_only" || data.mode === "closed") {
+        setActiveAgent(null);
+      }
+    }
+  }
+
+  function applyConversationTyping(payload: unknown) {
+    const data = payload as {
+      chat_id?: string;
+      actor?: "agent" | "visitor";
+      user_id?: string;
+      is_typing?: boolean;
+    };
+    if (data.chat_id && data.chat_id !== activeChatId) return;
+    if (data.actor !== "agent") return;
+    const active = Boolean(data.is_typing);
+    setIsAgentTyping(active);
+    clearAgentTypingTimer();
+    if (active) {
+      agentTypingStopRef.current = window.setTimeout(() => {
+        setIsAgentTyping(false);
+        agentTypingStopRef.current = null;
+      }, 8000);
+    }
+  }
+
+  // Supabase Realtime path when public frontend keys are configured.
   useEffect(() => {
     if (!supabaseClient || !activeChatId) return;
-    if (
-      conversationMode !== "handoff_pending" &&
-      conversationMode !== "agent_active" &&
-      conversationMode !== "copilot"
-    ) {
+    if (!isConversationRealtimeMode(conversationMode)) {
       return;
     }
 
     const channel = supabaseClient.channel(`conversation:${activeChatId}`);
 
     channel.on("broadcast", { event: "new_message" }, (payload) => {
-      const msg = payload.payload as ChatMessage;
-      if (!msg?.id || !msg?.content) return;
-
-      if (msg.sender_type === "agent") {
-        const metadata = (msg.metadata ?? {}) as MessageMetadata;
-        const agentId = typeof msg.sender_id === "string" ? msg.sender_id : "";
-        const agentName =
-          typeof metadata.agent_name === "string" && metadata.agent_name.trim()
-            ? metadata.agent_name.trim()
-            : "Live Agent";
-        const agentAvatar =
-          typeof metadata.agent_avatar_url === "string" ? metadata.agent_avatar_url : null;
-        if (agentId) {
-          setActiveAgent({
-            id: agentId,
-            name: agentName,
-            avatarUrl: agentAvatar
-          });
-        }
-        setIsAgentTyping(false);
-      }
-
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
-      scrollToBottom();
+      applyConversationMessage(payload.payload);
     });
 
     channel.on("broadcast", { event: "mode_change" }, (payload) => {
-      const data = payload.payload as {
-        mode?: ConversationMode;
-        agent_id?: string;
-        agent_name?: string;
-        agent_avatar_url?: string;
-      };
-      if (data.mode) {
-        setConversationMode(data.mode);
-        if (data.mode !== "agent_active") {
-          setIsAgentTyping(false);
-        }
-        if (data.mode === "agent_active" && data.agent_id) {
-          setActiveAgent({
-            id: data.agent_id,
-            name: data.agent_name?.trim() || "Live Agent",
-            avatarUrl: data.agent_avatar_url || null
-          });
-        }
-        if (data.mode === "returned_to_ai" || data.mode === "ai_only" || data.mode === "closed") {
-          setActiveAgent(null);
-        }
-      }
+      applyConversationModeChange(payload.payload);
     });
 
     channel.on("broadcast", { event: "typing" }, (payload) => {
-      const data = payload.payload as {
-        chat_id?: string;
-        actor?: "agent" | "visitor";
-        user_id?: string;
-        is_typing?: boolean;
-      };
-      if (data.chat_id && data.chat_id !== activeChatId) return;
-      if (data.actor !== "agent") return;
-      setIsAgentTyping(Boolean(data.is_typing));
+      applyConversationTyping(payload.payload);
     });
 
     channel.subscribe();
@@ -1949,8 +1980,45 @@ export function ChatWidget({
     return () => {
       supabaseClient.removeChannel(channel);
       setIsAgentTyping(false);
+      clearAgentTypingTimer();
     };
   }, [activeChatId, conversationMode]);
+
+  // Backend event stream fallback for local/dev deployments without VITE_SUPABASE_*.
+  useEffect(() => {
+    if (!activeChatId || !isConversationRealtimeMode(conversationMode)) {
+      return;
+    }
+
+    const url = new URL(
+      `/api/conversation/${encodeURIComponent(activeChatId)}/events`,
+      resolveBaseUrl(backendUrl)
+    );
+    url.searchParams.set("tenant_id", tenantId);
+    url.searchParams.set("device_id", deviceId);
+
+    const headers: Record<string, string> = {};
+    if (portalToken) {
+      headers.Authorization = `Bearer ${portalToken}`;
+    }
+    if (siteHost) {
+      headers["X-Tenant-Site-Host"] = siteHost;
+    }
+
+    return subscribeToBackendEvents({
+      url: url.toString(),
+      headers,
+      onEvent({ event, payload }) {
+        if (event === "new_message") {
+          applyConversationMessage(payload);
+        } else if (event === "mode_change") {
+          applyConversationModeChange(payload);
+        } else if (event === "typing") {
+          applyConversationTyping(payload);
+        }
+      }
+    });
+  }, [activeChatId, backendUrl, conversationMode, deviceId, portalToken, siteHost, tenantId]);
 
   useEffect(() => {
     if (!activeChatId) {
@@ -2373,23 +2441,12 @@ export function ChatWidget({
                   );
                 })}
                 {isSending ? <TypingIndicator /> : null}
-                {conversationMode === "agent_active" && isAgentTyping && !isSending ? (
-                  <div className="message-row assistant">
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "8px",
-                        padding: "10px 16px",
-                        borderRadius: "12px",
-                        background: "var(--assistant-bubble, #edf6f9)",
-                        fontSize: "0.83rem",
-                        color: "var(--muted, #666)"
-                      }}
-                    >
-                      <span>{activeAgent?.name || "Agent"} is typing...</span>
-                    </div>
-                  </div>
+                {(conversationMode === "handoff_pending" ||
+                  conversationMode === "agent_active" ||
+                  conversationMode === "copilot") &&
+                isAgentTyping &&
+                !isSending ? (
+                  <TypingIndicator />
                 ) : null}
                 {conversationMode === "handoff_pending" && !isSending ? (
                   <div className="message-row assistant">
