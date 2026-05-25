@@ -116,6 +116,9 @@ const poweredByBrand = "PPConsultings";
 const CONTACT_CAPTURE_STORAGE_PREFIX = "aeroconcierge_contact_captured";
 const HANDOFF_CONTACT_CAPTURE_PROMPT =
   "Please share your name, email, and phone before we connect you to a live agent.";
+const AGENT_TYPING_WINDOW_MS = 8000;
+const AGENT_TYPING_POLL_MS = 1200;
+const VISITOR_TYPING_KEEPALIVE_MS = 1200;
 
 function normalizeAppearance(
   input?: Partial<ChatWidgetAppearance> | null,
@@ -1121,6 +1124,7 @@ export function ChatWidget({
   const [isRequestingHandoff, setIsRequestingHandoff] = useState(false);
   const [activeAgent, setActiveAgent] = useState<ActiveAgent>(null);
   const [isAgentTyping, setIsAgentTyping] = useState(false);
+  const [agentTypingUserId, setAgentTypingUserId] = useState<string | null>(null);
   const [csatRating, setCsatRating] = useState(0);
   const [csatFeedback, setCsatFeedback] = useState("");
   const [csatSubmitted, setCsatSubmitted] = useState<{ rating: number; feedback: string | null } | null>(null);
@@ -1259,6 +1263,12 @@ export function ChatWidget({
     isSubmittingContact ||
     shouldShowContactCaptureForm ||
     conversationMode === "closed";
+  const isLiveConversationMode =
+    conversationMode === "handoff_pending" ||
+    conversationMode === "agent_active" ||
+    conversationMode === "copilot";
+  const showAiTypingIndicator = isSending && !isLiveConversationMode;
+  const showAgentTypingIndicator = isLiveConversationMode && isAgentTyping && agentTypingUserId !== deviceId;
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
   const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, publicEmbedWidth);
   const isCompactLayout = effectiveShellWidth < 720;
@@ -1350,7 +1360,7 @@ export function ChatWidget({
 
   function clearVisitorTypingTimers() {
     if (visitorTypingDebounceRef.current !== null) {
-      window.clearTimeout(visitorTypingDebounceRef.current);
+      window.clearInterval(visitorTypingDebounceRef.current);
       visitorTypingDebounceRef.current = null;
     }
     if (visitorTypingStopRef.current !== null) {
@@ -1366,6 +1376,12 @@ export function ChatWidget({
     }
   }
 
+  function clearAgentTypingState() {
+    setIsAgentTyping(false);
+    setAgentTypingUserId(null);
+    clearAgentTypingTimer();
+  }
+
   function canPublishVisitorTyping(chatId: string | null, mode: ConversationMode) {
     return Boolean(
       chatId &&
@@ -1374,13 +1390,17 @@ export function ChatWidget({
     );
   }
 
-  async function emitVisitorTypingState(nextValue: boolean, chatIdOverride?: string | null) {
+  async function emitVisitorTypingState(
+    nextValue: boolean,
+    chatIdOverride?: string | null,
+    options?: { force?: boolean }
+  ) {
     const chatId = chatIdOverride ?? activeChatId;
     if (!canPublishVisitorTyping(chatId, conversationMode)) {
       return;
     }
 
-    if (visitorTypingStateRef.current === nextValue) {
+    if (!options?.force && visitorTypingStateRef.current === nextValue) {
       return;
     }
 
@@ -1396,6 +1416,16 @@ export function ChatWidget({
     }).catch(() => undefined);
   }
 
+  function startVisitorTypingKeepalive(chatId: string) {
+    if (visitorTypingDebounceRef.current !== null) {
+      window.clearInterval(visitorTypingDebounceRef.current);
+      visitorTypingDebounceRef.current = null;
+    }
+    visitorTypingDebounceRef.current = window.setInterval(() => {
+      void emitVisitorTypingState(true, chatId, { force: true });
+    }, VISITOR_TYPING_KEEPALIVE_MS);
+  }
+
   function scheduleVisitorTyping(inputValue: string) {
     if (!canPublishVisitorTyping(activeChatId, conversationMode)) {
       return;
@@ -1403,15 +1433,13 @@ export function ChatWidget({
 
     clearVisitorTypingTimers();
     const isTyping = inputValue.trim().length > 0;
-    visitorTypingDebounceRef.current = window.setTimeout(() => {
-      void emitVisitorTypingState(isTyping);
-    }, 0);
-
-    if (isTyping) {
-      visitorTypingStopRef.current = window.setTimeout(() => {
-        void emitVisitorTypingState(false);
-      }, 2500);
+    if (!isTyping) {
+      void emitVisitorTypingState(false);
+      return;
     }
+
+    void emitVisitorTypingState(true, activeChatId, { force: true });
+    startVisitorTypingKeepalive(activeChatId!);
   }
 
   function handleComposerInputChange(value: string) {
@@ -1562,6 +1590,7 @@ export function ChatWidget({
   useEffect(() => {
     if (!activeChatId) {
       setConversationMode("ai_only");
+      clearAgentTypingState();
       return;
     }
 
@@ -1569,7 +1598,10 @@ export function ChatWidget({
     if (activeThread?.conversation_mode) {
       setConversationMode(activeThread.conversation_mode);
     }
-  }, [activeChatId, threads]);
+    if (isConversationRealtimeMode(activeThread?.conversation_mode ?? conversationMode)) {
+      setIsAgentTyping((current) => current || isRecentAgentTyping(activeThread));
+    }
+  }, [activeChatId, conversationMode, threads]);
 
   useEffect(() => {
     if (conversationMode === "handoff_pending" || conversationMode === "agent_active") {
@@ -1607,14 +1639,14 @@ export function ChatWidget({
         if (nextMode !== "agent_active") {
           setActiveAgent(null);
         }
-        setIsAgentTyping(false);
+        clearAgentTypingState();
         setActiveChatId(selected);
         await loadMessages(selected);
       } else {
         setMessages([]);
         setConversationMode("ai_only");
         setActiveAgent(null);
-        setIsAgentTyping(false);
+        clearAgentTypingState();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load threads");
@@ -1659,7 +1691,7 @@ export function ChatWidget({
       setActiveChatId(chat.id);
       setConversationMode(chat.conversation_mode ?? "ai_only");
       setActiveAgent(null);
-      setIsAgentTyping(false);
+      clearAgentTypingState();
       await refreshThreads(chat.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create chat");
@@ -1693,7 +1725,7 @@ export function ChatWidget({
     if (nextMode !== "agent_active") {
       setActiveAgent(null);
     }
-    setIsAgentTyping(false);
+    clearAgentTypingState();
     setActiveChatId(chatId);
     setIsMobileThreadsOpen(false);
     await loadMessages(chatId);
@@ -1796,7 +1828,7 @@ export function ChatWidget({
 
     setIsRequestingHandoff(true);
     setError(null);
-    setIsAgentTyping(false);
+    clearAgentTypingState();
     setActiveAgent(null);
     try {
       const result = await requestHandoff({
@@ -1809,6 +1841,13 @@ export function ChatWidget({
       });
       setConversationMode(result.mode as ConversationMode);
       setShowHandoffContactCapture(false);
+      if (result.mode === "agent_active" && result.assigned_agent_id) {
+        setActiveAgent({
+          id: result.assigned_agent_id,
+          name: "Live Agent",
+          avatarUrl: null
+        });
+      }
       if (result.mode === "handoff_pending") {
         const handoffStatusMessage =
           result.all_agents_busy && result.waiting_eta_label
@@ -1827,6 +1866,7 @@ export function ChatWidget({
         };
         setMessages((prev) => [...prev, systemMsg]);
       }
+      await synchronizeChatState(result.chat_id || activeChatId);
     } catch (err) {
       if (err instanceof HandoffRequestError && err.requiresContactCapture) {
         const key = buildContactCaptureStorageKey(tenantId, deviceId);
@@ -1879,6 +1919,15 @@ export function ChatWidget({
     return mode === "handoff_pending" || mode === "agent_active" || mode === "copilot";
   }
 
+  function isRecentAgentTyping(thread: ChatThread | undefined) {
+    if (!thread?.last_agent_typing_at) return false;
+    return Date.now() - new Date(thread.last_agent_typing_at).getTime() <= AGENT_TYPING_WINDOW_MS;
+  }
+
+  function hasAgentTypingField(thread: ChatThread | undefined) {
+    return Boolean(thread) && Object.prototype.hasOwnProperty.call(thread, "last_agent_typing_at");
+  }
+
   function applyConversationMessage(payload: unknown) {
     const msg = payload as ChatMessage;
     if (!msg?.id || !msg?.content) return;
@@ -1899,7 +1948,7 @@ export function ChatWidget({
           avatarUrl: agentAvatar
         });
       }
-      setIsAgentTyping(false);
+      clearAgentTypingState();
     }
 
     setMessages((prev) => {
@@ -1919,7 +1968,7 @@ export function ChatWidget({
     if (data.mode) {
       setConversationMode(data.mode);
       if (data.mode !== "agent_active") {
-        setIsAgentTyping(false);
+          clearAgentTypingState();
       }
       if (data.mode === "agent_active" && data.agent_id) {
         setActiveAgent({
@@ -1937,18 +1986,25 @@ export function ChatWidget({
   function applyConversationTyping(payload: unknown) {
     const data = payload as {
       chat_id?: string;
+      conversationId?: string;
       actor?: "agent" | "visitor";
       user_id?: string;
+      userId?: string;
       is_typing?: boolean;
     };
-    if (data.chat_id && data.chat_id !== activeChatId) return;
+    const conversationId = data.conversationId ?? data.chat_id;
+    const userId = data.userId ?? data.user_id;
+    if (conversationId !== activeChatId) return;
+    if (userId === deviceId) return;
     if (data.actor !== "agent") return;
     const active = Boolean(data.is_typing);
+    setAgentTypingUserId(active ? userId ?? null : null);
     setIsAgentTyping(active);
     clearAgentTypingTimer();
     if (active) {
       agentTypingStopRef.current = window.setTimeout(() => {
         setIsAgentTyping(false);
+        setAgentTypingUserId(null);
         agentTypingStopRef.current = null;
       }, 8000);
     }
@@ -1974,13 +2030,18 @@ export function ChatWidget({
     channel.on("broadcast", { event: "typing" }, (payload) => {
       applyConversationTyping(payload.payload);
     });
+    channel.on("broadcast", { event: "typing:start" }, (payload) => {
+      applyConversationTyping(payload.payload);
+    });
+    channel.on("broadcast", { event: "typing:stop" }, (payload) => {
+      applyConversationTyping(payload.payload);
+    });
 
     channel.subscribe();
 
     return () => {
       supabaseClient.removeChannel(channel);
-      setIsAgentTyping(false);
-      clearAgentTypingTimer();
+      clearAgentTypingState();
     };
   }, [activeChatId, conversationMode]);
 
@@ -2013,7 +2074,7 @@ export function ChatWidget({
           applyConversationMessage(payload);
         } else if (event === "mode_change") {
           applyConversationModeChange(payload);
-        } else if (event === "typing") {
+        } else if (event === "typing" || event === "typing:start" || event === "typing:stop") {
           applyConversationTyping(payload);
         }
       }
@@ -2047,6 +2108,30 @@ export function ChatWidget({
         .catch(() => undefined);
     }, 18000);
 
+    return () => window.clearInterval(interval);
+  }, [activeChatId, backendUrl, conversationMode, deviceId, portalToken, siteHost, tenantId]);
+
+  useEffect(() => {
+    if (!activeChatId || !isConversationRealtimeMode(conversationMode)) {
+      return;
+    }
+
+    const refreshAgentTypingState = () => {
+      void listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost })
+        .then((nextThreads) => {
+          const activeThread = nextThreads.find((thread) => thread.id === activeChatId);
+          setThreads(nextThreads);
+          if (hasAgentTypingField(activeThread)) {
+          const active = isRecentAgentTyping(activeThread);
+          setIsAgentTyping(active);
+          if (!active) setAgentTypingUserId(null);
+        }
+        })
+        .catch(() => undefined);
+    };
+
+    refreshAgentTypingState();
+    const interval = window.setInterval(refreshAgentTypingState, AGENT_TYPING_POLL_MS);
     return () => window.clearInterval(interval);
   }, [activeChatId, backendUrl, conversationMode, deviceId, portalToken, siteHost, tenantId]);
 
@@ -2150,7 +2235,9 @@ export function ChatWidget({
         if (json.mode) {
           setConversationMode(json.mode);
         }
-        setActiveChatId(json.chat_id || existingChatId || localChatId);
+        const finalChatId = json.chat_id || existingChatId || localChatId;
+        setActiveChatId(finalChatId);
+        await synchronizeChatState(finalChatId);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Message send failed");
       } finally {
@@ -2440,15 +2527,11 @@ export function ChatWidget({
                     <MessageBubble key={message.id} message={message} callCtaOverride={callCta} appearance={appearance} />
                   );
                 })}
-                {isSending ? <TypingIndicator /> : null}
-                {(conversationMode === "handoff_pending" ||
-                  conversationMode === "agent_active" ||
-                  conversationMode === "copilot") &&
-                isAgentTyping &&
-                !isSending ? (
+                {showAiTypingIndicator ? <TypingIndicator /> : null}
+                {showAgentTypingIndicator ? (
                   <TypingIndicator />
                 ) : null}
-                {conversationMode === "handoff_pending" && !isSending ? (
+                {conversationMode === "handoff_pending" && !isSending && !showAgentTypingIndicator ? (
                   <div className="message-row assistant">
                     <div style={{
                       display: "flex",
@@ -2583,6 +2666,10 @@ export function ChatWidget({
                             : "Type a message… (Enter to send)"
                     }
                     onChange={(e) => handleComposerInputChange(e.target.value)}
+                    onBlur={() => {
+                      clearVisitorTypingTimers();
+                      void emitVisitorTypingState(false);
+                    }}
                     onKeyDown={handleKeyDown}
                     rows={1}
                     disabled={isInteractionLocked}

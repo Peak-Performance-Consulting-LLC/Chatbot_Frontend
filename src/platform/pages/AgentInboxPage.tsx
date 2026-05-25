@@ -29,6 +29,7 @@ const WAITING_HIGH_SECONDS = 5 * 60;
 const WAITING_CRITICAL_SECONDS = 15 * 60;
 const ARRIVAL_ALERT_TTL_MS = 7000;
 const VISITOR_TYPING_STALE_MS = 8000;
+const AGENT_TYPING_KEEPALIVE_MS = 1200;
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
@@ -213,6 +214,7 @@ export default function AgentInboxPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<string>("");
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [replyText, setReplyText] = useState("");
+  const [replyComposerFocused, setReplyComposerFocused] = useState(false);
   const [copilotPrompt, setCopilotPrompt] = useState("");
   const [copilotDraft, setCopilotDraft] = useState("");
   const [runningCopilot, setRunningCopilot] = useState(false);
@@ -225,6 +227,7 @@ export default function AgentInboxPage() {
   const [transferTargetAgentId, setTransferTargetAgentId] = useState("");
   const [presenceStatus, setPresenceStatus] = useState<AgentPresenceStatus>("online");
   const [visitorTyping, setVisitorTyping] = useState(false);
+  const [visitorTypingUserId, setVisitorTypingUserId] = useState<string | null>(null);
   const [queueOptions, setQueueOptions] = useState<PlatformQueue[]>([]);
   const [teamOptions, setTeamOptions] = useState<PlatformWorkspaceMember[]>([]);
   const [error, setError] = useState("");
@@ -240,6 +243,7 @@ export default function AgentInboxPage() {
   const loadingInboxRef = useRef(false);
   const loadingMessagesRef = useRef(false);
   const typingStateSentRef = useRef<boolean | null>(null);
+  const lastTypedConversationIdRef = useRef<string | null>(null);
 
   const selectedConversation = useMemo(
     () =>
@@ -248,6 +252,7 @@ export default function AgentInboxPage() {
     [conversations, selectedConversationId, selectedConversationSnapshot]
   );
   const selectedConversationEnded = isConversationEnded(selectedConversation);
+  const showVisitorTyping = visitorTyping && visitorTypingUserId !== currentAgentId;
 
   function playArrivalTone() {
     try {
@@ -562,6 +567,64 @@ export default function AgentInboxPage() {
     }
   }
 
+  function emitAgentTypingState(
+    isTyping: boolean,
+    conversationId = selectedConversationId,
+    options?: { force?: boolean }
+  ) {
+    if (!token || !conversationId) {
+      return;
+    }
+    if (!options?.force && typingStateSentRef.current === isTyping) {
+      return;
+    }
+    console.log("Agent typing");
+    console.log("Agent typing", { isTyping, conversationId });
+    typingStateSentRef.current = isTyping;
+    lastTypedConversationIdRef.current = isTyping ? conversationId : null;
+    void platformAgentTyping(token, conversationId, isTyping, backendUrl).catch(() => undefined);
+  }
+
+  function isAgentTypingMode(conversation = selectedConversation) {
+    return (
+      conversation?.conversation_mode === "handoff_pending" ||
+      conversation?.conversation_mode === "agent_active" ||
+      conversation?.conversation_mode === "copilot"
+    );
+  }
+
+  function clearAgentTypingKeepalive() {
+    if (typingTimeoutRef.current) {
+      window.clearInterval(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+  }
+
+  function startAgentTypingKeepalive(conversationId: string) {
+    clearAgentTypingKeepalive();
+    typingTimeoutRef.current = window.setInterval(() => {
+      emitAgentTypingState(true, conversationId, { force: true });
+    }, AGENT_TYPING_KEEPALIVE_MS);
+  }
+
+  function handleReplyTextChange(value: string) {
+    setReplyText(value);
+    setReplyComposerFocused(true);
+
+    if (!selectedConversationId || !isAgentTypingMode()) {
+      return;
+    }
+
+    if (!value.trim()) {
+      clearAgentTypingKeepalive();
+      emitAgentTypingState(false, selectedConversationId);
+      return;
+    }
+
+    emitAgentTypingState(true, selectedConversationId, { force: true });
+    startAgentTypingKeepalive(selectedConversationId);
+  }
+
   async function handleSendReply() {
     if (!token || !selectedConversationId || !replyText.trim()) return;
     const content = replyText.trim();
@@ -583,6 +646,8 @@ export default function AgentInboxPage() {
     keepThreadPinnedRef.current = true;
     setMessages((prev) => [...prev, optimisticMessage]);
     requestAnimationFrame(() => scrollThreadToBottom("smooth"));
+    clearAgentTypingKeepalive();
+    emitAgentTypingState(false, selectedConversationId);
     try {
       const response = await platformAgentReplyConversation(
         token,
@@ -605,7 +670,6 @@ export default function AgentInboxPage() {
             : message
         );
       });
-      await platformAgentTyping(token, selectedConversationId, false, backendUrl).catch(() => undefined);
       await loadInbox();
     } catch (err) {
       setMessages((prev) =>
@@ -702,6 +766,8 @@ export default function AgentInboxPage() {
   useEffect(() => {
     if (!selectedConversationId) {
       setMessages([]);
+      setVisitorTyping(false);
+      setVisitorTypingUserId(null);
       return;
     }
     keepThreadPinnedRef.current = true;
@@ -735,8 +801,13 @@ export default function AgentInboxPage() {
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) {
-        window.clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
+        clearAgentTypingKeepalive();
+      }
+      if (typingStateSentRef.current === true && lastTypedConversationIdRef.current && token) {
+        const conversationId = lastTypedConversationIdRef.current;
+        typingStateSentRef.current = false;
+        lastTypedConversationIdRef.current = null;
+        void platformAgentTyping(token, conversationId, false, backendUrl).catch(() => undefined);
       }
       if (inboxReloadTimerRef.current) {
         window.clearTimeout(inboxReloadTimerRef.current);
@@ -763,7 +834,7 @@ export default function AgentInboxPage() {
       requestAnimationFrame(() => scrollThreadToBottom("auto"));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages.length, visitorTyping]);
+  }, [messages.length, showVisitorTyping]);
 
   useEffect(() => {
     if (!token || !selectedConversationId) return;
@@ -774,34 +845,44 @@ export default function AgentInboxPage() {
 
     if (!isLiveMode) {
       if (typingTimeoutRef.current) {
-        window.clearTimeout(typingTimeoutRef.current);
-        typingTimeoutRef.current = null;
+        clearAgentTypingKeepalive();
       }
       if (typingStateSentRef.current === true) {
-        typingStateSentRef.current = false;
-        void platformAgentTyping(token, selectedConversationId, false, backendUrl).catch(() => undefined);
+        emitAgentTypingState(false, selectedConversationId);
       }
       return;
     }
 
     if (typingTimeoutRef.current) {
-      window.clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
+      clearAgentTypingKeepalive();
     }
 
-    const isTyping = replyText.trim().length > 0;
-    if (typingStateSentRef.current !== isTyping) {
-      typingStateSentRef.current = isTyping;
-      void platformAgentTyping(token, selectedConversationId, isTyping, backendUrl).catch(() => undefined);
-    }
+    const isTyping = replyComposerFocused && replyText.trim().length > 0;
+    emitAgentTypingState(isTyping, selectedConversationId);
 
     if (isTyping) {
-      typingTimeoutRef.current = window.setTimeout(() => {
-        typingStateSentRef.current = false;
-        void platformAgentTyping(token, selectedConversationId, false, backendUrl).catch(() => undefined);
-      }, 2500);
+      startAgentTypingKeepalive(selectedConversationId);
     }
-  }, [replyText, token, selectedConversationId, selectedConversation?.conversation_mode, backendUrl]);
+  }, [
+    replyText,
+    replyComposerFocused,
+    token,
+    selectedConversationId,
+    selectedConversation?.conversation_mode,
+    backendUrl
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (!token || typingStateSentRef.current !== true || !lastTypedConversationIdRef.current) {
+        return;
+      }
+      const conversationId = lastTypedConversationIdRef.current;
+      typingStateSentRef.current = false;
+      lastTypedConversationIdRef.current = null;
+      void platformAgentTyping(token, conversationId, false, backendUrl).catch(() => undefined);
+    };
+  }, [selectedConversationId, token, backendUrl]);
 
   useEffect(() => {
     if (!supabaseClient || !selectedTenantId || !currentAgentId) return;
@@ -886,14 +967,20 @@ export default function AgentInboxPage() {
   function applyVisitorTyping(payload: unknown) {
     const data = payload as {
       chat_id?: string;
+      conversationId?: string;
       actor?: "agent" | "visitor";
       user_id?: string;
+      userId?: string;
       is_typing?: boolean;
     };
-    if (data.chat_id !== selectedConversationId) return;
+    const conversationId = data.conversationId ?? data.chat_id;
+    const userId = data.userId ?? data.user_id;
+    if (conversationId !== selectedConversationId) return;
+    if (userId === currentAgentId) return;
     if (data.actor !== "visitor") return;
 
     const active = Boolean(data.is_typing);
+    setVisitorTypingUserId(active ? userId ?? null : null);
     setVisitorTyping(active);
     if (visitorTypingTimeoutRef.current) {
       window.clearTimeout(visitorTypingTimeoutRef.current);
@@ -902,6 +989,7 @@ export default function AgentInboxPage() {
     if (active) {
       visitorTypingTimeoutRef.current = window.setTimeout(() => {
         setVisitorTyping(false);
+        setVisitorTypingUserId(null);
         visitorTypingTimeoutRef.current = null;
       }, VISITOR_TYPING_STALE_MS);
     }
@@ -922,11 +1010,18 @@ export default function AgentInboxPage() {
     channel.on("broadcast", { event: "typing" }, (payload) => {
       applyVisitorTyping(payload.payload);
     });
+    channel.on("broadcast", { event: "typing:start" }, (payload) => {
+      applyVisitorTyping(payload.payload);
+    });
+    channel.on("broadcast", { event: "typing:stop" }, (payload) => {
+      applyVisitorTyping(payload.payload);
+    });
 
     channel.subscribe();
     return () => {
       supabaseClient.removeChannel(channel);
       setVisitorTyping(false);
+      setVisitorTypingUserId(null);
       if (visitorTypingTimeoutRef.current) {
         window.clearTimeout(visitorTypingTimeoutRef.current);
         visitorTypingTimeoutRef.current = null;
@@ -953,7 +1048,7 @@ export default function AgentInboxPage() {
           applyAgentConversationMessage(payload);
         } else if (event === "mode_change") {
           applyAgentConversationModeChange(payload);
-        } else if (event === "typing") {
+        } else if (event === "typing" || event === "typing:start" || event === "typing:stop") {
           applyVisitorTyping(payload);
         }
       }
@@ -1262,7 +1357,7 @@ export default function AgentInboxPage() {
                     Conversation Thread
                   </div>
                   <div className="text-xs text-[#0a0a0f]/55">
-                    {visitorTyping ? (
+                    {showVisitorTyping ? (
                       <span className="rounded-full border border-[#2563eb]/30 bg-[#ecf3ff] px-2 py-0.5 text-[#1d4ed8]">
                         Visitor typing...
                       </span>
@@ -1376,7 +1471,7 @@ export default function AgentInboxPage() {
                       })()
                     : null}
 
-                  {visitorTyping ? (
+                  {showVisitorTyping ? (
                     <div className="mb-1 flex justify-start">
                       <div className="rounded-2xl border border-[#0a0a0f]/10 bg-white px-3 py-2 shadow-[0_8px_18px_rgba(10,10,15,0.04)]">
                         <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[#0a0a0f]/50">
@@ -1438,7 +1533,13 @@ export default function AgentInboxPage() {
                 </div>
                 <textarea
                   value={replyText}
-                  onChange={(event) => setReplyText(event.target.value)}
+                  onChange={(event) => handleReplyTextChange(event.target.value)}
+                  onFocus={() => setReplyComposerFocused(true)}
+                  onBlur={() => {
+                    setReplyComposerFocused(false);
+                    clearAgentTypingKeepalive();
+                    emitAgentTypingState(false, selectedConversationId);
+                  }}
                   onKeyDown={handleComposerKeyDown}
                   className="app-textarea"
                   placeholder="Type your reply..."

@@ -508,6 +508,7 @@ export async function requestHandoff(input: {
   mode: string;
   status: string;
   queue_id?: string;
+  assigned_agent_id?: string | null;
   after_hours?: boolean;
   after_hours_action?: "collect_info" | "overflow" | "ai_only";
   sla_first_response_due_at?: string | null;
@@ -540,6 +541,7 @@ export async function requestHandoff(input: {
     mode: string;
     status: string;
     queue_id?: string;
+    assigned_agent_id?: string | null;
     after_hours?: boolean;
     after_hours_action?: "collect_info" | "overflow" | "ai_only";
     sla_first_response_due_at?: string | null;
