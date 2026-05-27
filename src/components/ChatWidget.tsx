@@ -1624,9 +1624,13 @@ export function ChatWidget({
     if (activeThread?.conversation_mode) {
       setConversationMode(activeThread.conversation_mode);
     }
-    if (isConversationRealtimeMode(activeThread?.conversation_mode ?? conversationMode)) {
-      setIsAgentTyping((current) => current || isRecentAgentTyping(activeThread));
+    if (applyThreadAgentTyping(activeThread)) {
+      return;
     }
+    if (hasAgentTypingField(activeThread) && !isRecentAgentTyping(activeThread)) {
+      clearAgentTypingState();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChatId, conversationMode, threads]);
 
   useEffect(() => {
@@ -1959,6 +1963,25 @@ export function ChatWidget({
     return Date.now() - new Date(thread.last_agent_typing_at).getTime() <= AGENT_TYPING_WINDOW_MS;
   }
 
+  function applyThreadAgentTyping(thread: ChatThread | undefined) {
+    if (!thread || !isConversationRealtimeMode(thread.conversation_mode ?? conversationMode)) {
+      return false;
+    }
+    if (!isRecentAgentTyping(thread)) {
+      return false;
+    }
+
+    setAgentTypingUserId(thread.assigned_agent_id ?? "agent");
+    setIsAgentTyping(true);
+    clearAgentTypingTimer();
+    agentTypingStopRef.current = window.setTimeout(() => {
+      setIsAgentTyping(false);
+      setAgentTypingUserId(null);
+      agentTypingStopRef.current = null;
+    }, AGENT_TYPING_WINDOW_MS);
+    return true;
+  }
+
   function hasAgentTypingField(thread: ChatThread | undefined) {
     return Boolean(thread) && Object.prototype.hasOwnProperty.call(thread, "last_agent_typing_at");
   }
@@ -2195,6 +2218,35 @@ export function ChatWidget({
     if (!activeChatId || !isUuid(activeChatId) || conversationMode === "closed") {
       return;
     }
+    if (!isConversationRealtimeMode(conversationMode)) {
+      return;
+    }
+
+    const refreshAgentTypingFromThreads = () => {
+      void listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost })
+        .then((nextThreads) => {
+          setThreads(nextThreads);
+          const activeThread = nextThreads.find((thread) => thread.id === activeChatId);
+          if (applyThreadAgentTyping(activeThread)) {
+            return;
+          }
+          if (hasAgentTypingField(activeThread)) {
+            clearAgentTypingState();
+          }
+        })
+        .catch(() => undefined);
+    };
+
+    refreshAgentTypingFromThreads();
+    const interval = window.setInterval(refreshAgentTypingFromThreads, AGENT_TYPING_POLL_MS);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChatId, backendUrl, conversationMode, deviceId, portalToken, siteHost, tenantId]);
+
+  useEffect(() => {
+    if (!activeChatId || !isUuid(activeChatId) || conversationMode === "closed") {
+      return;
+    }
 
     const refreshAgentTypingState = () => {
       void getConversationStatus({
@@ -2210,7 +2262,9 @@ export function ChatWidget({
             setConversationMode(status.mode as ConversationMode);
           }
           const agentTyping = status.typing?.agent;
-          if (agentTyping?.is_typing && agentTyping.userId !== deviceId && agentTyping.user_id !== deviceId) {
+          const agentTypingActive = Boolean(agentTyping?.is_typing ?? agentTyping?.isTyping ?? agentTyping?.typing);
+          const agentTypingUser = agentTyping?.userId ?? agentTyping?.user_id ?? agentTyping?.sender_id;
+          if (agentTyping && agentTypingActive && agentTypingUser !== deviceId) {
             applyConversationTyping({
               ...agentTyping,
               conversationId: agentTyping.conversationId ?? status.chat_id,
