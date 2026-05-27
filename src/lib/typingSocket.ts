@@ -4,12 +4,20 @@ export type TypingActor = "agent" | "visitor";
 
 export type TypingSocketPayload = {
   chat_id?: string;
+  chatId?: string;
+  conversation_id?: string;
   conversationId: string;
   actor: TypingActor;
+  sender_type?: TypingActor;
   user_id?: string;
   userId: string;
+  sender_id?: string;
   userName?: string;
+  user_name?: string;
+  senderName?: string;
   is_typing?: boolean;
+  isTyping?: boolean;
+  typing?: boolean;
 };
 
 type ServerToClientEvents = {

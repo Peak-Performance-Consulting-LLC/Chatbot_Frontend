@@ -1391,18 +1391,28 @@ export function ChatWidget({
   function buildVisitorTypingPayload(chatId: string, isTyping: boolean): TypingSocketPayload {
     return {
       chat_id: chatId,
+      chatId,
+      conversation_id: chatId,
       conversationId: chatId,
       actor: "visitor",
+      sender_type: "visitor",
       user_id: deviceId,
       userId: deviceId,
+      sender_id: deviceId,
       userName: "Visitor",
-      is_typing: isTyping
+      user_name: "Visitor",
+      senderName: "Visitor",
+      is_typing: isTyping,
+      isTyping,
+      typing: isTyping
     };
   }
 
   function emitVisitorTypingSocketState(isTyping: boolean, chatId: string) {
     const socket = getTypingSocket(resolveBaseUrl(backendUrl));
-    socket.emit(isTyping ? "typing:start" : "typing:stop", buildVisitorTypingPayload(chatId, isTyping));
+    const payload = buildVisitorTypingPayload(chatId, isTyping);
+    socket.emit("conversation:join", payload);
+    socket.emit(isTyping ? "typing:start" : "typing:stop", payload);
   }
 
   async function emitVisitorTypingState(
@@ -1641,6 +1651,15 @@ export function ChatWidget({
   useEffect(() => {
     messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, isSending]);
+
+  useEffect(() => {
+    if (!showAgentTypingIndicator) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      messageListRef.current?.scrollTo({ top: messageListRef.current.scrollHeight, behavior: "smooth" });
+    });
+  }, [showAgentTypingIndicator]);
 
   async function refreshThreads(preferredChatId?: string) {
     setIsLoadingThreads(true);
@@ -2002,18 +2021,25 @@ export function ChatWidget({
   function applyConversationTyping(payload: unknown) {
     const data = payload as {
       chat_id?: string;
+      chatId?: string;
+      conversation_id?: string;
       conversationId?: string;
       actor?: "agent" | "visitor";
+      sender_type?: "agent" | "visitor";
       user_id?: string;
       userId?: string;
+      sender_id?: string;
       is_typing?: boolean;
+      isTyping?: boolean;
+      typing?: boolean;
     };
-    const conversationId = data.conversationId ?? data.chat_id;
-    const userId = data.userId ?? data.user_id;
+    const conversationId = data.conversationId ?? data.chat_id ?? data.chatId ?? data.conversation_id;
+    const userId = data.userId ?? data.user_id ?? data.sender_id;
+    const actor = data.actor ?? data.sender_type;
     if (conversationId !== activeChatId) return;
     if (userId === deviceId) return;
-    if (data.actor !== "agent") return;
-    const active = Boolean(data.is_typing);
+    if (actor !== "agent") return;
+    const active = Boolean(data.is_typing ?? data.isTyping ?? data.typing);
     setAgentTypingUserId(active ? userId ?? null : null);
     setIsAgentTyping(active);
     clearAgentTypingTimer();

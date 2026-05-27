@@ -87,12 +87,20 @@ export type WidgetConfig = {
 
 export type ConversationTypingParticipant = {
   chat_id?: string;
+  chatId?: string;
+  conversation_id?: string;
   conversationId?: string;
   actor?: "agent" | "visitor";
+  sender_type?: "agent" | "visitor";
   user_id?: string;
   userId?: string;
+  sender_id?: string;
   userName?: string;
+  user_name?: string;
+  senderName?: string;
   is_typing?: boolean;
+  isTyping?: boolean;
+  typing?: boolean;
   updated_at?: string;
 };
 

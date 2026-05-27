@@ -245,6 +245,7 @@ export default function AgentInboxPage() {
   const loadingMessagesRef = useRef(false);
   const typingStateSentRef = useRef<boolean | null>(null);
   const lastTypedConversationIdRef = useRef<string | null>(null);
+  const lastReplyInputValueRef = useRef("");
 
   const selectedConversation = useMemo(
     () =>
@@ -559,6 +560,7 @@ export default function AgentInboxPage() {
       const draftText = response.draft?.draft ?? "";
       setCopilotDraft(draftText);
       if (draftText) {
+        lastReplyInputValueRef.current = draftText;
         setReplyText(draftText);
       }
     } catch (err) {
@@ -590,14 +592,23 @@ export default function AgentInboxPage() {
   }
 
   function buildAgentTypingPayload(conversationId: string, isTyping: boolean): TypingSocketPayload {
+    const agentName = getCurrentAgentName();
     return {
       chat_id: conversationId,
+      chatId: conversationId,
+      conversation_id: conversationId,
       conversationId,
       actor: "agent",
+      sender_type: "agent",
       user_id: currentAgentId,
       userId: currentAgentId,
-      userName: getCurrentAgentName(),
-      is_typing: isTyping
+      sender_id: currentAgentId,
+      userName: agentName,
+      user_name: agentName,
+      senderName: agentName,
+      is_typing: isTyping,
+      isTyping,
+      typing: isTyping
     };
   }
 
@@ -606,7 +617,9 @@ export default function AgentInboxPage() {
       return;
     }
     const socket = getTypingSocket(resolvePlatformApiBaseUrl(backendUrl));
-    socket.emit(isTyping ? "typing:start" : "typing:stop", buildAgentTypingPayload(conversationId, isTyping));
+    const payload = buildAgentTypingPayload(conversationId, isTyping);
+    socket.emit("conversation:join", payload);
+    socket.emit(isTyping ? "typing:start" : "typing:stop", payload);
   }
 
   function clearAgentTypingKeepalive() {
@@ -624,6 +637,10 @@ export default function AgentInboxPage() {
   }
 
   function handleReplyTextChange(value: string) {
+    if (lastReplyInputValueRef.current === value) {
+      return;
+    }
+    lastReplyInputValueRef.current = value;
     setReplyText(value);
 
     if (!selectedConversationId || selectedConversationEnded) {
@@ -672,6 +689,7 @@ export default function AgentInboxPage() {
         },
         backendUrl
       );
+      lastReplyInputValueRef.current = "";
       setReplyText("");
       setMessages((prev) => {
         if (prev.some((message) => message.id === response.message.id && !message._optimistic)) {
@@ -946,19 +964,26 @@ export default function AgentInboxPage() {
   function applyVisitorTyping(payload: unknown) {
     const data = payload as {
       chat_id?: string;
+      chatId?: string;
+      conversation_id?: string;
       conversationId?: string;
       actor?: "agent" | "visitor";
+      sender_type?: "agent" | "visitor";
       user_id?: string;
       userId?: string;
+      sender_id?: string;
       is_typing?: boolean;
+      isTyping?: boolean;
+      typing?: boolean;
     };
-    const conversationId = data.conversationId ?? data.chat_id;
-    const userId = data.userId ?? data.user_id;
+    const conversationId = data.conversationId ?? data.chat_id ?? data.chatId ?? data.conversation_id;
+    const userId = data.userId ?? data.user_id ?? data.sender_id;
+    const actor = data.actor ?? data.sender_type;
     if (conversationId !== selectedConversationId) return;
     if (userId === currentAgentId) return;
-    if (data.actor !== "visitor") return;
+    if (actor !== "visitor") return;
 
-    const active = Boolean(data.is_typing);
+    const active = Boolean(data.is_typing ?? data.isTyping ?? data.typing);
     setVisitorTypingUserId(active ? userId ?? null : null);
     setVisitorTyping(active);
     if (visitorTypingTimeoutRef.current) {
@@ -1595,6 +1620,14 @@ export default function AgentInboxPage() {
                 <textarea
                   value={replyText}
                   onChange={(event) => handleReplyTextChange(event.target.value)}
+                  onInput={(event) => handleReplyTextChange(event.currentTarget.value)}
+                  onCompositionEnd={(event) => handleReplyTextChange(event.currentTarget.value)}
+                  onFocus={() => {
+                    if (replyText.trim()) {
+                      emitAgentTypingState(true, selectedConversationId, { force: true });
+                      startAgentTypingKeepalive(selectedConversationId);
+                    }
+                  }}
                   onBlur={() => {
                     clearAgentTypingKeepalive();
                     emitAgentTypingState(false, selectedConversationId);
