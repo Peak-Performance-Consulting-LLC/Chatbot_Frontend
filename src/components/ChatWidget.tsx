@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import {
   createChat,
   deleteChat,
+  getConversationStatus,
   getWidgetConfig,
   getConversationCsat,
   HandoffRequestError,
@@ -22,6 +23,7 @@ import {
 import { subscribeToBackendEvents } from "@/lib/backendEvents";
 import { getOrCreateDeviceId } from "@/lib/device";
 import { resolveTenantId } from "@/lib/tenant";
+import { getTypingSocket, type TypingSocketPayload } from "@/lib/typingSocket";
 import { getWidgetSurfaceTokens } from "@/lib/widgetTheme";
 import { createClient } from "@supabase/supabase-js";
 import type { ChatMessage, ChatThread, ConversationMode, MessageMetadata } from "@/types";
@@ -1268,7 +1270,7 @@ export function ChatWidget({
     conversationMode === "agent_active" ||
     conversationMode === "copilot";
   const showAiTypingIndicator = isSending && !isLiveConversationMode;
-  const showAgentTypingIndicator = isLiveConversationMode && isAgentTyping && agentTypingUserId !== deviceId;
+  const showAgentTypingIndicator = Boolean(activeChatId && isAgentTyping && agentTypingUserId !== deviceId);
   const callCta = tenantCallCtaOverride ?? latestAssistantMeta?.call_cta ?? null;
   const effectiveShellWidth = shellWidth ?? Math.min(window.innerWidth, publicEmbedWidth);
   const isCompactLayout = effectiveShellWidth < 720;
@@ -1383,11 +1385,24 @@ export function ChatWidget({
   }
 
   function canPublishVisitorTyping(chatId: string | null, mode: ConversationMode) {
-    return Boolean(
-      chatId &&
-        isUuid(chatId) &&
-        (mode === "agent_active" || mode === "handoff_pending" || mode === "copilot")
-    );
+    return Boolean(chatId && isUuid(chatId) && mode !== "closed");
+  }
+
+  function buildVisitorTypingPayload(chatId: string, isTyping: boolean): TypingSocketPayload {
+    return {
+      chat_id: chatId,
+      conversationId: chatId,
+      actor: "visitor",
+      user_id: deviceId,
+      userId: deviceId,
+      userName: "Visitor",
+      is_typing: isTyping
+    };
+  }
+
+  function emitVisitorTypingSocketState(isTyping: boolean, chatId: string) {
+    const socket = getTypingSocket(resolveBaseUrl(backendUrl));
+    socket.emit(isTyping ? "typing:start" : "typing:stop", buildVisitorTypingPayload(chatId, isTyping));
   }
 
   async function emitVisitorTypingState(
@@ -1405,6 +1420,7 @@ export function ChatWidget({
     }
 
     visitorTypingStateRef.current = nextValue;
+    emitVisitorTypingSocketState(nextValue, chatId!);
     await publishVisitorTyping({
       chatId: chatId!,
       tenantId,
@@ -2010,6 +2026,44 @@ export function ChatWidget({
     }
   }
 
+  useEffect(() => {
+    if (!activeChatId || !isUuid(activeChatId) || conversationMode === "closed") {
+      return;
+    }
+
+    const socket = getTypingSocket(resolveBaseUrl(backendUrl));
+    const joinPayload = buildVisitorTypingPayload(activeChatId, false);
+    const joinRoom = () => {
+      socket.emit("conversation:join", joinPayload);
+    };
+    const handleTypingStart = (payload: TypingSocketPayload) => {
+      applyConversationTyping({ ...payload, is_typing: true });
+    };
+    const handleTypingStop = (payload: TypingSocketPayload) => {
+      applyConversationTyping({ ...payload, is_typing: false });
+    };
+    const handleTyping = (payload: TypingSocketPayload) => {
+      applyConversationTyping(payload);
+    };
+
+    joinRoom();
+    socket.on("connect", joinRoom);
+    socket.on("typing:start", handleTypingStart);
+    socket.on("typing:stop", handleTypingStop);
+    socket.on("typing", handleTyping);
+
+    return () => {
+      socket.off("connect", joinRoom);
+      socket.off("typing:start", handleTypingStart);
+      socket.off("typing:stop", handleTypingStop);
+      socket.off("typing", handleTyping);
+      socket.emit("typing:stop", { ...joinPayload, is_typing: false });
+      socket.emit("conversation:leave", joinPayload);
+      clearAgentTypingState();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeChatId, backendUrl, conversationMode, deviceId]);
+
   // Supabase Realtime path when public frontend keys are configured.
   useEffect(() => {
     if (!supabaseClient || !activeChatId) return;
@@ -2112,20 +2166,36 @@ export function ChatWidget({
   }, [activeChatId, backendUrl, conversationMode, deviceId, portalToken, siteHost, tenantId]);
 
   useEffect(() => {
-    if (!activeChatId || !isConversationRealtimeMode(conversationMode)) {
+    if (!activeChatId || !isUuid(activeChatId) || conversationMode === "closed") {
       return;
     }
 
     const refreshAgentTypingState = () => {
-      void listChats({ tenantId, deviceId, backendUrl, authToken: portalToken, siteHost })
-        .then((nextThreads) => {
-          const activeThread = nextThreads.find((thread) => thread.id === activeChatId);
-          setThreads(nextThreads);
-          if (hasAgentTypingField(activeThread)) {
-          const active = isRecentAgentTyping(activeThread);
-          setIsAgentTyping(active);
-          if (!active) setAgentTypingUserId(null);
-        }
+      void getConversationStatus({
+        chatId: activeChatId,
+        tenantId,
+        deviceId,
+        backendUrl,
+        authToken: portalToken,
+        siteHost
+      })
+        .then((status) => {
+          if (status.mode) {
+            setConversationMode(status.mode as ConversationMode);
+          }
+          const agentTyping = status.typing?.agent;
+          if (agentTyping?.is_typing && agentTyping.userId !== deviceId && agentTyping.user_id !== deviceId) {
+            applyConversationTyping({
+              ...agentTyping,
+              conversationId: agentTyping.conversationId ?? status.chat_id,
+              chat_id: agentTyping.chat_id ?? status.chat_id,
+              actor: "agent",
+              is_typing: true
+            });
+            return;
+          }
+          setIsAgentTyping(false);
+          setAgentTypingUserId(null);
         })
         .catch(() => undefined);
     };

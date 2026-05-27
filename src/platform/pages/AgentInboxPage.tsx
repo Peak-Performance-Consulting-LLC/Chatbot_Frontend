@@ -2,6 +2,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } fr
 import { createClient } from "@supabase/supabase-js";
 import {
   platformAgentAcceptConversation,
+  platformAgentConversationTyping,
   platformAgentCopilot,
   platformAgentConversationMessages,
   platformAgentHeartbeat,
@@ -15,6 +16,7 @@ import {
   resolvePlatformApiBaseUrl
 } from "@/lib/platformApi";
 import { subscribeToBackendEvents } from "@/lib/backendEvents";
+import { getTypingSocket, type TypingSocketPayload } from "@/lib/typingSocket";
 import { usePlatformAuth } from "@/platform/state/auth";
 import type {
   AgentPresenceStatus,
@@ -214,7 +216,6 @@ export default function AgentInboxPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<string>("");
   const [messages, setMessages] = useState<InboxMessage[]>([]);
   const [replyText, setReplyText] = useState("");
-  const [replyComposerFocused, setReplyComposerFocused] = useState(false);
   const [copilotPrompt, setCopilotPrompt] = useState("");
   const [copilotDraft, setCopilotDraft] = useState("");
   const [runningCopilot, setRunningCopilot] = useState(false);
@@ -572,25 +573,40 @@ export default function AgentInboxPage() {
     conversationId = selectedConversationId,
     options?: { force?: boolean }
   ) {
-    if (!token || !conversationId) {
+    if (!token || !conversationId || !currentAgentId) {
       return;
     }
     if (!options?.force && typingStateSentRef.current === isTyping) {
       return;
     }
-    console.log("Agent typing");
-    console.log("Agent typing", { isTyping, conversationId });
     typingStateSentRef.current = isTyping;
     lastTypedConversationIdRef.current = isTyping ? conversationId : null;
+    emitAgentTypingSocketState(isTyping, conversationId);
     void platformAgentTyping(token, conversationId, isTyping, backendUrl).catch(() => undefined);
   }
 
-  function isAgentTypingMode(conversation = selectedConversation) {
-    return (
-      conversation?.conversation_mode === "handoff_pending" ||
-      conversation?.conversation_mode === "agent_active" ||
-      conversation?.conversation_mode === "copilot"
-    );
+  function getCurrentAgentName() {
+    return profile?.user.full_name?.trim() || profile?.user.email?.trim() || "Agent";
+  }
+
+  function buildAgentTypingPayload(conversationId: string, isTyping: boolean): TypingSocketPayload {
+    return {
+      chat_id: conversationId,
+      conversationId,
+      actor: "agent",
+      user_id: currentAgentId,
+      userId: currentAgentId,
+      userName: getCurrentAgentName(),
+      is_typing: isTyping
+    };
+  }
+
+  function emitAgentTypingSocketState(isTyping: boolean, conversationId: string) {
+    if (!currentAgentId) {
+      return;
+    }
+    const socket = getTypingSocket(resolvePlatformApiBaseUrl(backendUrl));
+    socket.emit(isTyping ? "typing:start" : "typing:stop", buildAgentTypingPayload(conversationId, isTyping));
   }
 
   function clearAgentTypingKeepalive() {
@@ -609,9 +625,8 @@ export default function AgentInboxPage() {
 
   function handleReplyTextChange(value: string) {
     setReplyText(value);
-    setReplyComposerFocused(true);
 
-    if (!selectedConversationId || !isAgentTypingMode()) {
+    if (!selectedConversationId || selectedConversationEnded) {
       return;
     }
 
@@ -837,42 +852,6 @@ export default function AgentInboxPage() {
   }, [messages.length, showVisitorTyping]);
 
   useEffect(() => {
-    if (!token || !selectedConversationId) return;
-    const isLiveMode =
-      selectedConversation?.conversation_mode === "handoff_pending" ||
-      selectedConversation?.conversation_mode === "agent_active" ||
-      selectedConversation?.conversation_mode === "copilot";
-
-    if (!isLiveMode) {
-      if (typingTimeoutRef.current) {
-        clearAgentTypingKeepalive();
-      }
-      if (typingStateSentRef.current === true) {
-        emitAgentTypingState(false, selectedConversationId);
-      }
-      return;
-    }
-
-    if (typingTimeoutRef.current) {
-      clearAgentTypingKeepalive();
-    }
-
-    const isTyping = replyComposerFocused && replyText.trim().length > 0;
-    emitAgentTypingState(isTyping, selectedConversationId);
-
-    if (isTyping) {
-      startAgentTypingKeepalive(selectedConversationId);
-    }
-  }, [
-    replyText,
-    replyComposerFocused,
-    token,
-    selectedConversationId,
-    selectedConversation?.conversation_mode,
-    backendUrl
-  ]);
-
-  useEffect(() => {
     return () => {
       if (!token || typingStateSentRef.current !== true || !lastTypedConversationIdRef.current) {
         return;
@@ -994,6 +973,88 @@ export default function AgentInboxPage() {
       }, VISITOR_TYPING_STALE_MS);
     }
   }
+
+  function clearVisitorTypingState() {
+    setVisitorTyping(false);
+    setVisitorTypingUserId(null);
+    if (visitorTypingTimeoutRef.current) {
+      window.clearTimeout(visitorTypingTimeoutRef.current);
+      visitorTypingTimeoutRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedConversationId || !currentAgentId) {
+      return;
+    }
+
+    const socket = getTypingSocket(resolvePlatformApiBaseUrl(backendUrl));
+    const joinPayload = buildAgentTypingPayload(selectedConversationId, false);
+    const joinRoom = () => {
+      socket.emit("conversation:join", joinPayload);
+    };
+    const handleTypingStart = (payload: TypingSocketPayload) => {
+      applyVisitorTyping({ ...payload, is_typing: true });
+    };
+    const handleTypingStop = (payload: TypingSocketPayload) => {
+      applyVisitorTyping({ ...payload, is_typing: false });
+    };
+    const handleTyping = (payload: TypingSocketPayload) => {
+      applyVisitorTyping(payload);
+    };
+
+    joinRoom();
+    socket.on("connect", joinRoom);
+    socket.on("typing:start", handleTypingStart);
+    socket.on("typing:stop", handleTypingStop);
+    socket.on("typing", handleTyping);
+
+    return () => {
+      socket.off("connect", joinRoom);
+      socket.off("typing:start", handleTypingStart);
+      socket.off("typing:stop", handleTypingStop);
+      socket.off("typing", handleTyping);
+      socket.emit("typing:stop", { ...joinPayload, is_typing: false });
+      socket.emit("conversation:leave", joinPayload);
+      setVisitorTyping(false);
+      setVisitorTypingUserId(null);
+      if (visitorTypingTimeoutRef.current) {
+        window.clearTimeout(visitorTypingTimeoutRef.current);
+        visitorTypingTimeoutRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendUrl, currentAgentId, profile?.user.email, profile?.user.full_name, selectedConversationId]);
+
+  useEffect(() => {
+    if (!token || !selectedConversationId) {
+      return;
+    }
+
+    const refreshVisitorTypingState = () => {
+      void platformAgentConversationTyping(token, selectedConversationId, backendUrl)
+        .then((response) => {
+          const visitorTypingPayload = response.typing?.visitor;
+          if (visitorTypingPayload?.is_typing && visitorTypingPayload.userId !== currentAgentId) {
+            applyVisitorTyping({
+              ...visitorTypingPayload,
+              conversationId: visitorTypingPayload.conversationId ?? selectedConversationId,
+              chat_id: visitorTypingPayload.chat_id ?? selectedConversationId,
+              actor: "visitor",
+              is_typing: true
+            });
+            return;
+          }
+          clearVisitorTypingState();
+        })
+        .catch(() => undefined);
+    };
+
+    refreshVisitorTypingState();
+    const interval = window.setInterval(refreshVisitorTypingState, 1000);
+    return () => window.clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [backendUrl, currentAgentId, selectedConversationId, token]);
 
   useEffect(() => {
     if (!supabaseClient || !selectedConversationId) return;
@@ -1534,9 +1595,7 @@ export default function AgentInboxPage() {
                 <textarea
                   value={replyText}
                   onChange={(event) => handleReplyTextChange(event.target.value)}
-                  onFocus={() => setReplyComposerFocused(true)}
                   onBlur={() => {
-                    setReplyComposerFocused(false);
                     clearAgentTypingKeepalive();
                     emitAgentTypingState(false, selectedConversationId);
                   }}

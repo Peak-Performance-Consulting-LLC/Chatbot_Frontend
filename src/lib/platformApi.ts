@@ -25,6 +25,7 @@ import type {
   TenantBusinessProfile
 } from "@/platform/types";
 import type { ChatMessage, ChatThread, ConversationMode } from "@/types";
+import type { ConversationTypingState } from "@/lib/api";
 
 type SignupPayload = {
   full_name: string;
@@ -879,6 +880,22 @@ export async function platformAgentTyping(
     token,
     method: "POST",
     body: { is_typing: isTyping },
+    backendUrl
+  });
+}
+
+export async function platformAgentConversationTyping(
+  token: string,
+  conversationId: string,
+  backendUrl?: string
+) {
+  return authedJson<{
+    chat_id: string;
+    typing: ConversationTypingState;
+  }>({
+    path: `/api/agent/conversation/${encodeURIComponent(conversationId)}/typing?_ts=${Date.now()}`,
+    token,
+    method: "GET",
     backendUrl
   });
 }

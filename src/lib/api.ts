@@ -85,6 +85,22 @@ export type WidgetConfig = {
   };
 };
 
+export type ConversationTypingParticipant = {
+  chat_id?: string;
+  conversationId?: string;
+  actor?: "agent" | "visitor";
+  user_id?: string;
+  userId?: string;
+  userName?: string;
+  is_typing?: boolean;
+  updated_at?: string;
+};
+
+export type ConversationTypingState = {
+  agent: ConversationTypingParticipant | null;
+  visitor: ConversationTypingParticipant | null;
+};
+
 export function resolveBaseUrl(override?: string) {
   return (override || import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000").replace(/\/$/, "");
 }
@@ -574,6 +590,48 @@ export async function publishVisitorTyping(input: {
   if (!response.ok) {
     throw new Error(await parseError(response));
   }
+}
+
+export async function getConversationStatus(input: {
+  chatId: string;
+  tenantId: string;
+  deviceId: string;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<{
+  chat_id: string;
+  mode: string;
+  status: string;
+  assigned_agent_id: string | null;
+  workspace_id: string;
+  queue_id: string | null;
+  last_message_at: string;
+  typing?: ConversationTypingState;
+}> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(
+    `${base}/api/conversation/${encodeURIComponent(input.chatId)}/status?tenant_id=${encodeURIComponent(input.tenantId)}&device_id=${encodeURIComponent(input.deviceId)}&_ts=${Date.now()}`,
+    {
+      headers: buildHeaders(input),
+      cache: "no-store"
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as {
+    chat_id: string;
+    mode: string;
+    status: string;
+    assigned_agent_id: string | null;
+    workspace_id: string;
+    queue_id: string | null;
+    last_message_at: string;
+    typing?: ConversationTypingState;
+  };
 }
 
 export async function getConversationCsat(input: {
