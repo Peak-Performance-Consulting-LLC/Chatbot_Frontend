@@ -12,7 +12,7 @@ export type PlatformAvatarSource = "initials" | "manual" | "google" | "facebook"
 export type PlatformAuthProvider = "password" | "google" | "facebook";
 export type PlatformSubscriptionPlan = "trial" | "starter" | "growth" | "enterprise";
 export type PlatformSubscriptionStatus = "active" | "canceled" | "expired" | "past_due";
-export type WorkspaceMemberRole = "owner" | "admin" | "supervisor" | "agent" | "viewer";
+export type WorkspaceMemberRole = "owner" | "admin" | "agent" | "viewer";
 export type AgentPresenceStatus = "online" | "away" | "offline";
 export type AgentEffectiveStatus = "online" | "busy" | "away" | "offline";
 export type QueueRoutingMode = "manual_accept" | "auto_assign";
@@ -339,14 +339,3 @@ export type PlatformPresenceEntry = {
   effective_status?: AgentEffectiveStatus;
 };
 
-export type SupervisorAgentLoad = {
-  queue_id: string;
-  user_id: string;
-  full_name: string;
-  role: WorkspaceMemberRole;
-  status: AgentPresenceStatus;
-  last_heartbeat_at: string | null;
-  active_chats: number;
-  max_concurrent_chats: number;
-  priority: number;
-};

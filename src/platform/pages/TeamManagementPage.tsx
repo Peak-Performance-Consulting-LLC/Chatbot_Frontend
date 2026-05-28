@@ -14,7 +14,7 @@ import type {
   WorkspaceMemberRole
 } from "@/platform/types";
 
-const ROLE_OPTIONS: WorkspaceMemberRole[] = ["agent", "supervisor", "admin", "viewer"];
+const ROLE_OPTIONS: WorkspaceMemberRole[] = ["agent", "admin", "viewer"];
 
 function formatRelativeTs(input: string | null, nowMs = Date.now()) {
   if (!input) {

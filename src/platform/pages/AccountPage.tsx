@@ -24,7 +24,6 @@ const providerLabelMap: Record<PlatformAuthProvider, string> = {
 const roleLabelMap: Record<WorkspaceMemberRole, string> = {
   owner: "Owner",
   admin: "Admin",
-  supervisor: "Supervisor",
   agent: "Agent",
   viewer: "Viewer"
 };
@@ -38,35 +37,28 @@ const rightsByRole: Record<
     { label: "Conversation export", enabled: true },
     { label: "Retention policy updates", enabled: true },
     { label: "Queue and team administration", enabled: true },
-    { label: "Supervisor controls", enabled: true }
+    { label: "Workspace administration", enabled: true }
   ],
   admin: [
     { label: "Account and profile management", enabled: true },
     { label: "Conversation export", enabled: true },
     { label: "Retention policy updates", enabled: true },
     { label: "Queue and team administration", enabled: true },
-    { label: "Supervisor controls", enabled: true }
-  ],
-  supervisor: [
-    { label: "Account and profile management", enabled: true },
-    { label: "Conversation export", enabled: true },
-    { label: "Retention policy updates", enabled: false },
-    { label: "Queue administration", enabled: true },
-    { label: "Supervisor controls", enabled: true }
+    { label: "Workspace administration", enabled: true }
   ],
   agent: [
     { label: "Account and profile management", enabled: true },
     { label: "Conversation export", enabled: false },
     { label: "Retention policy updates", enabled: false },
     { label: "Queue and team administration", enabled: false },
-    { label: "Supervisor controls", enabled: false }
+    { label: "Workspace administration", enabled: false }
   ],
   viewer: [
     { label: "Account and profile management", enabled: true },
     { label: "Conversation export", enabled: false },
     { label: "Retention policy updates", enabled: false },
     { label: "Queue and team administration", enabled: false },
-    { label: "Supervisor controls", enabled: false }
+    { label: "Workspace administration", enabled: false }
   ]
 };
 
@@ -113,10 +105,8 @@ export default function AccountPage() {
   const trialCountdown = useTrialCountdown(subscription?.trial_ends_at);
   const currentRole = selectedTenant?.workspace_role ?? null;
   const canManageRetention = currentRole === "owner" || currentRole === "admin";
-  const canAccessWorkspaceGovernance =
-    currentRole === "owner" || currentRole === "admin" || currentRole === "supervisor";
-  const canExportConversations =
-    currentRole === "owner" || currentRole === "admin" || currentRole === "supervisor";
+  const canAccessWorkspaceGovernance = currentRole === "owner" || currentRole === "admin";
+  const canExportConversations = currentRole === "owner" || currentRole === "admin";
   const currentRights = currentRole ? rightsByRole[currentRole] : [];
 
   function formatPlanName(plan: PlatformSubscriptionPlan | undefined) {
@@ -504,7 +494,7 @@ export default function AccountPage() {
           <div className="app-note-list" style={{ marginTop: "18px" }}>
             <div className="app-note">
               <strong>Account page access</strong>
-              <p>Agents, supervisors, admins, and owners can access this page to manage their own profile and workspace visibility.</p>
+              <p>Agents, admins, and owners can access this page to manage their own profile and workspace visibility.</p>
             </div>
             <div className="app-note">
               <strong>Workspace governance</strong>
@@ -671,9 +661,8 @@ export default function AccountPage() {
               Workspace governance is restricted
             </p>
             <p style={{ fontSize: "0.82rem", color: "rgba(10,10,15,0.6)", margin: "8px 0 0" }}>
-              Retention policy and governance changes for this workspace are limited to owner and admin
-              roles. Conversation export is limited to supervisor, admin, and owner roles. Your current
-              access here is read-only.
+              Retention policy, governance changes, and conversation export for this workspace are limited
+              to owner and admin roles. Your current access here is read-only.
             </p>
           </div>
         </div>

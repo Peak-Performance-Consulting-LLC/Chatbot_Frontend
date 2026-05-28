@@ -32,6 +32,7 @@ const WAITING_CRITICAL_SECONDS = 15 * 60;
 const ARRIVAL_ALERT_TTL_MS = 7000;
 const VISITOR_TYPING_STALE_MS = 8000;
 const AGENT_TYPING_KEEPALIVE_MS = 1200;
+type InboxView = "active" | "closed";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
@@ -132,6 +133,9 @@ function getWaitingUrgencyTone(urgency: "normal" | "warning" | "high" | "critica
 }
 
 function isConversationWaiting(conversation: ChatThread) {
+  if (isConversationEnded(conversation)) {
+    return false;
+  }
   if (typeof conversation.awaiting_agent_reply === "boolean") {
     return conversation.awaiting_agent_reply;
   }
@@ -207,6 +211,8 @@ export default function AgentInboxPage() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [highWaitingCount, setHighWaitingCount] = useState(0);
   const [criticalWaitingCount, setCriticalWaitingCount] = useState(0);
+  const [closedCount, setClosedCount] = useState(0);
+  const [inboxView, setInboxView] = useState<InboxView>("active");
   const [arrivalAlerts, setArrivalAlerts] = useState<Array<{
     id: string;
     chatId: string;
@@ -328,7 +334,9 @@ export default function AgentInboxPage() {
     setLoadingInbox(true);
     setError("");
     try {
-      const response = await platformAgentInbox(token, backendUrl, selectedTenantId ?? undefined);
+      const response = await platformAgentInbox(token, backendUrl, selectedTenantId ?? undefined, {
+        status: inboxView
+      });
       const merged = dedupeConversations(
         response.conversations?.length
           ? response.conversations
@@ -344,7 +352,7 @@ export default function AgentInboxPage() {
         nextWaitingMap.set(conversation.id, isConversationWaiting(conversation));
       }
 
-      if (hasInboxSnapshotRef.current) {
+      if (inboxView === "active" && hasInboxSnapshotRef.current) {
         const newlyWaiting = merged.filter((conversation) => {
           const isWaitingNow = nextWaitingMap.get(conversation.id) ?? false;
           const wasWaiting = waitingStateRef.current.get(conversation.id) ?? false;
@@ -386,12 +394,23 @@ export default function AgentInboxPage() {
       setCriticalWaitingCount(
         typeof response.critical_waiting_count === "number" ? response.critical_waiting_count : computedCriticalWaiting
       );
+      setClosedCount(
+        typeof response.closed_count === "number"
+          ? response.closed_count
+          : inboxView === "closed"
+            ? merged.length
+            : 0
+      );
 
       const selectedFromInbox = selectedConversationId
         ? merged.find((conversation) => conversation.id === selectedConversationId) ?? null
         : null;
       if (selectedFromInbox) {
         setSelectedConversationSnapshot(selectedFromInbox);
+      }
+      if (selectedConversationId && !selectedFromInbox) {
+        setSelectedConversationId(merged[0]?.id ?? "");
+        setSelectedConversationSnapshot(merged[0] ?? null);
       }
       if (!selectedConversationId && merged[0]?.id) {
         setSelectedConversationId(merged[0].id);
@@ -788,13 +807,13 @@ export default function AgentInboxPage() {
     void loadInbox();
     void loadTransferTargets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, selectedTenantId]);
+  }, [token, selectedTenantId, inboxView]);
 
   useEffect(() => {
     waitingStateRef.current = new Map();
     hasInboxSnapshotRef.current = false;
     setArrivalAlerts([]);
-  }, [selectedTenantId]);
+  }, [selectedTenantId, inboxView]);
 
   useEffect(() => {
     if (!selectedConversationId) {
@@ -1157,7 +1176,7 @@ export default function AgentInboxPage() {
 
     return () => window.clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, selectedConversationId, selectedTenantId]);
+  }, [token, selectedConversationId, selectedTenantId, inboxView]);
 
   return (
     <div className="agent-inbox-page space-y-6">
@@ -1199,7 +1218,7 @@ export default function AgentInboxPage() {
         </div>
       ) : null}
 
-      {waitingCount > 0 ? (
+      {inboxView === "active" && waitingCount > 0 ? (
         <div className="app-callout warning">
           <span className="callout-icon">!</span>
           <div>
@@ -1238,15 +1257,52 @@ export default function AgentInboxPage() {
             </button>
           </div>
 
+          <div className="mb-3 grid grid-cols-2 rounded-xl border border-[#0a0a0f]/10 bg-[#f6f4ef] p-1 text-xs font-semibold">
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-2 transition ${
+                inboxView === "active"
+                  ? "bg-white text-[#0a0a0f] shadow-sm"
+                  : "text-[#0a0a0f]/55 hover:text-[#0a0a0f]"
+              }`}
+              onClick={() => setInboxView("active")}
+            >
+              Active
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg px-3 py-2 transition ${
+                inboxView === "closed"
+                  ? "bg-white text-[#0a0a0f] shadow-sm"
+                  : "text-[#0a0a0f]/55 hover:text-[#0a0a0f]"
+              }`}
+              onClick={() => setInboxView("closed")}
+            >
+              Closed
+            </button>
+          </div>
+
           <div className="mb-3 text-xs text-[#0a0a0f]/55">
-            Waiting: <strong>{waitingCount}</strong> · Answered: <strong>{answeredCount}</strong> · High: <strong>{highWaitingCount}</strong> · Critical: <strong>{criticalWaitingCount}</strong>
+            {inboxView === "closed" ? (
+              <>
+                Closed: <strong>{closedCount}</strong>
+              </>
+            ) : (
+              <>
+                Waiting: <strong>{waitingCount}</strong> - Answered: <strong>{answeredCount}</strong> - High:{" "}
+                <strong>{highWaitingCount}</strong> - Critical: <strong>{criticalWaitingCount}</strong>
+              </>
+            )}
           </div>
 
           <div className="space-y-2">
             {conversations.length === 0 ? (
-              <p className="text-sm text-[#0a0a0f]/55">No conversations in shared inbox.</p>
+              <p className="text-sm text-[#0a0a0f]/55">
+                {inboxView === "closed" ? "No closed conversations yet." : "No conversations in shared inbox."}
+              </p>
             ) : null}
             {conversations.map((conversation) => {
+              const ended = isConversationEnded(conversation);
               const waiting = isConversationWaiting(conversation);
               const waitingUrgency = getWaitingUrgency(conversation);
               const waitingSince = waiting
@@ -1271,12 +1327,14 @@ export default function AgentInboxPage() {
                     <strong className="truncate text-sm text-[#0a0a0f]">{getConversationDisplayName(conversation)}</strong>
                     <span
                       className={`rounded-full px-2 py-[1px] text-[10px] font-semibold ${
-                        waiting
-                          ? getWaitingUrgencyTone(waitingUrgency)
-                          : "border border-[#1a5c5c]/25 bg-[#e9f6f3] text-[#1a5c5c]"
+                        ended
+                          ? "border border-[#0a0a0f]/15 bg-[#f1f1f3] text-[#5a5a68]"
+                          : waiting
+                           ? getWaitingUrgencyTone(waitingUrgency)
+                           : "border border-[#1a5c5c]/25 bg-[#e9f6f3] text-[#1a5c5c]"
                       }`}
                     >
-                      {waiting ? "Waiting" : "Answered"}
+                      {ended ? "Closed" : waiting ? "Waiting" : "Answered"}
                     </span>
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#0a0a0f]/50">
@@ -1293,7 +1351,11 @@ export default function AgentInboxPage() {
                     ) : null}
                   </div>
                   <div className="mt-1 flex items-center justify-between gap-2 text-xs text-[#0a0a0f]/45">
-                    <span>{toDateLabel(conversation.last_message_at)}</span>
+                    <span>
+                      {ended
+                        ? `Closed ${toDateLabel(conversation.closed_at ?? conversation.updated_at)}`
+                        : toDateLabel(conversation.last_message_at)}
+                    </span>
                     {waiting && waitingSince ? (
                       <span
                         className={`font-semibold ${
@@ -1644,8 +1706,10 @@ export default function AgentInboxPage() {
                 />
                 <div className="flex justify-between items-center">
                   <div className="text-xs text-[#0a0a0f]/45">
-                    {selectedConversation.conversation_mode === "agent_active" ||
-                    selectedConversation.conversation_mode === "copilot"
+                    {selectedConversationEnded
+                      ? "Conversation is closed"
+                      : selectedConversation.conversation_mode === "agent_active" ||
+                        selectedConversation.conversation_mode === "copilot"
                       ? "Live mode active"
                       : "First reply will switch this chat to live agent mode"}
                   </div>

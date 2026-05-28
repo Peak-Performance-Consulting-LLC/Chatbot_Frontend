@@ -39,7 +39,7 @@ export const appPrimaryNavItems: PlatformNavItem[] = [
     label: "Overview",
     path: "/platform/app/overview",
     icon: createElement(IconOverview),
-    allowedRoles: ["owner", "admin", "supervisor"]
+    allowedRoles: ["owner", "admin"]
   },
   {
     key: "inbox",
@@ -54,13 +54,6 @@ export const appPrimaryNavItems: PlatformNavItem[] = [
     path: "/platform/app/chatbot",
     icon: createElement(IconChatbot),
     allowedRoles: ["owner", "admin"]
-  },
-  {
-    key: "supervisor",
-    label: "Supervisor",
-    path: "/platform/app/supervisor",
-    icon: createElement(IconOverview),
-    allowedRoles: ["owner", "admin", "supervisor"]
   }
 ];
 
@@ -82,14 +75,14 @@ export const appNavSections: PlatformNavSection[] = [
         label: "Team",
         path: "/platform/app/team",
         icon: createElement(IconTeam),
-        allowedRoles: ["owner", "admin", "supervisor"]
+        allowedRoles: ["owner", "admin"]
       },
       {
         key: "queues",
         label: "Queues",
         path: "/platform/app/queues",
         icon: createElement(IconQueue),
-        allowedRoles: ["owner", "admin", "supervisor"]
+        allowedRoles: ["owner", "admin"]
       },
       {
         key: "leads",
@@ -152,14 +145,14 @@ export const appNavSections: PlatformNavSection[] = [
         label: "Documentation",
         path: "/platform/app/docs",
         icon: createElement(IconDocs),
-        allowedRoles: ["owner", "admin", "supervisor"]
+        allowedRoles: ["owner", "admin"]
       },
       {
         key: "account",
         label: "Account",
         path: "/platform/app/account",
         icon: createElement(IconAccount),
-        allowedRoles: ["owner", "admin", "supervisor", "agent"]
+        allowedRoles: ["owner", "admin", "agent"]
       },
       {
         key: "pricing",

@@ -25,7 +25,6 @@ const QueueManagementPage = lazy(() => import("@/platform/pages/QueueManagementP
 const ResetPasswordPage = lazy(() => import("@/platform/pages/ResetPasswordPage"));
 const SiteSetupPage = lazy(() => import("@/platform/pages/SiteSetupPage"));
 const SignupPage = lazy(() => import("@/platform/pages/SignupPage"));
-const SupervisorDashboardPage = lazy(() => import("@/platform/pages/SupervisorDashboardPage"));
 const TeamManagementPage = lazy(() => import("@/platform/pages/TeamManagementPage"));
 const TenantManagementPage = lazy(() => import("@/platform/pages/TenantManagementPage"));
 const WidgetCodePage = lazy(() => import("@/platform/pages/WidgetCodePage"));
@@ -44,7 +43,6 @@ function prefetchPlatformRoutes() {
   void import("@/platform/pages/PricingPage");
   void import("@/platform/pages/QueueManagementPage");
   void import("@/platform/pages/SiteSetupPage");
-  void import("@/platform/pages/SupervisorDashboardPage");
   void import("@/platform/pages/TeamManagementPage");
   void import("@/platform/pages/TenantManagementPage");
   void import("@/platform/pages/WidgetCodePage");
@@ -159,7 +157,6 @@ export default function App() {
           <Route path="inbox" element={<AgentInboxPage />} />
           <Route path="team" element={<TeamManagementPage />} />
           <Route path="queues" element={<QueueManagementPage />} />
-          <Route path="supervisor" element={<SupervisorDashboardPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="customization" element={<CustomizationPage />} />
           <Route path="knowledge" element={<KnowledgePage />} />

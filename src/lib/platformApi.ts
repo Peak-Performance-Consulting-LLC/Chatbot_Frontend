@@ -19,7 +19,6 @@ import type {
   PlatformPresenceEntry,
   QueueAfterHoursAction,
   AgentPresenceStatus,
-  SupervisorAgentLoad,
   ThemeStyle,
   PlatformUser,
   TenantBusinessProfile
@@ -767,9 +766,19 @@ export function getPlatformOauthUrl(provider: PlatformOauthProvider, backendUrl?
 export async function platformAgentInbox(
   token: string,
   backendUrl?: string,
-  tenantId?: string
+  tenantId?: string,
+  input?: {
+    status?: "active" | "closed";
+  }
 ) {
-  const params = tenantId?.trim() ? `?tenant_id=${encodeURIComponent(tenantId.trim())}` : "";
+  const params = new URLSearchParams();
+  if (tenantId?.trim()) {
+    params.set("tenant_id", tenantId.trim());
+  }
+  if (input?.status === "closed") {
+    params.set("status", "closed");
+  }
+  const query = params.toString() ? `?${params.toString()}` : "";
   return authedJson<{
     agent_id: string;
     conversations: ChatThread[];
@@ -779,8 +788,9 @@ export async function platformAgentInbox(
     answered_count: number;
     high_waiting_count: number;
     critical_waiting_count: number;
+    closed_count: number;
   }>({
-    path: `/api/agent/inbox${params}`,
+    path: `/api/agent/inbox${query}`,
     token,
     method: "GET",
     backendUrl
@@ -995,7 +1005,7 @@ export async function platformInviteTeamMember(
   input: {
     tenantId: string;
     email: string;
-    role?: "owner" | "admin" | "supervisor" | "agent" | "viewer";
+    role?: "owner" | "admin" | "agent" | "viewer";
   },
   backendUrl?: string
 ) {
@@ -1022,7 +1032,7 @@ export async function platformUpdateTeamMemberRole(
   input: {
     tenantId: string;
     userId: string;
-    role: "owner" | "admin" | "supervisor" | "agent" | "viewer";
+    role: "owner" | "admin" | "agent" | "viewer";
   },
   backendUrl?: string
 ) {
@@ -1229,114 +1239,6 @@ export async function platformUpdateQueue(
       sla_warning_seconds: input.slaWarningSeconds,
       overflow_after_seconds: input.overflowAfterSeconds
     },
-    backendUrl
-  });
-}
-
-export async function platformSupervisorConversations(
-  token: string,
-  tenantId: string,
-  input?: {
-    includeClosed?: boolean;
-  },
-  backendUrl?: string
-) {
-  const includeClosed = input?.includeClosed ? "&include_closed=1" : "";
-  return authedJson<{
-    tenant_id: string;
-    conversations: ChatThread[];
-  }>({
-    path: `/api/supervisor/conversations?tenant_id=${encodeURIComponent(tenantId)}${includeClosed}`,
-    token,
-    method: "GET",
-    backendUrl
-  });
-}
-
-export async function platformSupervisorAgentLoad(
-  token: string,
-  tenantId: string,
-  backendUrl?: string
-) {
-  return authedJson<{
-    tenant_id: string;
-    agents: SupervisorAgentLoad[];
-  }>({
-    path: `/api/supervisor/agents?tenant_id=${encodeURIComponent(tenantId)}`,
-    token,
-    method: "GET",
-    backendUrl
-  });
-}
-
-export async function platformSupervisorQueueStats(
-  token: string,
-  input: {
-    tenantId: string;
-    queueId: string;
-  },
-  backendUrl?: string
-) {
-  return authedJson<{
-    tenant_id: string;
-    queue_id: string;
-    stats: {
-      pending_count: number;
-      active_count: number;
-      closed_count: number;
-      breached_count: number;
-      avg_wait_seconds: number;
-    };
-  }>({
-    path: `/api/supervisor/queue/${encodeURIComponent(input.queueId)}/stats?tenant_id=${encodeURIComponent(input.tenantId)}`,
-    token,
-    method: "GET",
-    backendUrl
-  });
-}
-
-export async function platformSupervisorReassignConversation(
-  token: string,
-  input: {
-    conversationId: string;
-    targetAgentUserId: string;
-    targetQueueId?: string;
-  },
-  backendUrl?: string
-) {
-  return authedJson<{
-    chat_id: string;
-    mode: ConversationMode;
-    status: string;
-    assigned_agent_id: string | null;
-    queue_id: string | null;
-  }>({
-    path: `/api/supervisor/conversation/${encodeURIComponent(input.conversationId)}/reassign`,
-    token,
-    method: "POST",
-    body: {
-      target_agent_user_id: input.targetAgentUserId,
-      target_queue_id: input.targetQueueId
-    },
-    backendUrl
-  });
-}
-
-export async function platformSupervisorForceCloseConversation(
-  token: string,
-  conversationId: string,
-  backendUrl?: string
-) {
-  return authedJson<{
-    chat_id: string;
-    mode: ConversationMode;
-    status: string;
-    closed_at: string | null;
-  }>({
-    path: `/api/supervisor/conversation/${encodeURIComponent(conversationId)}/force-close`,
-    token,
-    method: "POST",
-    body: {},
     backendUrl
   });
 }
