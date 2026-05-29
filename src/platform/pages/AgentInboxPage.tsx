@@ -1180,9 +1180,6 @@ export default function AgentInboxPage() {
 
   return (
     <div className="agent-inbox-page space-y-6">
-      <span className="agent-inbox-orb agent-inbox-orb-gold" />
-      <span className="agent-inbox-orb agent-inbox-orb-teal" />
-
       <header className="app-page-header agent-inbox-hero">
         <div>
           <span className="app-kicker">Agent</span>
@@ -1202,13 +1199,13 @@ export default function AgentInboxPage() {
       ) : null}
 
       {arrivalAlerts.length > 0 ? (
-        <div className="app-card agent-inbox-surface">
-          <div className="text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/60">New waiting chats</div>
-          <div className="mt-2 space-y-2">
+        <div className="agent-inbox-alert-stack">
+          <div className="agent-inbox-section-label">New waiting chats</div>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
             {arrivalAlerts.map((alert) => (
               <div
                 key={alert.id}
-                className="rounded-lg border border-amber-300/55 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+                className="agent-inbox-arrival-alert"
               >
                 <div className="font-semibold">{alert.label}</div>
                 <div className="text-xs text-amber-700/90">{toDateLabel(alert.createdAt)}</div>
@@ -1226,18 +1223,40 @@ export default function AgentInboxPage() {
             <div className="callout-body">
               {waitingCount} conversation(s) currently waiting for agent response.
               {criticalWaitingCount > 0 || highWaitingCount > 0
-                ? ` Critical: ${criticalWaitingCount} · High: ${highWaitingCount}`
+                ? ` Critical: ${criticalWaitingCount} / High: ${highWaitingCount}`
                 : ""}
             </div>
           </div>
         </div>
       ) : null}
 
-      <div className="app-card agent-inbox-surface">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm text-[#0a0a0f]/65">Presence</div>
+      <div className="agent-inbox-command-bar">
+        <div className="agent-inbox-presence-copy">
+          <span className={`agent-inbox-presence-dot agent-inbox-presence-dot-${presenceStatus}`} />
+          <div>
+            <div className="agent-inbox-section-label">Presence</div>
+            <div className="text-sm font-semibold text-[#0a0a0f]">
+              {presenceStatus === "online" ? "Ready for handoffs" : presenceStatus === "away" ? "Away from inbox" : "Offline"}
+            </div>
+          </div>
+        </div>
+        <div className="agent-inbox-command-stats">
+          <div className="agent-inbox-stat-pill">
+            <span>Waiting</span>
+            <strong>{waitingCount}</strong>
+          </div>
+          <div className="agent-inbox-stat-pill">
+            <span>Answered</span>
+            <strong>{answeredCount}</strong>
+          </div>
+          <div className="agent-inbox-stat-pill agent-inbox-stat-pill-warn">
+            <span>Priority</span>
+            <strong>{highWaitingCount + criticalWaitingCount}</strong>
+          </div>
+        </div>
+        <div className="agent-inbox-presence-select">
           <select
-            className="app-input max-w-[180px]"
+            className="app-input"
             value={presenceStatus}
             onChange={(event) => setPresenceStatus(event.target.value as AgentPresenceStatus)}
           >
@@ -1249,55 +1268,52 @@ export default function AgentInboxPage() {
       </div>
 
       <div className="agent-inbox-grid grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <section className="app-card agent-inbox-surface agent-inbox-list-pane">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="app-card-title !mb-0">Conversations</h2>
+        <section className="agent-inbox-surface agent-inbox-list-pane">
+          <div className="agent-inbox-panel-head">
+            <div>
+              <div className="agent-inbox-section-label">Shared Queue</div>
+              <h2 className="app-card-title !mb-0">Conversations</h2>
+            </div>
             <button type="button" className="app-btn-secondary" onClick={() => void loadInbox()} disabled={loadingInbox}>
               {loadingInbox ? "Refreshing..." : "Refresh"}
             </button>
           </div>
 
-          <div className="mb-3 grid grid-cols-2 rounded-xl border border-[#0a0a0f]/10 bg-[#f6f4ef] p-1 text-xs font-semibold">
+          <div className="agent-inbox-tabs">
             <button
               type="button"
-              className={`rounded-lg px-3 py-2 transition ${
-                inboxView === "active"
-                  ? "bg-white text-[#0a0a0f] shadow-sm"
-                  : "text-[#0a0a0f]/55 hover:text-[#0a0a0f]"
-              }`}
+              className={inboxView === "active" ? "active" : ""}
               onClick={() => setInboxView("active")}
             >
-              Active
+              Active <span>{waitingCount + answeredCount}</span>
             </button>
             <button
               type="button"
-              className={`rounded-lg px-3 py-2 transition ${
-                inboxView === "closed"
-                  ? "bg-white text-[#0a0a0f] shadow-sm"
-                  : "text-[#0a0a0f]/55 hover:text-[#0a0a0f]"
-              }`}
+              className={inboxView === "closed" ? "active" : ""}
               onClick={() => setInboxView("closed")}
             >
-              Closed
+              Closed <span>{closedCount}</span>
             </button>
           </div>
 
-          <div className="mb-3 text-xs text-[#0a0a0f]/55">
+          <div className="agent-inbox-list-summary">
             {inboxView === "closed" ? (
               <>
                 Closed: <strong>{closedCount}</strong>
               </>
             ) : (
               <>
-                Waiting: <strong>{waitingCount}</strong> - Answered: <strong>{answeredCount}</strong> - High:{" "}
-                <strong>{highWaitingCount}</strong> - Critical: <strong>{criticalWaitingCount}</strong>
+                <span>Waiting <strong>{waitingCount}</strong></span>
+                <span>Answered <strong>{answeredCount}</strong></span>
+                <span>High <strong>{highWaitingCount}</strong></span>
+                <span>Critical <strong>{criticalWaitingCount}</strong></span>
               </>
             )}
           </div>
 
-          <div className="space-y-2">
+          <div className="agent-inbox-list">
             {conversations.length === 0 ? (
-              <p className="text-sm text-[#0a0a0f]/55">
+              <p className="agent-inbox-empty">
                 {inboxView === "closed" ? "No closed conversations yet." : "No conversations in shared inbox."}
               </p>
             ) : null}
@@ -1324,7 +1340,7 @@ export default function AgentInboxPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between gap-3">
-                    <strong className="truncate text-sm text-[#0a0a0f]">{getConversationDisplayName(conversation)}</strong>
+                    <strong className="agent-inbox-conversation-title">{getConversationDisplayName(conversation)}</strong>
                     <span
                       className={`rounded-full px-2 py-[1px] text-[10px] font-semibold ${
                         ended
@@ -1378,13 +1394,14 @@ export default function AgentInboxPage() {
           </div>
         </section>
 
-        <section className="app-card agent-inbox-surface agent-inbox-thread-pane">
+        <section className="agent-inbox-surface agent-inbox-thread-pane">
           {!selectedConversation ? (
-            <p className="text-sm text-[#0a0a0f]/55">Select a conversation to view details.</p>
+            <p className="agent-inbox-empty">Select a conversation to view details.</p>
           ) : (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
+              <div className="agent-inbox-thread-header">
+                <div className="min-w-0">
+                  <div className="agent-inbox-section-label">Conversation</div>
                   <h2 className="app-card-title !mb-1">{getConversationDisplayName(selectedConversation)}</h2>
                   <p className="flex flex-wrap items-center gap-2 text-sm text-[#0a0a0f]/55">
                     <span>Mode: {selectedConversation.conversation_mode ?? "ai_only"}</span>
@@ -1400,10 +1417,10 @@ export default function AgentInboxPage() {
                     </p>
                   ) : null}
                   <p className="text-xs text-[#0a0a0f]/45">
-                    {selectedConversation.visitor_email || "No email"} · {selectedConversation.visitor_phone || "No phone"}
+                    {selectedConversation.visitor_email || "No email"} / {selectedConversation.visitor_phone || "No phone"}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="agent-inbox-thread-actions">
                   {selectedConversation.conversation_mode === "handoff_pending" ? (
                     <button
                       type="button"
@@ -1448,8 +1465,8 @@ export default function AgentInboxPage() {
               </div>
 
               {canManageConversation && !selectedConversationEnded ? (
-                <div className="agent-inbox-soft-card rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3">
-                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
+                <div className="agent-inbox-soft-card agent-inbox-transfer-card">
+                  <div className="agent-inbox-section-label mb-2">
                     Transfer
                   </div>
                   <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto]">
@@ -1499,9 +1516,9 @@ export default function AgentInboxPage() {
                 </div>
               ) : null}
 
-              <div className="agent-inbox-soft-card rounded-2xl border border-[#0a0a0f]/10 bg-white overflow-hidden">
-                <div className="flex items-center justify-between border-b border-[#0a0a0f]/8 bg-[#faf8f4] px-4 py-2.5">
-                  <div className="text-xs font-semibold uppercase tracking-[0.14em] text-[#0a0a0f]/55">
+              <div className="agent-inbox-soft-card agent-inbox-thread-shell">
+                <div className="agent-inbox-thread-toolbar">
+                  <div className="agent-inbox-section-label">
                     Conversation Thread
                   </div>
                   <div className="text-xs text-[#0a0a0f]/55">
@@ -1518,7 +1535,7 @@ export default function AgentInboxPage() {
                 <div
                   ref={threadViewportRef}
                   onScroll={onThreadScroll}
-                  className="agent-thread h-[460px] overflow-y-auto bg-[linear-gradient(180deg,#f6f4ee_0%,#ffffff_45%,#eef7f5_100%)] px-4 py-4"
+                  className="agent-thread h-[460px] overflow-y-auto px-4 py-4"
                 >
                   {loadingMessages ? <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p> : null}
                   {!loadingMessages && messages.length === 0 ? (
@@ -1646,7 +1663,7 @@ export default function AgentInboxPage() {
                 selectedConversation.conversation_mode === "copilot") &&
               canManageConversation ? (
                 <div className="agent-inbox-soft-card rounded-xl border border-[#0a0a0f]/10 bg-[#faf8f4] p-3 space-y-2">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-[#0a0a0f]/55">
+                  <div className="agent-inbox-section-label">
                     Copilot Draft
                   </div>
                   <input
@@ -1674,10 +1691,10 @@ export default function AgentInboxPage() {
                 </div>
               ) : null}
 
-              <div className="agent-inbox-soft-card space-y-2 sticky bottom-0 bg-[#fffdf9] pt-2">
+              <div className="agent-inbox-composer">
                 <div className="flex items-center justify-between text-[11px] text-[#0a0a0f]/55">
                   <span>Realtime reply box</span>
-                  <span>Press Enter to send · Shift+Enter for newline</span>
+                  <span>Press Enter to send / Shift+Enter for newline</span>
                 </div>
                 <textarea
                   value={replyText}
