@@ -321,8 +321,6 @@ body.chat-widget-embedded {
   color: #fff;
 }
 .message-bubble.user, .message-bubble.user * { color: #fff; }
-.copy-btn               { border-radius: 8px; background: rgba(10,10,15,0.06); color: var(--ink); font-family: inherit; }
-.message-bubble.user .copy-btn { background: rgba(255,255,255,0.15); color: #fff; }
 
 /* Timestamps */
 .message-timestamp {
@@ -910,28 +908,6 @@ body.chat-widget-embedded {
 
 .message-bubble.user code {
   background: rgba(255,255,255,0.16);
-}
-
-.copy-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  border: 0;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  opacity: 0;
-  cursor: pointer;
-  transition: opacity 160ms ease, transform 160ms ease;
-}
-
-.message-bubble:hover .copy-btn {
-  opacity: 1;
-}
-
-.message-row.user .copy-btn {
-  right: 8px;
 }
 
 .deal-summary-text {

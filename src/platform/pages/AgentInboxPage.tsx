@@ -224,6 +224,7 @@ export default function AgentInboxPage() {
   const [replyText, setReplyText] = useState("");
   const [copilotPrompt, setCopilotPrompt] = useState("");
   const [copilotDraft, setCopilotDraft] = useState("");
+  const [copilotDraftMessageId, setCopilotDraftMessageId] = useState<string | null>(null);
   const [runningCopilot, setRunningCopilot] = useState(false);
   const [loadingInbox, setLoadingInbox] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -252,6 +253,8 @@ export default function AgentInboxPage() {
   const typingStateSentRef = useRef<boolean | null>(null);
   const lastTypedConversationIdRef = useRef<string | null>(null);
   const lastReplyInputValueRef = useRef("");
+  const copilotDraftRequestKeyRef = useRef<string | null>(null);
+  const lastAppliedCopilotDraftRef = useRef("");
 
   const selectedConversation = useMemo(
     () =>
@@ -261,6 +264,13 @@ export default function AgentInboxPage() {
   );
   const selectedConversationEnded = isConversationEnded(selectedConversation);
   const showVisitorTyping = visitorTyping && visitorTypingUserId !== currentAgentId;
+  const latestVisitorMessage = useMemo(
+    () =>
+      [...messages]
+        .reverse()
+        .find((message) => message.sender_type === "visitor" || message.role === "user") ?? null,
+    [messages]
+  );
 
   function playArrivalTone() {
     try {
@@ -382,25 +392,24 @@ export default function AgentInboxPage() {
       hasInboxSnapshotRef.current = true;
 
       setConversations(merged);
-      setWaitingCount(
-        typeof response.waiting_count === "number" ? response.waiting_count : computedWaiting
-      );
-      setAnsweredCount(
-        typeof response.answered_count === "number" ? response.answered_count : computedAnswered
-      );
-      setHighWaitingCount(
-        typeof response.high_waiting_count === "number" ? response.high_waiting_count : computedHighWaiting
-      );
-      setCriticalWaitingCount(
-        typeof response.critical_waiting_count === "number" ? response.critical_waiting_count : computedCriticalWaiting
-      );
-      setClosedCount(
-        typeof response.closed_count === "number"
-          ? response.closed_count
-          : inboxView === "closed"
-            ? merged.length
-            : 0
-      );
+      if (inboxView === "active") {
+        setWaitingCount(
+          typeof response.waiting_count === "number" ? response.waiting_count : computedWaiting
+        );
+        setAnsweredCount(
+          typeof response.answered_count === "number" ? response.answered_count : computedAnswered
+        );
+        setHighWaitingCount(
+          typeof response.high_waiting_count === "number" ? response.high_waiting_count : computedHighWaiting
+        );
+        setCriticalWaitingCount(
+          typeof response.critical_waiting_count === "number" ? response.critical_waiting_count : computedCriticalWaiting
+        );
+      } else {
+        setClosedCount(
+          typeof response.closed_count === "number" ? response.closed_count : merged.length
+        );
+      }
 
       const selectedFromInbox = selectedConversationId
         ? merged.find((conversation) => conversation.id === selectedConversationId) ?? null
@@ -428,13 +437,19 @@ export default function AgentInboxPage() {
     }
   }
 
-  async function loadConversationMessages(conversationId: string) {
+  async function loadConversationMessages(
+    conversationId: string,
+    options?: { silent?: boolean; preserveScroll?: boolean }
+  ) {
     if (!token || !conversationId) return;
     if (loadingMessagesRef.current) {
       return;
     }
+    const shouldShowLoading = !options?.silent && messages.length === 0;
     loadingMessagesRef.current = true;
-    setLoadingMessages(true);
+    if (shouldShowLoading) {
+      setLoadingMessages(true);
+    }
     setError("");
     try {
       const response = await platformAgentConversationMessages(token, conversationId, backendUrl);
@@ -463,12 +478,16 @@ export default function AgentInboxPage() {
             : prev
         );
       }
-      requestAnimationFrame(() => scrollThreadToBottom("auto"));
+      if (!options?.preserveScroll && keepThreadPinnedRef.current) {
+        requestAnimationFrame(() => scrollThreadToBottom("auto"));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load conversation messages");
     } finally {
       loadingMessagesRef.current = false;
-      setLoadingMessages(false);
+      if (shouldShowLoading) {
+        setLoadingMessages(false);
+      }
     }
   }
 
@@ -514,7 +533,7 @@ export default function AgentInboxPage() {
     try {
       await platformAgentAcceptConversation(token, conversationId, backendUrl);
       await loadInbox();
-      await loadConversationMessages(conversationId);
+      await loadConversationMessages(conversationId, { silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to join conversation");
     } finally {
@@ -529,7 +548,7 @@ export default function AgentInboxPage() {
     try {
       await platformAgentReturnToAI(token, conversationId, backendUrl);
       await loadInbox();
-      await loadConversationMessages(conversationId);
+      await loadConversationMessages(conversationId, { silent: true, preserveScroll: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to return conversation to AI");
     } finally {
@@ -552,9 +571,12 @@ export default function AgentInboxPage() {
       );
       if (!enable) {
         setCopilotDraft("");
+        setCopilotDraftMessageId(null);
+        lastAppliedCopilotDraftRef.current = "";
+        copilotDraftRequestKeyRef.current = null;
       }
       await loadInbox();
-      await loadConversationMessages(conversationId);
+      await loadConversationMessages(conversationId, { silent: true, preserveScroll: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update copilot mode");
     } finally {
@@ -562,8 +584,21 @@ export default function AgentInboxPage() {
     }
   }
 
-  async function handleGenerateCopilotDraft() {
+  async function handleGenerateCopilotDraft(options?: {
+    visitorMessageId?: string;
+    auto?: boolean;
+  }) {
     if (!token || !selectedConversationId) return;
+    const visitorMessageId = options?.visitorMessageId;
+    const requestKey = visitorMessageId
+      ? `${selectedConversationId}:${visitorMessageId}:${copilotPrompt.trim()}`
+      : null;
+    if (options?.auto && requestKey && copilotDraftRequestKeyRef.current === requestKey) {
+      return;
+    }
+    if (requestKey) {
+      copilotDraftRequestKeyRef.current = requestKey;
+    }
     setRunningCopilot(true);
     setError("");
     try {
@@ -572,13 +607,17 @@ export default function AgentInboxPage() {
         {
           conversationId: selectedConversationId,
           action: "draft",
-          prompt: copilotPrompt.trim() || undefined
+          prompt: copilotPrompt.trim() || undefined,
+          visitorMessageId
         },
         backendUrl
       );
       const draftText = response.draft?.draft ?? "";
+      const basedOnMessageId = response.draft?.based_on_message_id ?? visitorMessageId ?? null;
       setCopilotDraft(draftText);
-      if (draftText) {
+      setCopilotDraftMessageId(basedOnMessageId);
+      if (draftText && (!replyText.trim() || replyText === lastAppliedCopilotDraftRef.current || !options?.auto)) {
+        lastAppliedCopilotDraftRef.current = draftText;
         lastReplyInputValueRef.current = draftText;
         setReplyText(draftText);
       }
@@ -587,6 +626,13 @@ export default function AgentInboxPage() {
     } finally {
       setRunningCopilot(false);
     }
+  }
+
+  function applyCopilotDraftToReply() {
+    if (!copilotDraft.trim()) return;
+    lastAppliedCopilotDraftRef.current = copilotDraft;
+    lastReplyInputValueRef.current = copilotDraft;
+    setReplyText(copilotDraft);
   }
 
   function emitAgentTypingState(
@@ -709,7 +755,10 @@ export default function AgentInboxPage() {
         backendUrl
       );
       lastReplyInputValueRef.current = "";
+      lastAppliedCopilotDraftRef.current = "";
       setReplyText("");
+      setCopilotDraft("");
+      setCopilotDraftMessageId(null);
       setMessages((prev) => {
         if (prev.some((message) => message.id === response.message.id && !message._optimistic)) {
           return prev.filter((message) => message.id !== optimisticId);
@@ -769,7 +818,7 @@ export default function AgentInboxPage() {
         backendUrl
       );
       await loadInbox();
-      await loadConversationMessages(selectedConversationId);
+      await loadConversationMessages(selectedConversationId, { silent: true, preserveScroll: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to transfer conversation");
     } finally {
@@ -795,7 +844,7 @@ export default function AgentInboxPage() {
         backendUrl
       );
       await loadInbox();
-      await loadConversationMessages(selectedConversationId);
+      await loadConversationMessages(selectedConversationId, { silent: true, preserveScroll: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to transfer conversation");
     } finally {
@@ -833,7 +882,40 @@ export default function AgentInboxPage() {
     setTransferTargetQueueId(selectedConversation?.queue_id ?? "");
     setCopilotPrompt("");
     setCopilotDraft("");
+    setCopilotDraftMessageId(null);
+    lastAppliedCopilotDraftRef.current = "";
+    copilotDraftRequestKeyRef.current = null;
   }, [selectedConversation?.id, selectedConversation?.queue_id]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      !selectedConversationId ||
+      !latestVisitorMessage?.id ||
+      selectedConversation?.conversation_mode !== "copilot" ||
+      selectedConversationEnded ||
+      !canManageConversation
+    ) {
+      return;
+    }
+    if (copilotDraftMessageId === latestVisitorMessage.id) {
+      return;
+    }
+
+    void handleGenerateCopilotDraft({
+      visitorMessageId: latestVisitorMessage.id,
+      auto: true
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    token,
+    selectedConversationId,
+    latestVisitorMessage?.id,
+    selectedConversation?.conversation_mode,
+    selectedConversationEnded,
+    canManageConversation,
+    copilotDraftMessageId
+  ]);
 
   useEffect(() => {
     void sendHeartbeat(presenceStatus);
@@ -1169,9 +1251,6 @@ export default function AgentInboxPage() {
         return;
       }
       void loadInbox();
-      if (selectedConversationId) {
-        void loadConversationMessages(selectedConversationId);
-      }
     }, 45000);
 
     return () => window.clearInterval(interval);
@@ -1537,12 +1616,14 @@ export default function AgentInboxPage() {
                   onScroll={onThreadScroll}
                   className="agent-thread h-[460px] overflow-y-auto px-4 py-4"
                 >
-                  {loadingMessages ? <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p> : null}
+                  {loadingMessages && messages.length === 0 ? (
+                    <p className="text-sm text-[#0a0a0f]/55">Loading messages...</p>
+                  ) : null}
                   {!loadingMessages && messages.length === 0 ? (
                     <p className="text-sm text-[#0a0a0f]/55">No messages yet.</p>
                   ) : null}
 
-                  {!loadingMessages
+                  {messages.length > 0
                     ? (() => {
                         let lastDayLabel = "";
                         return messages.map((message) => {
@@ -1678,14 +1759,30 @@ export default function AgentInboxPage() {
                       type="button"
                       className="app-btn-secondary"
                       disabled={runningCopilot}
-                      onClick={() => void handleGenerateCopilotDraft()}
+                      onClick={() =>
+                        void handleGenerateCopilotDraft({
+                          visitorMessageId: latestVisitorMessage?.id
+                        })
+                      }
                     >
                       {runningCopilot ? "Generating..." : "Generate Draft"}
                     </button>
                   </div>
                   {copilotDraft ? (
-                    <div className="rounded-lg border border-[#0a0a0f]/10 bg-white px-3 py-2 text-sm text-[#0a0a0f]/80 whitespace-pre-wrap">
-                      {copilotDraft}
+                    <div className="rounded-lg border border-[#0a0a0f]/10 bg-white px-3 py-2 text-sm text-[#0a0a0f]/80">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-[#0a0a0f]/45">
+                          Based on latest visitor message
+                        </span>
+                        <button
+                          type="button"
+                          className="app-btn-secondary !px-3 !py-1.5 !text-xs"
+                          onClick={applyCopilotDraftToReply}
+                        >
+                          Use draft
+                        </button>
+                      </div>
+                      <p className="whitespace-pre-wrap">{copilotDraft}</p>
                     </div>
                   ) : null}
                 </div>

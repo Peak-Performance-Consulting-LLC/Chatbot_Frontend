@@ -1249,6 +1249,7 @@ export async function platformAgentCopilot(
     conversationId: string;
     action: "enable" | "disable" | "draft";
     prompt?: string;
+    visitorMessageId?: string;
   },
   backendUrl?: string
 ) {
@@ -1268,7 +1269,8 @@ export async function platformAgentCopilot(
     method: "POST",
     body: {
       action: input.action,
-      prompt: input.prompt
+      prompt: input.prompt,
+      visitor_message_id: input.visitorMessageId
     },
     backendUrl
   });

@@ -1001,15 +1001,6 @@ function MessageBubble({ message, callCtaOverride, appearance }: {
         )}
 
         <div className={`message-bubble ${isUser ? "user" : "assistant"}`}>
-          <button
-            className="copy-btn"
-            type="button"
-            onClick={() => navigator.clipboard.writeText(renderableContent || message.content.trim())}
-            title="Copy"
-          >
-            Copy
-          </button>
-
           {hasFlightDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
           {shouldRenderMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderableContent}</ReactMarkdown> : null}
           {message.metadata ? <FlightDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
@@ -1135,6 +1126,8 @@ export function ChatWidget({
   const [csatError, setCsatError] = useState<string | null>(null);
 
   const shellRef = useRef<HTMLElement | null>(null);
+  const threadSidebarRef = useRef<HTMLElement | null>(null);
+  const threadToggleRef = useRef<HTMLButtonElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const streamedAssistantIdRef = useRef<string | null>(null);
@@ -1568,6 +1561,24 @@ export function ChatWidget({
     if (!isCompactLayout && isMobileThreadsOpen) {
       setIsMobileThreadsOpen(false);
     }
+  }, [isCompactLayout, isMobileThreadsOpen]);
+
+  useEffect(() => {
+    if (!isCompactLayout || !isMobileThreadsOpen) return;
+
+    const handleOutsidePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      if (threadSidebarRef.current?.contains(target) || threadToggleRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsMobileThreadsOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handleOutsidePointerDown);
+    return () => document.removeEventListener("pointerdown", handleOutsidePointerDown);
   }, [isCompactLayout, isMobileThreadsOpen]);
 
   useEffect(() => {
@@ -2574,7 +2585,12 @@ export function ChatWidget({
                 </a>
               ) : null}
               {isCompactLayout ? (
-                <button className="thread-toggle" type="button" onClick={() => setIsMobileThreadsOpen((v) => !v)}>
+                <button
+                  ref={threadToggleRef}
+                  className="thread-toggle"
+                  type="button"
+                  onClick={() => setIsMobileThreadsOpen((v) => !v)}
+                >
                   <IconMenu />
                   Chats
                 </button>
@@ -2585,7 +2601,10 @@ export function ChatWidget({
           {/* ── Body ── */}
           <div className="chat-body">
             {/* Thread sidebar */}
-            <aside className={`thread-sidebar ${isCompactLayout ? (isMobileThreadsOpen ? "mobile-open" : "mobile-hidden") : ""}`}>
+            <aside
+              ref={threadSidebarRef}
+              className={`thread-sidebar ${isCompactLayout ? (isMobileThreadsOpen ? "mobile-open" : "mobile-hidden") : ""}`}
+            >
               <div className="thread-actions">
                 <button type="button" onClick={handleCreateChat}><IconPlus /> New Chat</button>
               </div>
