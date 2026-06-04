@@ -1,4 +1,4 @@
-import type { ChatMessage, ChatThread } from "@/types";
+import type { ChatMessage, ChatThread, ConversationMode } from "@/types";
 
 type RequestContext = {
   backendUrl?: string;
@@ -572,6 +572,41 @@ export async function requestHandoff(input: {
     all_agents_busy?: boolean;
     waiting_eta_seconds?: number | null;
     waiting_eta_label?: string | null;
+  };
+}
+
+export async function closeConversation(input: {
+  chatId: string;
+  tenantId: string;
+  deviceId: string;
+  backendUrl?: string;
+  authToken?: string;
+  siteHost?: string;
+}): Promise<{
+  chat_id: string;
+  mode: ConversationMode;
+  status: string;
+  closed_at?: string | null;
+}> {
+  const base = resolveBaseUrl(input.backendUrl);
+  const response = await fetch(`${base}/api/conversation/${input.chatId}/close`, {
+    method: "POST",
+    headers: buildHeaders(input, true),
+    body: JSON.stringify({
+      tenant_id: input.tenantId,
+      device_id: input.deviceId
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+
+  return (await response.json()) as {
+    chat_id: string;
+    mode: ConversationMode;
+    status: string;
+    closed_at?: string | null;
   };
 }
 

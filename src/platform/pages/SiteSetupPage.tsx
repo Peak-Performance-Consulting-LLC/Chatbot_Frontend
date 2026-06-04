@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { BedDouble, Check, CircleSlash, Plane } from "lucide-react";
 import WorkspaceCreateForm from "@/platform/components/WorkspaceCreateForm";
 import {
   getDnsRelativeHost,
@@ -9,7 +10,7 @@ import {
   getKnowledgeStatusLabel,
   getKnowledgeStatusTone
 } from "@/platform/status";
-import type { PlatformSource } from "@/platform/types";
+import type { PlatformService, PlatformSource } from "@/platform/types";
 import { usePlatformAuth } from "@/platform/state/auth";
 
 function parseLinks(value: string): string[] {
@@ -32,9 +33,54 @@ const stepStyle = {
   pending:"bg-[#0a0a0f]/05 text-[#0a0a0f]/30 border-[#0a0a0f]/08",
 };
 
+const DEAL_OPTIONS: Array<{
+  id: "flights" | "hotels" | "other";
+  label: string;
+  description: string;
+  icon: typeof Plane;
+}> = [
+  {
+    id: "hotels",
+    label: "Hotels",
+    description: "Show hotel stay prompts and deal requests in the chatbox.",
+    icon: BedDouble
+  },
+  {
+    id: "flights",
+    label: "Flight booking",
+    description: "Show flight search prompts and live fare deals in the chatbox.",
+    icon: Plane
+  },
+  {
+    id: "other",
+    label: "Other",
+    description: "Keep the chatbox focused on support and knowledge answers.",
+    icon: CircleSlash
+  }
+];
+
+function buildDealChatDefaults(services: PlatformService[]) {
+  const quickReplies = ["I have a question", "Contact support"];
+
+  if (services.length === 0) {
+    return {
+      welcomeMessage: "Welcome. How can I help today?",
+      quickReplies,
+      notifChips: quickReplies
+    };
+  }
+
+  return {
+    welcomeMessage: "Welcome. How can I help today?",
+    quickReplies,
+    notifChips: quickReplies
+  };
+}
+
 export default function SiteSetupPage() {
-  const { selectedTenant, updateTenantDomain, verifyDomain, getTenantSources, saveTenantSources, runIngest, loading, error, setError } = usePlatformAuth();
+  const { selectedTenant, updateTenantDomain, updateTenantProfile, verifyDomain, getTenantSources, saveTenantSources, runIngest, loading, error, setError } = usePlatformAuth();
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [dealServices, setDealServices] = useState<PlatformService[]>([]);
   const [sources, setSources] = useState<PlatformSource[]>([]);
   const [sitemapUrl, setSitemapUrl] = useState("");
   const [docUrls, setDocUrls] = useState("");
@@ -45,6 +91,11 @@ export default function SiteSetupPage() {
     if (!selectedTenant) return;
     const domain = selectedTenant.allowed_domains?.[0] || "";
     setWebsiteUrl(domain ? `https://${domain}` : "");
+    setDealServices(
+      (selectedTenant.business_profile.supported_services || []).filter((service) =>
+        service === "flights" || service === "hotels"
+      )
+    );
     setError("");
     getTenantSources(selectedTenant.tenant_id).then(setSources).catch((e: Error) => setError(e.message || "Failed to load sources"));
   }, [selectedTenant?.tenant_id]);
@@ -85,6 +136,36 @@ export default function SiteSetupPage() {
   async function handleVerifyDomain() {
     setStatus(""); setError("");
     try { const r = await verifyDomain(tenantId); setStatus(r.message); } catch {}
+  }
+  async function handleSaveDealServices() {
+    setStatus(""); setError("");
+    try {
+      const chatDefaults = buildDealChatDefaults(dealServices);
+      await updateTenantProfile({
+        tenant_id: tenantId,
+        business_type: dealServices.length > 0 ? "travel_booking" : "general",
+        supported_services: dealServices,
+        welcome_message: chatDefaults.welcomeMessage,
+        quick_replies: chatDefaults.quickReplies,
+        notif_chips: chatDefaults.notifChips
+      });
+      setStatus(
+        dealServices.length > 0
+          ? "Chatbox deal options updated."
+          : "Chatbox deal options disabled. Visitors will see support messaging instead."
+      );
+    } catch {}
+  }
+  function toggleDealOption(option: "flights" | "hotels" | "other") {
+    if (option === "other") {
+      setDealServices([]);
+      return;
+    }
+    setDealServices((prev) =>
+      prev.includes(option)
+        ? prev.filter((service) => service !== option)
+        : [...prev, option]
+    );
   }
   async function handleSaveSources(e: React.FormEvent) {
     e.preventDefault(); setStatus(""); setError("");
@@ -186,9 +267,68 @@ export default function SiteSetupPage() {
           </form>
         </div>
 
+        {/* Deal routing */}
+        <div className={card}>
+          <div>
+            <h3 className={sectionHead}>2) Website Deal Type</h3>
+            <p className="text-sm text-[#0a0a0f]/55">
+              Choose what kind of booking help this website should offer. Hotels and flights can both be enabled.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {DEAL_OPTIONS.map((option) => {
+              const selected =
+                option.id === "other"
+                  ? dealServices.length === 0
+                  : dealServices.includes(option.id);
+              const Icon = option.icon;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => toggleDealOption(option.id)}
+                  aria-pressed={selected}
+                  className={`group flex min-h-[132px] flex-col justify-between rounded-2xl border p-4 text-left transition ${
+                    selected
+                      ? "border-[#1a5c5c]/35 bg-[#1a5c5c]/[0.06] shadow-sm"
+                      : "border-[#0a0a0f]/08 bg-white hover:border-[#1a5c5c]/25 hover:bg-[#1a5c5c]/[0.03]"
+                  }`}
+                >
+                  <span className="flex items-start justify-between gap-3">
+                    <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${
+                      selected ? "bg-[#1a5c5c] text-white" : "bg-[#faf8f4] text-[#0a0a0f]/60"
+                    }`}>
+                      <Icon size={18} strokeWidth={1.9} />
+                    </span>
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-md border ${
+                      selected ? "border-[#1a5c5c] bg-[#1a5c5c] text-white" : "border-[#0a0a0f]/15 text-transparent"
+                    }`}>
+                      <Check size={13} strokeWidth={2.4} />
+                    </span>
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-[#0a0a0f]">{option.label}</span>
+                    <span className="mt-1 block text-xs leading-5 text-[#0a0a0f]/50">{option.description}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button type="button" onClick={handleSaveDealServices} disabled={loading} className={primaryBtn}>
+              {loading ? "Saving..." : "Save deal type"}
+            </button>
+            <span className="text-xs text-[#0a0a0f]/45">
+              {dealServices.length > 0
+                ? `Enabled: ${dealServices.map((service) => service === "flights" ? "Flight booking" : "Hotels").join(" + ")}`
+                : "Other selected: no hotel or flight deals will appear."}
+            </span>
+          </div>
+        </div>
+
         {/* Step 2: DNS */}
         <div className={card}>
-          <h3 className={sectionHead}>2) DNS Verification</h3>
+          <h3 className={sectionHead}>3) DNS Verification</h3>
           <dl className="grid grid-cols-2 gap-3">
             {[
               { label: "Domain", value: selectedTenant.allowed_domains?.[0] || "Not set" },
@@ -219,7 +359,7 @@ export default function SiteSetupPage() {
 
         {/* Step 3: Knowledge */}
         <div className={card}>
-          <h3 className={sectionHead}>3) Knowledge Base</h3>
+          <h3 className={sectionHead}>4) Knowledge Base</h3>
           <div className="rounded-xl bg-[#faf8f4] px-4 py-2.5 text-xs text-[#0a0a0f]/50">
             Last refresh: {formatTs(knowledgeBase.last_ingested_at)}
           </div>
@@ -245,7 +385,7 @@ export default function SiteSetupPage() {
 
         {/* Step 4: Widget */}
         <div className={card}>
-          <h3 className={sectionHead}>4) Widget Availability</h3>
+          <h3 className={sectionHead}>5) Widget Availability</h3>
           {widget?.enabled ? (
             <div className="space-y-3">
               <div className="rounded-xl border border-[#0a0a0f]/08 bg-[#0a0a0f]/[0.02] p-3 font-mono text-xs text-[#0a0a0f]/70 break-all">{widget.embed_url}</div>

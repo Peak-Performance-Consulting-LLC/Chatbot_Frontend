@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
   createChat,
+  closeConversation,
   deleteChat,
   getConversationStatus,
   getWidgetConfig,
@@ -118,6 +119,11 @@ const poweredByBrand = "PPConsultings";
 const CONTACT_CAPTURE_STORAGE_PREFIX = "aeroconcierge_contact_captured";
 const HANDOFF_CONTACT_CAPTURE_PROMPT =
   "Please share your name, email, and phone before we connect you to a live agent.";
+const RESOLUTION_PROMPT = "Were we able to resolve your issue?";
+const RESOLUTION_OPTIONS = ["Yes", "No", "Connect me to agent"];
+const FURTHER_ASSISTANCE_OPTIONS = ["Yes, I need more help", "No, close chat"];
+const CLOSE_CONFIRM_OPTIONS = ["Yes, close chat", "No, I need more help"];
+const UNRESOLVED_OPTIONS = ["Connect me to agent", "I'll describe the issue"];
 const AGENT_TYPING_WINDOW_MS = 8000;
 const AGENT_TYPING_POLL_MS = 1200;
 const VISITOR_TYPING_KEEPALIVE_MS = 1200;
@@ -410,9 +416,36 @@ function resolveCallCta(messageCta?: MessageMetadata["call_cta"] | null, overrid
   return overrideCta ?? messageCta ?? null;
 }
 
+function isAgentEscalationRequest(text: string) {
+  return /\b(agent|human|representative|live\s+(agent|person|support)|customer\s+(care|support)|support\s+(person|agent)|talk\s+to\s+(someone|agent|human)|speak\s+to\s+(someone|agent|human)|connect\s+me|escalate|manager|executive)\b/i.test(text);
+}
+
+function shouldAskResolution(message: ChatMessage) {
+  if (message.role !== "assistant" || !message.metadata) return false;
+  if (message.metadata.post_resolution_prompt || message.metadata.resolution_flow) return false;
+  if (message.metadata.contact_capture) return false;
+  if (message.metadata.flight_ui?.phase === "collecting") return false;
+  if (message.metadata.service_ui?.phase === "collecting") return false;
+
+  const intent = message.metadata.intent;
+  if (intent === "greeting" || intent === "payment_support") return false;
+
+  return Boolean(
+    message.metadata.flight_deals?.length ||
+    message.metadata.hotel_deals?.length ||
+    message.metadata.service_ui?.phase === "submitted" ||
+    message.metadata.service_request?.status === "ready_for_specialist" ||
+    intent === "knowledge"
+  );
+}
+
 function getRenderableMessageContent(message: ChatMessage) {
   const content = message.content.trim();
-  if (message.role !== "assistant" || !message.metadata?.flight_deals?.length) return content;
+  if (message.role !== "assistant") return content;
+  if (message.metadata?.hotel_deals?.length) {
+    return "Here are hotel options that match your destination and trip details.";
+  }
+  if (!message.metadata?.flight_deals?.length) return content;
   return "Here are the best live fares I found. Compare the cards below, or tell me what you want to change.";
 }
 
@@ -581,6 +614,62 @@ function FlightDeals({ metadata, callCtaOverride }: { metadata: MessageMetadata;
 
 
 // ── Quick Replies ───────────────────────────────────────────────────────────────
+function HotelDeals({ metadata, callCtaOverride }: { metadata: MessageMetadata; callCtaOverride?: CallCta | null }) {
+  if (!metadata.hotel_deals || metadata.hotel_deals.length === 0) return null;
+  const callCta = resolveCallCta(metadata.call_cta, callCtaOverride);
+  const ctaHref = callCta?.tel ?? "#";
+  return (
+    <div className="hotel-deal-grid">
+      {metadata.hotel_deals.map((deal) => (
+        <article key={deal.id} className="hotel-deal-card">
+          <div className="hotel-deal-body">
+            <p className="hotel-deal-address-line">
+              <strong>{deal.name}</strong>
+              <span>{deal.area} - {deal.destination}</span>
+            </p>
+            <p className="hotel-deal-price-line">{deal.nightly_price}</p>
+            <div className="hotel-deal-action-row">
+              <a href={ctaHref} className="hotel-call-button">Call to book</a>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+const HOTEL_DESTINATIONS = [
+  "New York, United States",
+  "Los Angeles, United States",
+  "Las Vegas, United States",
+  "Miami, United States",
+  "Orlando, United States",
+  "San Francisco, United States",
+  "Chicago, United States",
+  "London, United Kingdom",
+  "Paris, France",
+  "Rome, Italy",
+  "Barcelona, Spain",
+  "Dubai, United Arab Emirates",
+  "Singapore",
+  "Bangkok, Thailand",
+  "Tokyo, Japan",
+  "Bali, Indonesia",
+  "Goa, India",
+  "Mumbai, India",
+  "Delhi, India",
+  "Jaipur, India"
+];
+
+function getHotelDestinationSuggestions(query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return HOTEL_DESTINATIONS.slice(0, 6);
+
+  return HOTEL_DESTINATIONS
+    .filter((destination) => destination.toLowerCase().includes(normalized))
+    .slice(0, 6);
+}
+
 function QuickReplies({ quickReplies, disabled, onSelect, className }: { quickReplies: string[]; disabled: boolean; onSelect: (v: string) => void; className?: string }) {
   if (quickReplies.length === 0) return null;
   return (
@@ -595,6 +684,7 @@ function QuickReplies({ quickReplies, disabled, onSelect, className }: { quickRe
 // ── Service Request Summary ─────────────────────────────────────────────────────
 function ServiceRequestSummary({ metadata }: { metadata: MessageMetadata }) {
   if (!metadata.service_request) return null;
+  if (metadata.service_request.service === "hotels" || metadata.hotel_deals?.length) return null;
   const entries = Object.entries(metadata.service_request.payload ?? {});
   if (entries.length === 0) return null;
   return (
@@ -863,6 +953,12 @@ function GuidedServiceInput({ serviceUi, disabled, onSubmit }: { serviceUi: Serv
   const [dateText, setDateText] = useState("");
   const [numberText, setNumberText] = useState(1);
   const [textValue, setTextValue] = useState("");
+  const hotelDestinationSuggestions = useMemo(
+    () => serviceUi.service === "hotels" && serviceUi.next_slot === "destination"
+      ? getHotelDestinationSuggestions(textValue)
+      : [],
+    [serviceUi.next_slot, serviceUi.service, textValue]
+  );
   useEffect(() => {
     setDateText(""); setNumberText(Math.max(1, serviceUi.next_slot_min ?? 1)); setTextValue("");
   }, [serviceUi.next_slot, serviceUi.next_slot_min]);
@@ -907,6 +1003,41 @@ function GuidedServiceInput({ serviceUi, disabled, onSubmit }: { serviceUi: Serv
           </select>
           <button type="button" disabled={disabled} onClick={() => onSubmit(String(numberText))}>Use value</button>
         </div>
+      </div>
+    );
+  }
+  if (serviceUi.service === "hotels" && serviceUi.next_slot === "destination") {
+    return (
+      <div className="guided-input">
+        <p>Destination</p>
+        <div className="guided-inline guided-inline-top">
+          <div className="guided-combobox">
+            <input
+              value={textValue}
+              onChange={(e) => setTextValue(e.target.value)}
+              placeholder="Type a city or destination"
+              disabled={disabled}
+            />
+            {hotelDestinationSuggestions.length > 0 ? (
+              <div className="guided-suggestion-list">
+                {hotelDestinationSuggestions.map((destination) => (
+                  <button
+                    key={destination}
+                    type="button"
+                    className="guided-suggestion-item"
+                    disabled={disabled}
+                    onClick={() => onSubmit(destination)}
+                  >
+                    <strong>{destination.split(",")[0]}</strong>
+                    <span>{destination.includes(",") ? destination.split(",").slice(1).join(",").trim() : "Popular destination"}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <button type="button" disabled={disabled || !textValue.trim()} onClick={() => onSubmit(textValue.trim())}>Use destination</button>
+        </div>
+        <small className="guided-help">Start typing and choose the closest matching destination.</small>
       </div>
     );
   }
@@ -987,7 +1118,8 @@ function MessageBubble({ message, callCtaOverride, appearance }: {
   const isUser = message.role === "user";
   const renderableContent = getRenderableMessageContent(message);
   const hasFlightDeals = Boolean(message.metadata?.flight_deals?.length);
-  const shouldRenderMarkdown = Boolean(renderableContent) && !hasFlightDeals;
+  const hasHotelDeals = Boolean(message.metadata?.hotel_deals?.length);
+  const shouldRenderMarkdown = Boolean(renderableContent) && !hasFlightDeals && !hasHotelDeals;
 
   return (
     <div className={`message-row ${isUser ? "user" : "assistant"}`}>
@@ -1002,8 +1134,10 @@ function MessageBubble({ message, callCtaOverride, appearance }: {
 
         <div className={`message-bubble ${isUser ? "user" : "assistant"}`}>
           {hasFlightDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
+          {hasHotelDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
           {shouldRenderMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderableContent}</ReactMarkdown> : null}
           {message.metadata ? <FlightDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
+          {message.metadata ? <HotelDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
           {message.metadata ? <ServiceRequestSummary metadata={message.metadata} /> : null}
         </div>
       </div>
@@ -1130,6 +1264,7 @@ export function ChatWidget({
   const threadToggleRef = useRef<HTMLButtonElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
+  const resolutionPromptedForRef = useRef<Set<string>>(new Set());
   const streamedAssistantIdRef = useRef<string | null>(null);
   const streamedAssistantTextRef = useRef("");
   const streamFlushTimerRef = useRef<number | null>(null);
@@ -1304,6 +1439,19 @@ export function ChatWidget({
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  useEffect(() => {
+    if (conversationMode !== "ai_only" || isSending || isLoadingMessages) return;
+    const latest = [...messages].reverse().find((message) => message.role === "assistant");
+    if (!latest || resolutionPromptedForRef.current.has(latest.id) || !shouldAskResolution(latest)) return;
+
+    const timer = window.setTimeout(() => {
+      appendResolutionPrompt(latest.id);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationMode, isLoadingMessages, isSending, messages]);
 
   useEffect(() => {
     const key = buildContactCaptureStorageKey(tenantId, deviceId);
@@ -1768,6 +1916,30 @@ export function ChatWidget({
     }
   }
 
+  function appendLocalMessage(role: "user" | "assistant", content: string, metadata: MessageMetadata | null = null) {
+    const chatId = activeChatId ?? `local-chat-${Date.now()}`;
+    const message: ChatMessage = {
+      id: `local-${role}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      chat_id: chatId,
+      role,
+      content,
+      metadata,
+      created_at: new Date().toISOString()
+    };
+    setMessages((prev) => [...prev, message]);
+    return message;
+  }
+
+  function appendResolutionPrompt(sourceMessageId: string) {
+    resolutionPromptedForRef.current.add(sourceMessageId);
+    appendLocalMessage("assistant", RESOLUTION_PROMPT, {
+      intent: "support",
+      post_resolution_prompt: true,
+      resolution_flow: "ask",
+      quick_replies: RESOLUTION_OPTIONS
+    });
+  }
+
   async function openChat(chatId: string) {
     const selectedThread = threads.find((thread) => thread.id === chatId);
     const nextMode = selectedThread?.conversation_mode ?? "ai_only";
@@ -1930,6 +2102,143 @@ export function ChatWidget({
     } finally {
       setIsRequestingHandoff(false);
     }
+  }
+
+  async function handleCloseConversationFromResolution() {
+    if (!activeChatId || !isUuid(activeChatId)) {
+      setConversationMode("closed");
+      return;
+    }
+
+    setError(null);
+    appendLocalMessage("assistant", "Thanks for chatting with us. I am closing this conversation now.", {
+      intent: "support",
+      resolution_flow: "closed"
+    });
+
+    try {
+      const result = await closeConversation({
+        chatId: activeChatId,
+        tenantId,
+        deviceId,
+        backendUrl,
+        authToken: portalToken,
+        siteHost
+      });
+      setConversationMode(result.mode);
+      await synchronizeChatState(result.chat_id || activeChatId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to close chat");
+    }
+  }
+
+  async function handleResolutionChoice(text: string) {
+    const normalized = text.trim().toLowerCase();
+    if (!normalized) return false;
+    const activeResolutionFlow =
+      typeof latestAssistantMeta?.resolution_flow === "string"
+        ? latestAssistantMeta.resolution_flow
+        : null;
+    const isResolutionReply =
+      activeResolutionFlow === "ask" ||
+      activeResolutionFlow === "assistance_check" ||
+      activeResolutionFlow === "confirm_close" ||
+      activeResolutionFlow === "unresolved";
+
+    if (normalized === "yes" && activeResolutionFlow === "ask") {
+      appendLocalMessage("user", text);
+      appendLocalMessage(
+        "assistant",
+        "I am happy we were able to help. Do you need any further assistance?",
+        {
+          intent: "support",
+          resolution_flow: "assistance_check",
+          quick_replies: FURTHER_ASSISTANCE_OPTIONS
+        }
+      );
+      return true;
+    }
+
+    if (
+      activeResolutionFlow === "assistance_check" &&
+      (normalized === "yes" || normalized === "yes, i need more help" || normalized === "i need more help")
+    ) {
+      appendLocalMessage("user", text);
+      appendLocalMessage("assistant", "Sure. Tell me what else you need help with.", {
+        intent: "support",
+        resolution_flow: "continue"
+      });
+      return true;
+    }
+
+    if (
+      activeResolutionFlow === "assistance_check" &&
+      (normalized === "no" || normalized === "no, close chat" || normalized === "close chat")
+    ) {
+      appendLocalMessage("user", text);
+      appendLocalMessage("assistant", "Would you like me to close this chat now?", {
+        intent: "support",
+        resolution_flow: "confirm_close",
+        quick_replies: CLOSE_CONFIRM_OPTIONS
+      });
+      return true;
+    }
+
+    if (
+      activeResolutionFlow === "confirm_close" &&
+      (normalized === "yes" || normalized === "yes, close chat" || normalized === "close chat")
+    ) {
+      appendLocalMessage("user", text);
+      await handleCloseConversationFromResolution();
+      return true;
+    }
+
+    if (
+      activeResolutionFlow === "confirm_close" &&
+      (normalized === "no" || normalized === "no, i need more help" || normalized === "i need more help")
+    ) {
+      appendLocalMessage("user", text);
+      appendLocalMessage("assistant", "No problem. Tell me what else you need help with.", {
+        intent: "support",
+        resolution_flow: "continue"
+      });
+      return true;
+    }
+
+    if (normalized === "no" && activeResolutionFlow === "ask") {
+      appendLocalMessage("user", text);
+      appendLocalMessage(
+        "assistant",
+        "I am sorry that did not resolve it. Please share what went wrong, or I can connect you to an agent.",
+        {
+          intent: "support",
+          resolution_flow: "unresolved",
+          quick_replies: UNRESOLVED_OPTIONS
+        }
+      );
+      return true;
+    }
+
+    if (normalized === "connect me to agent" || isAgentEscalationRequest(text)) {
+      appendLocalMessage("user", text);
+      appendLocalMessage("assistant", "I will connect you with a live agent.", {
+        intent: "support",
+        resolution_flow: "handoff"
+      });
+      await handleRequestHandoff();
+      return true;
+    }
+
+    if ((normalized === "i'll describe the issue" || normalized === "ill describe the issue") && isResolutionReply) {
+      appendLocalMessage("user", text);
+      appendLocalMessage("assistant", "Please describe what was not resolved, and I will try again.", {
+        intent: "support",
+        resolution_flow: "feedback"
+      });
+      return true;
+    }
+
+    return false;
   }
 
   async function handleSubmitCsat(event: React.FormEvent) {
@@ -2355,6 +2664,11 @@ export function ChatWidget({
   async function sendMessage(rawText: string) {
     const text = rawText.trim();
     if (!text || isSending || isSubmittingContact) return;
+    if (await handleResolutionChoice(text)) {
+      setInput("");
+      setError(null);
+      return;
+    }
     if (shouldShowContactCaptureForm) {
       setError("Please share your contact details first to continue chatting.");
       return;
@@ -2845,29 +3159,6 @@ export function ChatWidget({
                   />
                 </div>
                 <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                  {activeChatId && conversationMode === "ai_only" && messages.length > 0 ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleRequestHandoff()}
-                      disabled={isRequestingHandoff || isSending}
-                      aria-label="Talk to agent"
-                      title="Talk to a live agent"
-                      style={{
-                        background: "none",
-                        border: "1.5px solid var(--brand, #006d77)",
-                        borderRadius: "8px",
-                        padding: "6px 10px",
-                        cursor: "pointer",
-                        color: "var(--brand, #006d77)",
-                        fontSize: "0.78rem",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                        opacity: isRequestingHandoff ? 0.6 : 1
-                      }}
-                    >
-                      {isRequestingHandoff ? "Connecting…" : "🧑‍💼 Agent"}
-                    </button>
-                  ) : null}
                   <button type="submit" className="composer-send-btn" disabled={isInteractionLocked || !input.trim()} aria-label="Send message">
                     <IconSend />
                   </button>

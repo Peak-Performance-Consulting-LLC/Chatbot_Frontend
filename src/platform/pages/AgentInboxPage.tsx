@@ -24,7 +24,7 @@ import type {
   PlatformWorkspaceMember,
   WorkspaceMemberRole
 } from "@/platform/types";
-import type { ChatMessage, ChatThread } from "@/types";
+import type { ChatMessage, ChatThread, MessageMetadata } from "@/types";
 
 const WAITING_WARNING_SECONDS = 2 * 60;
 const WAITING_HIGH_SECONDS = 5 * 60;
@@ -43,6 +43,30 @@ type InboxMessage = ChatMessage & {
   _optimistic?: boolean;
   _failed?: boolean;
 };
+
+function AgentHotelDeals({ metadata }: { metadata: MessageMetadata | null }) {
+  if (!metadata?.hotel_deals?.length) return null;
+  const ctaHref = metadata.call_cta?.tel ?? "#";
+
+  return (
+    <div className="hotel-deal-grid agent-hotel-deal-grid">
+      {metadata.hotel_deals.map((deal) => (
+        <article key={deal.id} className="hotel-deal-card">
+          <div className="hotel-deal-body">
+            <p className="hotel-deal-address-line">
+              <strong>{deal.name}</strong>
+              <span>{deal.area} - {deal.destination}</span>
+            </p>
+            <p className="hotel-deal-price-line">{deal.nightly_price}</p>
+            <div className="hotel-deal-action-row">
+              <a href={ctaHref} className="hotel-call-button">Call to book</a>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
 
 function toDateLabel(input: string) {
   const date = new Date(input);
@@ -1695,9 +1719,12 @@ export default function AgentInboxPage() {
                                         {toDateLabel(message.created_at)}
                                       </span>
                                     </div>
-                                    <p className="text-sm leading-relaxed text-[#0a0a0f]/85 whitespace-pre-wrap">
-                                      {message.content}
-                                    </p>
+                                    {message.content.trim() ? (
+                                      <p className="text-sm leading-relaxed text-[#0a0a0f]/85 whitespace-pre-wrap">
+                                        {message.content}
+                                      </p>
+                                    ) : null}
+                                    <AgentHotelDeals metadata={message.metadata} />
                                     {message._optimistic ? (
                                       <p className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-[#1a5c5c]/65">
                                         Sending...

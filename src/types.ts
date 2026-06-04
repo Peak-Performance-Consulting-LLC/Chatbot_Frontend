@@ -85,6 +85,19 @@ export type MessageMetadata = {
     duration?: string;
     cabin_class?: string;
   }>;
+  hotel_deals?: Array<{
+    id: string;
+    name: string;
+    destination: string;
+    area: string;
+    nightly_price: string;
+    rating: string;
+    highlights: string[];
+    image_url?: string;
+    description?: string;
+    amenities?: string[];
+    property_token?: string;
+  }>;
   flight_payload?: Record<string, unknown>;
   flight_results?: Array<Record<string, unknown>>;
   flight_state_snapshot?: Record<string, unknown>;
@@ -129,6 +142,8 @@ export type MessageMetadata = {
   agent_id?: string;
   source_urls?: string[];
   no_rag_match?: boolean;
+  post_resolution_prompt?: boolean;
+  resolution_flow?: "ask" | "assistance_check" | "confirm_close" | "continue" | "unresolved" | "handoff" | "feedback" | "closed";
 };
 
 export type ChatMessage = {
