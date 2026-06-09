@@ -54,6 +54,20 @@ export const appPrimaryNavItems: PlatformNavItem[] = [
     path: "/platform/app/chatbot",
     icon: createElement(IconChatbot),
     allowedRoles: ["owner", "admin"]
+  },
+  {
+    key: "customization",
+    label: "Customization",
+    path: "/platform/app/customization",
+    icon: createElement(IconCustomization),
+    allowedRoles: ["owner", "admin"]
+  },
+  {
+    key: "pricing",
+    label: "Pricing",
+    path: "/platform/app/pricing",
+    icon: createElement(IconPricing),
+    allowedRoles: ["owner", "admin"]
   }
 ];
 
@@ -125,13 +139,6 @@ export const appNavSections: PlatformNavSection[] = [
         path: "/platform/app/knowledge",
         icon: createElement(IconKnowledge),
         allowedRoles: ["owner", "admin"]
-      },
-      {
-        key: "customization",
-        label: "Customization",
-        path: "/platform/app/customization",
-        icon: createElement(IconCustomization),
-        allowedRoles: ["owner", "admin"]
       }
     ]
   },
@@ -153,13 +160,6 @@ export const appNavSections: PlatformNavSection[] = [
         path: "/platform/app/account",
         icon: createElement(IconAccount),
         allowedRoles: ["owner", "admin", "agent"]
-      },
-      {
-        key: "pricing",
-        label: "Pricing",
-        path: "/platform/app/pricing",
-        icon: createElement(IconPricing),
-        allowedRoles: ["owner", "admin"]
       }
     ]
   }
