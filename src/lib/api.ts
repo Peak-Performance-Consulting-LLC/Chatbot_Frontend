@@ -77,7 +77,7 @@ export type WidgetConfig = {
   headerCtaLabel?: string;
   headerCtaNotice?: string;
   live_support?: {
-    availability: "online" | "busy" | "away" | "offline";
+    availability: "online" | "busy" | "away" | "offline" | "unknown";
     online_count: number;
     busy_count: number;
     away_count: number;

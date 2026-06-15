@@ -54,7 +54,7 @@ type HeaderCtaConfig = {
   label: string;
   notice: string;
 };
-type LiveSupportAvailability = "online" | "busy" | "away" | "offline";
+type LiveSupportAvailability = "online" | "busy" | "away" | "offline" | "unknown";
 type ActiveAgent = {
   id: string;
   name: string;
@@ -127,6 +127,7 @@ const UNRESOLVED_OPTIONS = ["Connect me to agent", "I'll describe the issue"];
 const AGENT_TYPING_WINDOW_MS = 8000;
 const AGENT_TYPING_POLL_MS = 1200;
 const VISITOR_TYPING_KEEPALIVE_MS = 1200;
+const WIDGET_CONFIG_REFRESH_MS = 30_000;
 
 function normalizeAppearance(
   input?: Partial<ChatWidgetAppearance> | null,
@@ -228,13 +229,17 @@ function isUuid(value: string) {
 }
 
 function normalizeLiveSupportAvailability(input: string | null | undefined): LiveSupportAvailability {
-  return input === "busy" || input === "away" || input === "offline" ? input : "online";
+  if (input === "online" || input === "busy" || input === "away" || input === "offline") {
+    return input;
+  }
+  return "unknown";
 }
 
 function getLiveSupportLabel(availability: LiveSupportAvailability) {
   if (availability === "busy") return "Live team busy";
   if (availability === "away") return "Live team away";
   if (availability === "offline") return "Live team offline";
+  if (availability === "unknown") return "Checking live team";
   return "Live team online";
 }
 
@@ -1653,23 +1658,43 @@ export function ChatWidget({
     }
 
     let cancelled = false;
+    let refreshIntervalId: number | null = null;
 
-    getWidgetConfig({ tenantId, backendUrl, authToken: portalToken, siteHost })
-      .then((config) => {
-        if (!cancelled) {
-          setRuntimeWidgetConfig(config);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setRuntimeWidgetConfig(null);
-        }
-      });
+    const refreshWidgetConfig = (clearOnFailure: boolean) => {
+      void getWidgetConfig({ tenantId, backendUrl, authToken: portalToken, siteHost })
+        .then((config) => {
+          if (!cancelled) {
+            setRuntimeWidgetConfig(config);
+          }
+        })
+        .catch(() => {
+          if (!cancelled && clearOnFailure) {
+            setRuntimeWidgetConfig(null);
+          }
+        });
+    };
+
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshWidgetConfig(false);
+      }
+    };
+
+    refreshWidgetConfig(true);
+
+    if (shouldRenderShell) {
+      refreshIntervalId = window.setInterval(refreshWhenVisible, WIDGET_CONFIG_REFRESH_MS);
+      document.addEventListener("visibilitychange", refreshWhenVisible);
+    }
 
     return () => {
       cancelled = true;
+      if (refreshIntervalId !== null) {
+        window.clearInterval(refreshIntervalId);
+      }
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [backendUrl, portalToken, siteHost, tenantId]);
+  }, [backendUrl, portalToken, shouldRenderShell, siteHost, tenantId]);
 
   useEffect(() => {
     if (!isPublicEmbed) return;
