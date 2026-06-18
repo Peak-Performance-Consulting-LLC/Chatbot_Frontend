@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { platformAcceptTeamInvitation } from "@/lib/platformApi";
 import { appNavSections, appPrimaryNavItems, type PlatformNavItem } from "@/platform/layout/nav";
@@ -47,7 +48,8 @@ export default function PlatformShell() {
   const inviteHandledRef = useRef<string | null>(null);
   const tenantSelectRef = useRef<HTMLSelectElement | null>(null);
   const backendUrl = import.meta.env.VITE_CHAT_BACKEND_URL || "http://localhost:3000";
-  const currentRole = selectedTenant?.workspace_role ?? "viewer";
+  const currentRole = selectedTenant?.workspace_role ?? (profile?.tenants?.length ? "viewer" : "owner");
+  const canCreateProject = !selectedTenant || currentRole === "owner" || currentRole === "admin";
   const allNavItems = useMemo(
     () => [...appPrimaryNavItems, ...appNavSections.flatMap((section) => section.items)],
     []
@@ -353,6 +355,17 @@ export default function PlatformShell() {
           </div>
 
           <div className="flex min-w-0 items-center gap-2">
+            {canCreateProject ? (
+              <button
+                type="button"
+                onClick={() => navigate("/platform/app/tenants?create=1")}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#1a5c5c]/20 bg-[#1a5c5c] px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0f4444] focus:outline-none focus:ring-2 focus:ring-[#1a5c5c]/25 sm:px-4"
+                aria-label="Create new project"
+              >
+                <Plus size={16} aria-hidden />
+                <span className="hidden sm:inline">New project</span>
+              </button>
+            ) : null}
             {profile?.tenants?.length ? (
               <label
                 className={`relative flex min-w-0 max-w-[182px] items-center rounded-full border bg-white/92 pl-3 pr-9 py-2 text-sm shadow-sm transition sm:max-w-[260px] sm:pl-3.5 sm:pr-10 ${

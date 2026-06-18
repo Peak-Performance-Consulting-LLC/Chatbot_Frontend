@@ -118,13 +118,14 @@ export default function SiteSetupPage() {
   const verification = selectedTenant.domain_verification;
   const knowledgeBase = selectedTenant.knowledge_base;
   const widget = selectedTenant.widget;
+  const hasDomain = Boolean(selectedTenant.allowed_domains?.[0]);
   const widgetBlocked = widget?.enabled === false;
   const zoneDomain = getDnsZoneDomain(selectedTenant.allowed_domains);
   const relativeHost = getDnsRelativeHost(verification?.txt_name, selectedTenant.allowed_domains);
 
   const progressSteps = [
-    { label: "Connect domain",  state: selectedTenant.allowed_domains?.[0] ? "done" : "active" },
-    { label: "Verify DNS",      state: verification?.status === "verified" ? "done" : "active" },
+    { label: "Connect domain",  state: hasDomain ? "done" : "active" },
+    { label: "Verify DNS",      state: verification?.status === "verified" ? "done" : hasDomain ? "active" : "pending" },
     { label: "Index knowledge", state: (knowledgeBase.status === "ready" || knowledgeBase.status === "warning") ? "done" : "active" },
     { label: "Install widget",  state: widget?.enabled ? "done" : "pending" },
   ] as const;
@@ -135,6 +136,10 @@ export default function SiteSetupPage() {
   }
   async function handleVerifyDomain() {
     setStatus(""); setError("");
+    if (!verification) {
+      setStatus("Save a website domain first to generate DNS verification records.");
+      return;
+    }
     try { const r = await verifyDomain(tenantId); setStatus(r.message); } catch {}
   }
   async function handleSaveDealServices() {
@@ -224,7 +229,14 @@ export default function SiteSetupPage() {
       {/* Status cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         {[
-          { tone: getDnsStatusTone(verification?.status), label: "DNS status", value: getDnsStatusLabel(verification?.status), note: getDnsReminderMessage(verification) },
+          {
+            tone: getDnsStatusTone(verification?.status),
+            label: "DNS status",
+            value: getDnsStatusLabel(verification?.status),
+            note: hasDomain
+              ? getDnsReminderMessage(verification)
+              : "Connect a website domain to generate DNS verification records."
+          },
           { tone: getKnowledgeStatusTone(knowledgeBase.status), label: "Knowledge base", value: getKnowledgeStatusLabel(knowledgeBase.status), note: knowledgeBase.message || "No indexing activity yet." },
         ].map((card_) => (
           <div key={card_.label} className={`rounded-2xl border p-4 ${card_.tone === "success" ? "border-[#1a5c5c]/20 bg-[#1a5c5c]/[0.04]" : card_.tone === "danger" ? "border-red-200 bg-red-50" : "border-amber-200 bg-amber-50"}`}>
@@ -236,7 +248,15 @@ export default function SiteSetupPage() {
       </div>
 
       {/* Widget status callout */}
-      {widgetBlocked ? (
+      {!hasDomain ? (
+        <div className="flex gap-3 rounded-2xl border border-[#1a5c5c]/20 bg-[#1a5c5c]/[0.04] p-4">
+          <span className="text-[#1a5c5c]">1</span>
+          <div>
+            <strong className="text-sm font-semibold text-[#1a5c5c]">Project created from scratch</strong>
+            <p className="mt-0.5 text-sm text-[#1a5c5c]/70">Add the website domain below, then continue through DNS, content, and widget setup.</p>
+          </div>
+        </div>
+      ) : widgetBlocked ? (
         <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <span className="text-amber-500">⚠</span>
           <div>
@@ -352,8 +372,8 @@ export default function SiteSetupPage() {
             enter only <span className="font-mono">{relativeHost || verification?.txt_name || "the TXT host label"}</span> in the Name field.
           </p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={handleVerifyDomain} disabled={loading} className={primaryBtn}>{loading ? "Checking…" : "Verify DNS"}</button>
-            <button type="button" onClick={() => copy(verification?.txt_value)} className={secondaryBtn}>Copy TXT value</button>
+            <button type="button" onClick={handleVerifyDomain} disabled={loading || !verification} className={primaryBtn}>{loading ? "Checking…" : "Verify DNS"}</button>
+            <button type="button" onClick={() => copy(verification?.txt_value)} disabled={!verification?.txt_value} className={secondaryBtn}>Copy TXT value</button>
           </div>
         </div>
 

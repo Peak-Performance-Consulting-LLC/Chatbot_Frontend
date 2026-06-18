@@ -67,7 +67,8 @@ type PlatformAuthContextValue = {
   signup: (input: SignupInput) => Promise<void>;
   createWorkspace: (input: {
     company_name: string;
-    website_url: string;
+    setup_mode?: "seeded" | "scratch";
+    website_url?: string;
     sitemap_url?: string;
     faq_text?: string;
     doc_urls?: string[];
@@ -345,7 +346,8 @@ export function PlatformAuthProvider({ children }: PropsWithChildren) {
 
   async function createWorkspace(input: {
     company_name: string;
-    website_url: string;
+    setup_mode?: "seeded" | "scratch";
+    website_url?: string;
     sitemap_url?: string;
     faq_text?: string;
     doc_urls?: string[];

@@ -79,7 +79,7 @@ export const appNavSections: PlatformNavSection[] = [
     items: [
       {
         key: "tenants",
-        label: "Tenant Management",
+        label: "Projects",
         path: "/platform/app/tenants",
         icon: createElement(IconTenants),
         allowedRoles: ["owner", "admin"]

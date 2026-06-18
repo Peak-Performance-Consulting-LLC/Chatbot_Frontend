@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getDnsRelativeHost,
   getDnsReminderMessage,
@@ -17,6 +18,7 @@ function formatTimestamp(value?: string | null) {
 
 export default function DnsPage() {
   const { selectedTenant, verifyDomain, loading, error, setError } = usePlatformAuth();
+  const navigate = useNavigate();
   const [status, setStatus] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -32,9 +34,32 @@ export default function DnsPage() {
 
   const tenantId = selectedTenant.tenant_id;
   const verification = selectedTenant.domain_verification;
+  const hasDomain = Boolean(selectedTenant.allowed_domains?.[0]);
   const tone = getDnsStatusTone(verification?.status);
   const zoneDomain = getDnsZoneDomain(selectedTenant.allowed_domains);
   const relativeHost = getDnsRelativeHost(verification?.txt_name, selectedTenant.allowed_domains);
+
+  if (!hasDomain || !verification) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="app-page-header">
+          <div>
+            <p className="app-kicker">Domain Security</p>
+            <h2 className="app-h1">DNS Verification</h2>
+            <p className="app-lead">Connect a website domain before DNS verification records are generated.</p>
+          </div>
+          <button className="app-btn-primary" type="button" onClick={() => navigate("/platform/app/site-setup")}>
+            Open Site Setup
+          </button>
+        </div>
+        <div className="app-empty mx-auto max-w-lg">
+          <div className="empty-icon">TXT</div>
+          <p className="empty-title">No DNS record yet</p>
+          <p className="empty-desc">Save a website domain in Site Setup to generate the TXT host and value.</p>
+        </div>
+      </div>
+    );
+  }
 
   async function handleVerify() {
     setStatus(""); setError("");
