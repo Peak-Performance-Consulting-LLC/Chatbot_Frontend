@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { usePlatformAuth } from "@/platform/state/auth";
 
+const publicBackendUrl = "https://chat.ppconsultings.com";
+
 function CodeBlock({ code }: { code: string }) {
   return (
     <pre className="app-docs-code">
@@ -13,17 +15,20 @@ export default function DocumentationPage() {
   const { selectedTenant } = usePlatformAuth();
   const tenantName = selectedTenant?.name || "your workspace";
   const widget = selectedTenant?.widget;
+  const fallbackTenantId = selectedTenant?.tenant_id || "your-tenant";
   const widgetScript =
     widget?.script_snippet ||
-    `<script src="https://chatbot-backend-theta-two.vercel.app/api/embed?tenant_id=starlux-travel"></script>`;
+    `<script src="${publicBackendUrl}/api/embed?tenant_id=${fallbackTenantId}"></script>`;
   const reactSnippet =
     widget?.react_snippet ||
     `import { ChatWidget } from "@/components/ChatWidget";
 
 export function SupportWidget() {
-  return <ChatWidget tenantId="${selectedTenant?.tenant_id || "your-tenant"}" />;
+  return <ChatWidget tenantId="${fallbackTenantId}" backendUrl="${publicBackendUrl}" />;
 }`;
-  const embedUrl = widget?.embed_url || "https://your-widget-host.example/?embed=1&tenant_id=your-tenant";
+  const embedUrl =
+    widget?.embed_url ||
+    `${publicBackendUrl}/?embed=1&tenant_id=${fallbackTenantId}&backend_url=${encodeURIComponent(publicBackendUrl)}`;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
