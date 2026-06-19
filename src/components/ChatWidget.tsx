@@ -238,9 +238,12 @@ function normalizeLiveSupportAvailability(input: string | null | undefined): Liv
 function getLiveSupportLabel(availability: LiveSupportAvailability) {
   if (availability === "busy") return "Live team busy";
   if (availability === "away") return "Live team away";
-  if (availability === "offline") return "Live team offline";
-  if (availability === "unknown") return "Checking live team";
+  if (availability === "offline" || availability === "unknown") return "AI assistant online";
   return "Live team online";
+}
+
+function getLiveSupportIndicatorAvailability(availability: LiveSupportAvailability) {
+  return availability === "offline" || availability === "unknown" ? "online" : availability;
 }
 
 function messagesAreEquivalent(localMessage: ChatMessage, syncedMessage: ChatMessage) {
@@ -426,22 +429,30 @@ function isAgentEscalationRequest(text: string) {
 }
 
 function shouldAskResolution(message: ChatMessage) {
-  if (message.role !== "assistant" || !message.metadata) return false;
-  if (message.metadata.post_resolution_prompt || message.metadata.resolution_flow) return false;
-  if (message.metadata.contact_capture) return false;
-  if (message.metadata.flight_ui?.phase === "collecting") return false;
-  if (message.metadata.service_ui?.phase === "collecting") return false;
+  const metadata = message.metadata;
+  if (message.role !== "assistant" || !metadata) return false;
+  if (metadata.post_resolution_prompt || metadata.resolution_flow) return false;
+  if (metadata.contact_capture) return false;
+  if (metadata.no_rag_match || metadata.deals_disabled) return false;
+  if (metadata.flight_ui?.phase === "collecting" || metadata.flight_ui?.phase === "error") return false;
+  if (metadata.service_ui?.phase === "collecting") return false;
 
-  const intent = message.metadata.intent;
+  const intent = metadata.intent;
   if (intent === "greeting" || intent === "payment_support") return false;
 
   return Boolean(
-    message.metadata.flight_deals?.length ||
-    message.metadata.hotel_deals?.length ||
-    message.metadata.service_ui?.phase === "submitted" ||
-    message.metadata.service_request?.status === "ready_for_specialist" ||
-    intent === "knowledge"
+    metadata.flight_deals?.length ||
+    metadata.hotel_deals?.length ||
+    metadata.service_ui?.phase === "submitted" ||
+    metadata.service_request?.status === "ready_for_specialist"
   );
+}
+
+function safeMarkdownUrlTransform(url: string) {
+  const trimmed = url.trim();
+  if (/^(https?:|mailto:|tel:)/i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith("/") || trimmed.startsWith("#")) return trimmed;
+  return "";
 }
 
 function getRenderableMessageContent(message: ChatMessage) {
@@ -1140,7 +1151,11 @@ function MessageBubble({ message, callCtaOverride, appearance }: {
         <div className={`message-bubble ${isUser ? "user" : "assistant"}`}>
           {hasFlightDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
           {hasHotelDeals ? <p className="deal-summary-text">{renderableContent}</p> : null}
-          {shouldRenderMarkdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{renderableContent}</ReactMarkdown> : null}
+          {shouldRenderMarkdown ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={safeMarkdownUrlTransform}>
+              {renderableContent}
+            </ReactMarkdown>
+          ) : null}
           {message.metadata ? <FlightDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
           {message.metadata ? <HotelDeals metadata={message.metadata} callCtaOverride={callCtaOverride} /> : null}
           {message.metadata ? <ServiceRequestSummary metadata={message.metadata} /> : null}
@@ -1290,6 +1305,7 @@ export function ChatWidget({
     () => normalizeLiveSupportAvailability(runtimeWidgetConfig?.live_support?.availability),
     [runtimeWidgetConfig?.live_support?.availability]
   );
+  const liveSupportIndicatorAvailability = getLiveSupportIndicatorAvailability(liveSupportAvailability);
   const tenantCallCtaOverride = useMemo(
     () =>
       buildCallCtaOverride(
@@ -2911,7 +2927,7 @@ export function ChatWidget({
                   {headerCtaConfig.label ? <span className="chat-header-badge">{headerCtaConfig.label}</span> : null}
                 </strong>
                 <p>
-                  <span className={`chat-presence-dot ${liveSupportAvailability}`} />
+                  <span className={`chat-presence-dot ${liveSupportIndicatorAvailability}`} />
                   {getLiveSupportLabel(liveSupportAvailability)}
                 </p>
               </div>

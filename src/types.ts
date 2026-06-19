@@ -142,6 +142,7 @@ export type MessageMetadata = {
   agent_id?: string;
   source_urls?: string[];
   no_rag_match?: boolean;
+  deals_disabled?: boolean;
   post_resolution_prompt?: boolean;
   resolution_flow?: "ask" | "assistance_check" | "confirm_close" | "continue" | "unresolved" | "handoff" | "feedback" | "closed";
 };
