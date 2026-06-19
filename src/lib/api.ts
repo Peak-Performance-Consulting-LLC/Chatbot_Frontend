@@ -12,6 +12,8 @@ type StreamPayload = {
   chat_id?: string;
   client_message_id?: string;
   message: string;
+  support_phone?: string;
+  support_cta_label?: string;
   page_context?: {
     url?: string;
     title?: string;

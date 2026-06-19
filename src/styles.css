@@ -2341,6 +2341,29 @@ body.chat-widget-embedded .chat-shell.embedded.public-embed-shell.chat-shell-lef
   animation: notif-slide 240ms var(--ease-smooth);
 }
 
+body.chat-widget-embedded .chat-peek-stack {
+  left: auto;
+  right: 8px;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 16px));
+  align-items: flex-end;
+}
+
+body.chat-widget-embedded .chat-peek-stack-left {
+  left: 8px;
+  right: auto;
+  align-items: flex-start;
+}
+
+body.chat-widget-embedded .chat-peek-actions {
+  max-width: min(360px, calc(100vw - 16px));
+}
+
+body.chat-widget-embedded .chat-peek-stack.launcher-only {
+  width: max-content;
+  max-width: min(84px, calc(100vw - 16px));
+}
+
 .theme-glass .chat-shell,
 .theme-glass.chat-shell {
   backdrop-filter: blur(22px);

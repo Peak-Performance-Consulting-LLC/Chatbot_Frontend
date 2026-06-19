@@ -1280,6 +1280,7 @@ export function ChatWidget({
   const [csatError, setCsatError] = useState<string | null>(null);
 
   const shellRef = useRef<HTMLElement | null>(null);
+  const peekStackRef = useRef<HTMLDivElement | null>(null);
   const threadSidebarRef = useRef<HTMLElement | null>(null);
   const threadToggleRef = useRef<HTMLButtonElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
@@ -1803,15 +1804,63 @@ export function ChatWidget({
 
   useEffect(() => {
     if (!isPublicEmbed || window.parent === window) return;
-    const payload = { type: "aeroconcierge:widget-state", open: isOpen, mode: publicEmbedMode };
-    window.parent.postMessage(payload, "*");
-    const retryOne = window.setTimeout(() => window.parent.postMessage(payload, "*"), 180);
-    const retryTwo = window.setTimeout(() => window.parent.postMessage(payload, "*"), 720);
+
+    let frameId = 0;
+    const buildPayload = () => {
+      const rect = !isOpen ? peekStackRef.current?.getBoundingClientRect() : null;
+      const size = rect
+        ? {
+            width: Math.ceil(rect.width + 16),
+            height: Math.ceil(rect.height + 10)
+          }
+        : undefined;
+
+      return {
+        type: "aeroconcierge:widget-state",
+        open: isOpen,
+        mode: publicEmbedMode,
+        size
+      };
+    };
+
+    const postState = () => {
+      window.parent.postMessage(buildPayload(), "*");
+    };
+    const schedulePost = () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        frameId = 0;
+        postState();
+      });
+    };
+
+    schedulePost();
+    const retryOne = window.setTimeout(schedulePost, 180);
+    const retryTwo = window.setTimeout(schedulePost, 720);
+    const observer =
+      !isOpen && peekStackRef.current && "ResizeObserver" in window
+        ? new ResizeObserver(schedulePost)
+        : null;
+    if (observer && peekStackRef.current) {
+      observer.observe(peekStackRef.current);
+    }
+    void document.fonts?.ready.then(schedulePost).catch(() => undefined);
+
     return () => {
+      if (frameId) window.cancelAnimationFrame(frameId);
       window.clearTimeout(retryOne);
       window.clearTimeout(retryTwo);
+      observer?.disconnect();
     };
-  }, [isPublicEmbed, isOpen, publicEmbedMode]);
+  }, [
+    appearance.notifText,
+    appearance.notifAnimation,
+    isPublicEmbed,
+    isOpen,
+    publicEmbedMode,
+    teaserReplies,
+    headerCtaConfig.label
+  ]);
 
   useEffect(() => {
     if (!activeChatId) {
@@ -2743,6 +2792,8 @@ export function ChatWidget({
             chat_id: existingChatId ?? undefined,
             client_message_id: clientMessageId,
             message: text,
+            support_phone: callCta?.number,
+            support_cta_label: callCta?.label,
             page_context: { url: window.location.href, title: document.title }
           })
         });
@@ -2779,6 +2830,8 @@ export function ChatWidget({
           chat_id: existingChatId ?? undefined,
           client_message_id: clientMessageId,
           message: text,
+          support_phone: callCta?.number,
+          support_cta_label: callCta?.label,
           page_context: { url: window.location.href, title: document.title }
         },
         onToken(token) {
@@ -2862,6 +2915,7 @@ export function ChatWidget({
 
       {isPublicEmbed && !isOpen ? (
         <div
+          ref={peekStackRef}
           className={`chat-peek-stack chat-peek-stack-${appearance.widgetPosition}${shouldShowNotificationCard ? "" : " launcher-only"}`}
           aria-label={`${appearance.botName} launcher`}
           style={shellStyle}
